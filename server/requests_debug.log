@@ -2206,3 +2206,6 @@
 2026-02-06T13:33:22.234Z [REQ] GET /api/companies/31/documents
 2026-02-06T13:33:25.035Z [REQ] GET /api/clients/12
 2026-02-06T13:33:28.067Z [REQ] GET /api/companies/29/documents
+2026-02-06T14:14:44.623Z [REQ] GET /favicon.ico
+2026-02-06T14:21:57.269Z [REQ] GET /api/dashboard/summary
+2026-02-06T14:21:57.354Z [REQ] GET /api/auth/me
