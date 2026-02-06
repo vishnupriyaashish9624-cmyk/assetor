@@ -12,7 +12,7 @@ exports.getModuleSections = async (req, res) => {
 
     try {
         const [sections] = await db.execute(
-            'SELECT * FROM module_sections WHERE module_id = ? AND company_id = ? ORDER BY sort_order ASC',
+            'SELECT * FROM module_sections WHERE module_id = ? AND (company_id = ? OR company_id = 1) ORDER BY sort_order ASC',
             [moduleId, req.user?.company_id]
         );
         res.json({ success: true, data: sections });

@@ -17,6 +17,12 @@ exports.getPremises = async (req, res) => {
     const { type, search, page, limit } = req.query;
     const companyId = req.companyId || (req.user && req.user.company_id);
 
+    console.log('[getPremises] Request received:', { type, search, page, limit });
+    console.log('[getPremises] Context:', {
+        user: req.user ? { id: req.user.id, role: req.user.role, company_id: req.user.company_id } : 'null',
+        resolvedCompanyId: companyId
+    });
+
     // Pagination Logic
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 10;
@@ -121,10 +127,15 @@ exports.getPremises = async (req, res) => {
             query += ` LIMIT 1000`; // Safety limit
         }
 
+        console.log('[getPremises] Executing Query:', query.replace(/\s+/g, ' ').trim());
+        console.log('[getPremises] Parameters:', params);
+
         // Execute queries
         const [countRows] = await db.execute(countQuery, countParams);
         const totalItems = countRows[0]?.total || 0;
         const [rows] = await db.execute(query, params);
+
+        console.log(`[getPremises] Found ${rows.length} rows. Total items: ${totalItems}`);
 
         res.json({
             success: true,

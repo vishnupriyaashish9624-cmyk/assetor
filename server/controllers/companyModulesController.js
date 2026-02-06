@@ -97,7 +97,7 @@ exports.addCompanyModule = async (req, res) => {
 
         // 2. Prevent exact duplicate configurations
         const [existing] = await connection.execute(
-            'SELECT id FROM company_modules WHERE company_id=? AND module_id=? AND country_id <=> ? AND property_type_id <=> ? AND premises_type_id <=> ? AND area_id <=> ? LIMIT 1',
+            'SELECT id FROM company_modules WHERE company_id=? AND module_id=? AND country_id IS NOT DISTINCT FROM ? AND property_type_id IS NOT DISTINCT FROM ? AND premises_type_id IS NOT DISTINCT FROM ? AND area_id IS NOT DISTINCT FROM ? LIMIT 1',
             [companyId, module_id, country_id || null, property_type_id || null, premises_type_id || null, area_id || null]
         );
         if (existing.length > 0) {
