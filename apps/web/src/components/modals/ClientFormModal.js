@@ -99,9 +99,9 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
     const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
 
-    const renderInput = (label, key, placeholder, keyboard = 'default', multiline = false, isPassword = false) => (
+    const renderInput = (label, key, placeholder, keyboard = 'default', multiline = false, isPassword = false, autoComplete = 'off') => (
         <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>{label}</Text>
+            {label && <Text style={styles.inputLabel}>{label}</Text>}
             <TextInput
                 style={[styles.input, multiline && styles.textArea]}
                 value={formData[key]?.toString()}
@@ -111,6 +111,7 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                 multiline={multiline}
                 placeholderTextColor="#94a3b8"
                 secureTextEntry={isPassword}
+                autoComplete={autoComplete}
             />
         </View>
     );
@@ -236,7 +237,7 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                     <View style={styles.stepContent}>
                         <Text style={styles.infoBoxText}>This user will be the primary administrator for this client.</Text>
                         {renderInput('Admin Name*', 'admin_name', 'Full Name')}
-                        {renderInput('Admin Email*', 'admin_email', 'admin@client.com', 'email-address')}
+                        {renderInput('Admin Email*', 'admin_email', 'admin@client.com', 'email-address', false, false, 'off')}
 
                         {/* Password Section */}
                         <View style={{ marginTop: 8 }}>
@@ -263,16 +264,17 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                                             <Text style={styles.autoGenBannerText}>A temporary password will be created automatically.</Text>
                                         </View>
                                     ) : (
-                                        renderInput('Set Admin Password*', 'admin_password', 'Enter at least 8 characters', 'default', false, true)
+                                        renderInput('Set Admin Password*', 'admin_password', 'Enter at least 8 characters', 'default', false, true, 'new-password')
                                     )}
                                 </>
                             ) : (
                                 // EXISTING CLIENT: Always show reset field
                                 <>
                                     <Text style={styles.inputLabel}>Reset Admin Password</Text>
-                                    {renderInput(null, 'admin_password', 'Enter new password to reset', 'default', false, true)}
+                                    {renderInput(null, 'admin_password', 'Enter new password to reset', 'default', false, true, 'new-password')}
                                 </>
                             )}
+
                         </View>
                         {client && (
                             <View style={styles.section}>
