@@ -49,6 +49,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
         max_employees: 10,
         max_assets: 20,
         can_add_employee: true,
+        enabled_modules: ['dashboard', 'assets'],
         // 6. Admin
         admin_name: '',
         admin_email: '',
@@ -58,6 +59,8 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
     });
 
     useEffect(() => {
+        setLoading(false);
+        setError(null);
         if (company) {
             setFormData({
                 ...formData,
@@ -65,6 +68,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                 can_add_employee: company.can_add_employee !== undefined ? company.can_add_employee : true,
                 max_employees: company.max_employees || 10,
                 max_assets: company.max_assets || 20,
+                enabled_modules: Array.isArray(company.enabled_modules) ? company.enabled_modules : JSON.parse(company.enabled_modules || '["dashboard", "assets"]'),
                 status: company.status || 'ACTIVE'
             });
             fetchExistingDocs();
@@ -96,6 +100,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                 max_employees: 10,
                 max_assets: 20,
                 can_add_employee: true,
+                enabled_modules: ['dashboard', 'assets'],
                 admin_name: '',
                 admin_email: '',
                 admin_password: '',
@@ -201,11 +206,13 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
 
             // Auto-generate subdomain if empty
             if (!company && !formData.subdomain) {
-                finalData.subdomain = formData.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Math.floor(Math.random() * 1000);
+                finalData.subdomain = formData.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Date.now().toString(36);
             }
 
+            console.log('[handleSave] Calling onSave...');
             // Save Company first (get ID)
             const savedCompany = await onSave(finalData);
+            console.log('[handleSave] onSave returned:', savedCompany);
             const targetId = company?.id || savedCompany?.id;
 
             // Upload Documents if any
@@ -224,9 +231,11 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                 }
             }
 
+            console.log('[handleSave] Closing modal');
             onClose();
         } catch (err) {
-            setError(err.response?.data?.detail || err.message);
+            console.error('[handleSave] ERROR:', err);
+            setError(err.response?.data?.detail || err.response?.data?.message || err.message);
         } finally {
             setLoading(false);
         }
@@ -237,7 +246,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
             <Text style={styles.inputLabel}>{label}</Text>
             <TextInput
                 style={[styles.input, multiline && styles.textArea]}
-                value={formData[key]?.toString()}
+                value={formData[key]?.toString() || ''}
                 onChangeText={(text) => setFormData({ ...formData, [key]: text })}
                 placeholder={placeholder}
                 keyboardType={keyboard}
@@ -256,7 +265,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                 <View style={[styles.unifiedInput, attachedFile && styles.unifiedInputSuccess]}>
                     <TextInput
                         style={styles.flexInput}
-                        value={formData[key]?.toString()}
+                        value={formData[key]?.toString() || ''}
                         onChangeText={(text) => setFormData({ ...formData, [key]: text })}
                         placeholder={placeholder}
                         placeholderTextColor="#94a3b8"
@@ -434,6 +443,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                             <View style={{ flex: 1 }}>{renderInput('Max Employees*', 'max_employees', '10', 'numeric')}</View>
                             <View style={{ flex: 1, marginLeft: 12 }}>{renderInput('Max Assets*', 'max_assets', '20', 'numeric')}</View>
                         </View>
+
                         <Text style={[styles.inputLabel, { marginTop: 12 }]}>Privileges</Text>
                         <TouchableOpacity
                             style={styles.checkboxRow}
@@ -446,6 +456,35 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                             />
                             <Text style={styles.checkboxLabel}>Can Add Employees</Text>
                         </TouchableOpacity>
+
+                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>Enabled Modules*</Text>
+                        <View style={styles.moduleGrid}>
+                            {[
+                                { key: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
+                                { key: 'assets', label: 'Assets', icon: 'cube' },
+                                { key: 'vehicles', label: 'Vehicles', icon: 'car' },
+                                { key: 'premises', label: 'Premises', icon: 'office-building' },
+                                { key: 'premises_display', label: 'Premises Display', icon: 'monitor-dashboard' },
+                                { key: 'employees', label: 'Staff Members', icon: 'account-group' },
+                                { key: 'maintenance', label: 'Maintenance', icon: 'wrench' },
+                                { key: 'reports', label: 'Reports', icon: 'file-chart' },
+                            ].map(mod => (
+                                <TouchableOpacity
+                                    key={mod.key}
+                                    style={[styles.moduleChip, formData.enabled_modules.includes(mod.key) && styles.moduleChipActive]}
+                                    onPress={() => {
+                                        const current = [...formData.enabled_modules];
+                                        const idx = current.indexOf(mod.key);
+                                        if (idx > -1) current.splice(idx, 1);
+                                        else current.push(mod.key);
+                                        setFormData({ ...formData, enabled_modules: current });
+                                    }}
+                                >
+                                    <MaterialCommunityIcons name={mod.icon} size={16} color={formData.enabled_modules.includes(mod.key) ? 'white' : '#64748b'} />
+                                    <Text style={[styles.moduleChipText, formData.enabled_modules.includes(mod.key) && styles.moduleChipTextActive]}>{mod.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
 
                         {company && (
                             <View style={{ marginTop: 12 }}>
@@ -647,6 +686,21 @@ const styles = StyleSheet.create({
     statusActive: { borderColor: '#22c55e', backgroundColor: '#f0fdf4' },
     statusInactive: { borderColor: '#ef4444', backgroundColor: '#fef2f2' },
     statusButtonTextActive: { color: '#1e293b' },
+    moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    moduleChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        backgroundColor: 'white',
+        gap: 6,
+    },
+    moduleChipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+    moduleChipText: { fontSize: 12, color: '#64748b' },
+    moduleChipTextActive: { color: 'white', fontWeight: '600' },
     infoBoxText: { fontSize: 13, color: '#64748b', backgroundColor: '#f0f9ff', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#bae6fd' },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
     checkboxLabel: { fontSize: 14, color: '#475569', fontWeight: '500' },

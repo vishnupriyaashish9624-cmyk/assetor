@@ -1,16 +1,11 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
-// Recharts only works on Web. 
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 const data = [
-    { name: 'Mon', available: 200, assigned: 150, maintenance: 20 },
-    { name: 'Tue', available: 180, assigned: 160, maintenance: 30 },
-    { name: 'Wed', available: 190, assigned: 155, maintenance: 25 },
-    { name: 'Thu', available: 170, assigned: 180, maintenance: 20 },
-    { name: 'Fri', available: 150, assigned: 200, maintenance: 20 },
-    { name: 'Sat', available: 160, assigned: 190, maintenance: 20 },
-    { name: 'Sun', available: 180, assigned: 170, maintenance: 20 },
+    { name: 'Assigned', value: 3100, color: '#10b981' },
+    { name: 'Available', value: 850, color: '#8b5cf6' },
+    { name: 'Maintenance', value: 300, color: '#f59e0b' },
 ];
 
 const AssetStatusOverviewChart = () => {
@@ -18,76 +13,52 @@ const AssetStatusOverviewChart = () => {
         <View style={styles.card}>
             <View style={styles.header}>
                 <Text style={styles.title}>Asset Status Overview</Text>
-                <View style={styles.legend}>
-                    <View style={styles.legendItem}>
-                        <View style={[styles.dot, { backgroundColor: '#3b82f6' }]} />
-                        <Text style={styles.legendText}>Assigned</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <View style={[styles.dot, { backgroundColor: '#10b981' }]} />
-                        <Text style={styles.legendText}>Available</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <View style={[styles.dot, { backgroundColor: '#f59e0b' }]} />
-                        <Text style={styles.legendText}>Maintenance</Text>
+            </View>
+
+            <View style={styles.content}>
+                {/* Donut Chart */}
+                <View style={styles.chartContainer}>
+                    <ResponsiveContainer width={200} height={200}>
+                        <PieChart>
+                            <Pie
+                                data={data}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                                stroke="none"
+                            >
+                                {data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                            </Pie>
+                            <Tooltip
+                                contentStyle={{ backgroundColor: 'white', borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                itemStyle={{ color: '#1e293b' }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    {/* Centered Total */}
+                    <View style={styles.centerText}>
+                        <Text style={styles.totalValue}>4,250</Text>
+                        <Text style={styles.totalLabel}>Total Assets</Text>
                     </View>
                 </View>
-            </View>
-            <View style={styles.chartContainer}>
-                <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart
-                        data={data}
-                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                    >
-                        <defs>
-                            <linearGradient id="colorAssigned" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="colorAvailable" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="colorMaintenance" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                        <Tooltip
-                            contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
-                        />
-                        <Area
-                            type="monotone"
-                            dataKey="assigned"
-                            stackId="1"
-                            stroke="#3b82f6"
-                            strokeWidth={2}
-                            fillOpacity={1}
-                            fill="url(#colorAssigned)"
-                        />
-                        <Area
-                            type="monotone"
-                            dataKey="available"
-                            stackId="1"
-                            stroke="#10b981"
-                            strokeWidth={2}
-                            fillOpacity={1}
-                            fill="url(#colorAvailable)"
-                        />
-                        <Area
-                            type="monotone"
-                            dataKey="maintenance"
-                            stackId="1"
-                            stroke="#f59e0b"
-                            strokeWidth={2}
-                            fillOpacity={1}
-                            fill="url(#colorMaintenance)"
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
+
+                {/* Custom Legend */}
+                <View style={styles.legendContainer}>
+                    {data.map((item, index) => (
+                        <View key={index} style={styles.legendItem}>
+                            <View style={[styles.dot, { backgroundColor: item.color }]} />
+                            <View>
+                                <Text style={styles.legendValue}>{item.value}</Text>
+                                <Text style={styles.legendLabel}>{item.name}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
             </View>
         </View>
     );
@@ -105,35 +76,69 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.02)',
+        minHeight: 300,
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         marginBottom: 24,
     },
     title: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
         color: '#1e293b',
     },
-    chartContainer: {
-        width: '100%',
-        minHeight: 300,
-        ...(Platform.OS === 'web' ? { display: 'block' } : {}),
-    },
-    legend: {
+    content: {
         flexDirection: 'row',
-        gap: 16,
         alignItems: 'center',
+        justifyContent: 'space-around',
+        flexWrap: 'wrap',
+    },
+    chartContainer: {
+        width: 200,
+        height: 200,
+        position: 'relative',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    centerText: {
+        position: 'absolute',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    totalValue: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#1e293b',
+    },
+    totalLabel: {
+        fontSize: 12,
+        color: '#64748b',
+        marginTop: 2,
+    },
+    legendContainer: {
+        flexDirection: 'column',
+        gap: 20,
+        marginLeft: 20,
+        justifyContent: 'center',
     },
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6
+        gap: 12,
     },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { fontSize: 12, color: '#64748b' },
+    dot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+    },
+    legendValue: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    legendLabel: {
+        fontSize: 13,
+        color: '#64748b',
+    },
 });
 
 export default AssetStatusOverviewChart;

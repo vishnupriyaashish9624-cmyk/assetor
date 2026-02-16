@@ -20,8 +20,8 @@ const UsageTrendAreaChart = () => {
             <View style={styles.header}>
                 <Text style={styles.title}>Asset Usage Trend</Text>
                 <View style={styles.legend}>
-                    <View style={styles.dotBlue} /><Text style={styles.legendText}>Assigned</Text>
-                    <View style={styles.dotOrange} /><Text style={styles.legendText}>Available</Text>
+                    <View style={styles.dotGreen} /><Text style={styles.legendText}>Assigned</Text>
+                    <View style={styles.dotPurple} /><Text style={styles.legendText}>Available</Text>
                 </View>
             </View>
             <View style={styles.chartContainer}>
@@ -32,12 +32,12 @@ const UsageTrendAreaChart = () => {
                     >
                         <defs>
                             <linearGradient id="colorAssigned" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="colorAvailable" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#f97316" stopOpacity={0.4} />
-                                <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -49,7 +49,7 @@ const UsageTrendAreaChart = () => {
                         <Area
                             type="monotone"
                             dataKey="assigned"
-                            stroke="#3b82f6"
+                            stroke="#10b981"
                             strokeWidth={3}
                             fillOpacity={1}
                             fill="url(#colorAssigned)"
@@ -57,7 +57,7 @@ const UsageTrendAreaChart = () => {
                         <Area
                             type="monotone"
                             dataKey="available"
-                            stroke="#f97316"
+                            stroke="#8b5cf6"
                             strokeWidth={3}
                             fillOpacity={1}
                             fill="url(#colorAvailable)"
@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
         gap: 12,
         alignItems: 'center',
     },
-    dotBlue: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#3b82f6', marginRight: 4 },
-    dotOrange: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#f97316', marginRight: 4 },
+    dotGreen: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981', marginRight: 4 },
+    dotPurple: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#8b5cf6', marginRight: 4 },
     legendText: { fontSize: 12, color: '#64748b' },
 });
 

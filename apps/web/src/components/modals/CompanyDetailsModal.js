@@ -6,7 +6,7 @@ const CompanyDetailsModal = ({ visible, onClose, company }) => {
     if (!company) return null;
 
     return (
-        <BaseModal visible={visible} onClose={onClose} title="Company Details" width={800}>
+        <BaseModal visible={visible} onClose={onClose} title="Company Details" width={650}>
             <CompanyInfoView company={company} />
         </BaseModal>
     );

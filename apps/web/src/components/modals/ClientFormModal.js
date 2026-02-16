@@ -99,7 +99,7 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
     const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
 
-    const renderInput = (label, key, placeholder, keyboard = 'default', multiline = false, isPassword = false, autoComplete = 'off') => (
+    const renderInput = (label, key, placeholder, helperText = null, keyboard = 'default', multiline = false, isPassword = false, autoComplete = 'off') => (
         <View style={styles.inputContainer}>
             {label && <Text style={styles.inputLabel}>{label}</Text>}
             <TextInput
@@ -107,12 +107,20 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                 value={formData[key]?.toString()}
                 onChangeText={(text) => setFormData({ ...formData, [key]: text })}
                 placeholder={placeholder}
+                placeholderTextColor="#94a3b8"
                 keyboardType={keyboard}
                 multiline={multiline}
-                placeholderTextColor="#94a3b8"
                 secureTextEntry={isPassword}
                 autoComplete={autoComplete}
             />
+            {helperText && <Text style={styles.helperText}>{helperText}</Text>}
+        </View>
+    );
+
+    const renderSectionHeader = (title, subtitle) => (
+        <View style={styles.sectionHeaderContainer}>
+            <Text style={styles.sectionHeaderTitle}>{title}</Text>
+            {subtitle && <Text style={styles.sectionHeaderSubtitle}>{subtitle}</Text>}
         </View>
     );
 
@@ -120,16 +128,19 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
         switch (currentStep) {
             case 1: // Identity
                 return (
+
                     <View style={styles.stepContent}>
-                        {renderInput('Company Name*', 'name', 'e.g. Acme Corp Global')}
+                        {renderSectionHeader('Company Identity', 'Legal and business identification details')}
+                        {renderInput('COMPANY NAME*', 'name', 'e.g. Acme Corp Global')}
                         <View style={styles.row}>
-                            <View style={{ flex: 1 }}>{renderInput('Short Name', 'company_code', 'ACME')}</View>
-                            <View style={{ flex: 1, marginLeft: 12 }}>{renderInput('Industry', 'industry', 'Technology')}</View>
+                            <View style={{ flex: 1 }}>{renderInput('SHORT NAME', 'company_code', 'ACME', 'As per trade license')}</View>
+                            <View style={{ flex: 1, marginLeft: 12 }}>{renderInput('INDUSTRY', 'industry', 'Technology')}</View>
                         </View>
-                        {renderInput('Trade License / Reg No.', 'trade_license', 'TL-12345')}
-                        {renderInput('Tax / VAT No.', 'tax_no', 'VAT-98765')}
+                        {renderInput('TRADE LICENSE / REG NO.', 'trade_license', 'TL-12345', 'Used for invoicing & compliance')}
+                        {renderInput('TAX / VAT NO.', 'tax_no', 'VAT-98765')}
                     </View>
                 );
+
             case 2: // Tenancy
                 return (
                     <View style={styles.stepContent}>
@@ -144,7 +155,7 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                                     <MaterialCommunityIcons
                                         name={type === 'OWNED' ? 'home' : 'office-building'}
                                         size={20}
-                                        color={formData.tenancy_type === type ? '#3b82f6' : '#64748b'}
+                                        color={formData.tenancy_type === type ? '#6c7ae0' : '#64748b'}
                                     />
                                     <Text style={[styles.typeButtonText, formData.tenancy_type === type && styles.typeButtonTextActive]}>{type}</Text>
                                 </TouchableOpacity>
@@ -195,6 +206,7 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                     { key: 'companies', label: 'Company', icon: 'domain' },
                     { key: 'assets', label: 'Assets', icon: 'cube' },
                     { key: 'premises', label: 'Premises', icon: 'office-building' },
+                    { key: 'vehicles', label: 'Vehicles', icon: 'car' },
                     { key: 'premises_display', label: 'Premises Display', icon: 'monitor-dashboard' },
                     { key: 'employees', label: 'Staff Members', icon: 'account-group' },
                     { key: 'module', label: 'Module', icon: 'view-grid-plus' },
@@ -237,7 +249,7 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                     <View style={styles.stepContent}>
                         <Text style={styles.infoBoxText}>This user will be the primary administrator for this client.</Text>
                         {renderInput('Admin Name*', 'admin_name', 'Full Name')}
-                        {renderInput('Admin Email*', 'admin_email', 'admin@client.com', 'email-address', false, false, 'off')}
+                        {renderInput('Admin Email*', 'admin_email', 'admin@client.com', null, 'email-address', false, false, 'off')}
 
                         {/* Password Section */}
                         <View style={{ marginTop: 8 }}>
@@ -253,9 +265,9 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
                                             <MaterialCommunityIcons
                                                 name={formData.auto_generate_password ? 'checkbox-marked' : 'checkbox-blank-outline'}
                                                 size={20}
-                                                color={formData.auto_generate_password ? '#3b82f6' : '#94a3b8'}
+                                                color={formData.auto_generate_password ? '#6c7ae0' : '#94a3b8'}
                                             />
-                                            <Text style={[styles.autoGenText, formData.auto_generate_password && { color: '#3b82f6' }]}>Auto-generate</Text>
+                                            <Text style={[styles.autoGenText, formData.auto_generate_password && { color: '#6c7ae0' }]}>Auto-generate</Text>
                                         </TouchableOpacity>
                                     </View>
                                     {formData.auto_generate_password ? (
@@ -303,26 +315,38 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
         <BaseModal
             visible={visible}
             onClose={onClose}
-            title={client ? 'Edit Client' : 'Add New Client (Tenant/Company)'}
-            width={650}
+            title={client ? 'Edit Client' : 'Add New Client'}
+            width={700}
         >
             <View style={styles.mainContainer}>
-                {/* Progress Bar */}
+                <Text style={styles.modalSubtitle}>Tenant / Company onboarding</Text>
+
+                {/* Modern Pill Stepper */}
                 <View style={styles.progressContainer}>
-                    {steps.map((step, idx) => (
-                        <React.Fragment key={step.id}>
-                            <TouchableOpacity
-                                style={[styles.progressStep, currentStep >= step.id && styles.progressStepActive]}
-                                onPress={() => setCurrentStep(step.id)}
-                            >
-                                <View style={[styles.stepIcon, currentStep === step.id && styles.stepIconCurrent]}>
-                                    <MaterialCommunityIcons name={step.icon} size={18} color={currentStep >= step.id ? '#3b82f6' : '#94a3b8'} />
-                                </View>
-                                <Text style={[styles.stepTitle, currentStep >= step.id && styles.stepTitleActive]}>{step.title}</Text>
-                            </TouchableOpacity>
-                            {idx < steps.length - 1 && <View style={[styles.progressLine, currentStep > step.id && styles.progressLineActive]} />}
-                        </React.Fragment>
-                    ))}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stepperScroll}>
+                        {steps.map((step, idx) => {
+                            const isActive = currentStep === step.id;
+                            const isCompleted = currentStep > step.id;
+                            return (
+                                <React.Fragment key={step.id}>
+                                    <TouchableOpacity
+                                        style={[styles.pillStep, isActive && styles.pillStepActive]}
+                                        onPress={() => setCurrentStep(step.id)}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={step.icon}
+                                            size={16}
+                                            color={isActive ? 'white' : '#64748b'}
+                                            style={{ marginRight: isActive ? 6 : 0 }}
+                                        />
+                                        {isActive && <Text style={styles.pillStepText}>{step.title}</Text>}
+                                        {!isActive && <Text style={styles.pillStepTextInactive}>{step.title}</Text>}
+                                    </TouchableOpacity>
+                                    {idx < steps.length - 1 && <View style={styles.stepperLine} />}
+                                </React.Fragment>
+                            );
+                        })}
+                    </ScrollView>
                 </View>
 
                 {/* Content */}
@@ -332,33 +356,40 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
 
                 {/* Footer Actions */}
                 <View style={styles.footer}>
-                    <TouchableOpacity
-                        style={[styles.footerButton, styles.backButton, currentStep === 1 && { opacity: 0 }]}
-                        onPress={prevStep}
-                        disabled={currentStep === 1}
-                    >
-                        <Text style={styles.backButtonText}>Back</Text>
-                    </TouchableOpacity>
+                    {/* Left: Step Indicator */}
+                    <Text style={styles.stepIndicatorText}>
+                        Step {currentStep} of {steps.length} • <Text style={{ fontWeight: 'bold' }}>{steps[currentStep - 1].title}</Text>
+                    </Text>
 
-                    {currentStep < steps.length ? (
-                        <TouchableOpacity style={[styles.footerButton, styles.nextButton]} onPress={nextStep}>
-                            <Text style={styles.nextButtonText}>Next Section</Text>
-                            <MaterialCommunityIcons name="chevron-right" size={20} color="white" />
-                        </TouchableOpacity>
-                    ) : (
+                    {/* Right: Buttons */}
+                    <View style={styles.footerButtonRow}>
                         <TouchableOpacity
-                            style={[styles.footerButton, styles.saveButton]}
-                            onPress={handleSave}
-                            disabled={loading}
+                            style={[styles.footerButton, styles.cancelButton]}
+                            onPress={onClose}
                         >
-                            {loading ? <ActivityIndicator color="white" /> : (
-                                <>
-                                    <Text style={styles.saveButtonText}>{client ? 'Update Client' : 'Finish & Create'}</Text>
-                                    <MaterialCommunityIcons name="check-all" size={20} color="white" style={{ marginLeft: 8 }} />
-                                </>
-                            )}
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
-                    )}
+
+                        {currentStep < steps.length ? (
+                            <TouchableOpacity style={[styles.footerButton, styles.nextButton]} onPress={nextStep}>
+                                <Text style={styles.nextButtonText}>Next</Text>
+                                <MaterialCommunityIcons name="arrow-right" size={16} color="white" />
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                style={[styles.footerButton, styles.saveButton]}
+                                onPress={handleSave}
+                                disabled={loading}
+                            >
+                                {loading ? <ActivityIndicator color="white" /> : (
+                                    <>
+                                        <Text style={styles.saveButtonText}>{client ? 'Update' : 'Finish'}</Text>
+                                        <MaterialCommunityIcons name="check" size={16} color="white" style={{ marginLeft: 6 }} />
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
             </View>
         </BaseModal>
@@ -368,37 +399,51 @@ const ClientFormModal = ({ visible, onClose, onSave, client = null }) => {
 const styles = StyleSheet.create({
     mainContainer: { height: 600 },
     progressContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 20,
+        paddingVertical: 12,
         backgroundColor: '#f8fafc',
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
     },
-    progressStep: { alignItems: 'center', zIndex: 2 },
-    stepIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'white',
-        borderWidth: 2,
-        borderColor: '#e2e8f0',
-        justifyContent: 'center',
+    stepperScroll: {
         alignItems: 'center',
-        marginBottom: 4,
+        paddingHorizontal: 24,
     },
-    stepIconCurrent: { borderColor: '#3b82f6', backgroundColor: '#eff6ff' },
-    stepTitle: { fontSize: 10, color: '#94a3b8', fontWeight: '600' },
-    stepTitleActive: { color: '#3b82f6' },
-    progressLine: {
-        flex: 1,
-        height: 2,
-        backgroundColor: '#e2e8f0',
-        marginHorizontal: -10,
-        marginTop: -16,
+    pillStep: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 20,
+        backgroundColor: 'transparent',
     },
-    progressLineActive: { backgroundColor: '#3b82f6' },
+    pillStepActive: {
+        backgroundColor: '#6c7ae0',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    pillStepText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: 'white',
+    },
+    pillStepTextInactive: {
+        fontSize: 13,
+        color: '#64748b',
+        marginLeft: 6,
+    },
+    stepperLine: {
+        width: 15,
+        height: 1,
+        backgroundColor: '#cbd5e1',
+        marginHorizontal: 4,
+    },
+    modalSubtitle: {
+        fontSize: 13,
+        color: '#64748b',
+        marginLeft: 24,
+        marginTop: -15, // Pull up closer to title
+        marginBottom: 15,
+    },
     scrollContent: { flex: 1, padding: 24 },
     stepContent: { animationDuration: '0.3s' },
     sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b', marginBottom: 16 },
@@ -429,9 +474,9 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         gap: 8,
     },
-    typeButtonActive: { borderColor: '#3b82f6', backgroundColor: '#eff6ff' },
+    typeButtonActive: { borderColor: '#6c7ae0', backgroundColor: '#eff6ff' },
     typeButtonText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-    typeButtonTextActive: { color: '#3b82f6' },
+    typeButtonTextActive: { color: '#6c7ae0' },
     moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     moduleChip: {
         flexDirection: 'row',
@@ -444,7 +489,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         gap: 6,
     },
-    moduleChipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+    moduleChipActive: { backgroundColor: '#6c7ae0', borderColor: '#6c7ae0' },
     moduleChipText: { fontSize: 12, color: '#64748b' },
     moduleChipTextActive: { color: 'white', fontWeight: '600' },
     infoBoxText: { fontSize: 13, color: '#64748b', backgroundColor: '#f0f9ff', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#bae6fd' },
@@ -453,24 +498,74 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        padding: 24,
+        alignItems: 'center',
+        padding: 20,
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
-        backgroundColor: '#f8fafc',
+        backgroundColor: 'white',
+    },
+    stepIndicatorText: {
+        fontSize: 13,
+        color: '#64748b',
+    },
+    footerButtonRow: {
+        flexDirection: 'row',
+        gap: 12,
     },
     footerButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 10,
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 10,
+        borderRadius: 8,
     },
-    backButton: { backgroundColor: 'white', borderWidth: 1, borderColor: '#e2e8f0' },
-    backButtonText: { color: '#64748b', fontWeight: '600' },
-    nextButton: { backgroundColor: '#3b82f6' },
-    nextButtonText: { color: 'white', fontWeight: '700', marginRight: 4 },
-    saveButton: { backgroundColor: '#10b981' },
-    saveButtonText: { color: 'white', fontWeight: '700' },
+    cancelButton: {
+        backgroundColor: 'white',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    cancelButtonText: {
+        color: '#64748b',
+        fontWeight: '600',
+    },
+    nextButton: {
+        backgroundColor: '#6c7ae0',
+    },
+    saveButton: {
+        backgroundColor: '#22c55e',
+    },
+    nextButtonText: {
+        color: 'white',
+        fontWeight: '600',
+        marginRight: 8,
+    },
+    saveButtonText: {
+        color: 'white',
+        fontWeight: '600',
+        marginRight: 6,
+    },
+    helperText: {
+        fontSize: 11,
+        color: '#94a3b8',
+        marginTop: 4,
+    },
+    sectionHeaderContainer: {
+        marginBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+        paddingBottom: 12,
+    },
+    sectionHeaderTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1e293b',
+        marginBottom: 4,
+    },
+    sectionHeaderSubtitle: {
+        fontSize: 12,
+        color: '#64748b',
+    },
     statusActive: { backgroundColor: '#dcfce7', borderColor: '#22c55e' },
     statusSuspended: { backgroundColor: '#fee2e2', borderColor: '#ef4444' },
     passwordHeader: {

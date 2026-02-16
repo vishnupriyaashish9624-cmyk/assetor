@@ -89,6 +89,7 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
         try {
             setCatalogLoading(true);
             const res = await api.get('module-master');
+            console.log('[ModuleFormModal] Catalog Response:', res.status, res.data);
             if (res.data && res.data.success) {
                 setCatalog(res.data.data || []);
             }

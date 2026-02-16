@@ -4,7 +4,7 @@ import { Modal, Portal, Text, TextInput, Button, IconButton, Searchbar, Menu } f
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../api/client';
 
-const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null }) => {
+const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null, initialModuleId = null }) => {
 
     const [name, setName] = useState('');
     const [moduleId, setModuleId] = useState(null);
@@ -26,12 +26,30 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null }) =>
                 setSortOrder(String(section.sort_order || 0));
             } else {
                 setName('');
-                setModuleId(null);
-                setModuleName('');
+                // Use initialModuleId if provided
+                if (initialModuleId) {
+                    setModuleId(initialModuleId);
+                    // We might not have the name yet, but it will be resolved from catalog if needed
+                    // or we can rely on the ID being set. 
+                    // Ideally we should look up the name from the catalog once loaded.
+                } else {
+                    setModuleId(null);
+                }
+                setModuleName(''); // Will be updated when catalog loads if ID matches
                 setSortOrder('0');
             }
         }
-    }, [section, visible]);
+    }, [section, visible, initialModuleId]);
+
+    // Effect to update module name when catalog loads if we have an ID but no name
+    useEffect(() => {
+        if (moduleId && !moduleName && catalog.length > 0) {
+            const found = catalog.find(m => m.module_id === moduleId);
+            if (found) {
+                setModuleName(found.module_name);
+            }
+        }
+    }, [catalog, moduleId, moduleName]);
 
     const fetchCatalog = async () => {
         try {
@@ -80,11 +98,20 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null }) =>
                 contentContainerStyle={styles.container}
             >
                 <View style={styles.header}>
+                    <View style={styles.iconCircle}>
+                        <MaterialCommunityIcons name={section ? "pencil-outline" : "plus"} size={28} color="#6366f1" />
+                    </View>
                     <View>
                         <Text style={styles.title}>{section ? 'Edit Section' : 'Add Section'}</Text>
                         <Text style={styles.subtitle}>Define sections for your data modules</Text>
                     </View>
-                    <IconButton icon="close" size={24} onPress={onClose} iconColor="#64748b" />
+                    <IconButton
+                        icon="close"
+                        size={24}
+                        onPress={onClose}
+                        iconColor="#64748b"
+                        style={styles.closeBtn}
+                    />
                 </View>
 
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
@@ -120,7 +147,7 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null }) =>
                                 onChangeText={setSearchQuery}
                                 value={searchQuery}
                                 style={styles.searchBar}
-                                inputStyle={{ fontSize: 14 }}
+                                inputStyle={{ fontSize: 14, minHeight: 0 }}
                             />
                             <ScrollView style={{ maxHeight: 250 }}>
                                 {filteredCatalog.length === 0 ? (
@@ -148,6 +175,7 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null }) =>
                         <Text style={styles.label}>Section Name</Text>
                         <TextInput
                             mode="outlined"
+                            dense={true}
                             value={name}
                             onChangeText={setName}
                             placeholder="e.g. Basic Information"
@@ -165,6 +193,7 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null }) =>
                         <Text style={styles.label}>Sort Order</Text>
                         <TextInput
                             mode="outlined"
+                            dense={true}
                             value={sortOrder}
                             onChangeText={setSortOrder}
                             keyboardType="numeric"
@@ -209,7 +238,7 @@ const styles = StyleSheet.create({
     container: {
         backgroundColor: 'white',
         margin: 20,
-        borderRadius: 20,
+        borderRadius: 24,
         width: '100%',
         maxWidth: 500,
         alignSelf: 'center',
@@ -222,19 +251,30 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 28,
-        paddingVertical: 20,
+        padding: 24,
+        backgroundColor: '#f8fafc',
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
-        backgroundColor: 'white',
+    },
+    iconCircle: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
+        backgroundColor: '#eef2ff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    closeBtn: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
     },
     title: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#0f172a',
-        letterSpacing: -0.5,
+        color: '#1e293b',
     },
     subtitle: {
         fontSize: 13,
@@ -247,16 +287,17 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
     },
     bodyContent: {
-        padding: 28,
+        padding: 24,
+        gap: 20,
     },
     formGroup: {
-        marginBottom: 24,
+        marginBottom: 0,
     },
     label: {
         fontSize: 14,
         fontWeight: '600',
         color: '#334155',
-        marginBottom: 8,
+        marginBottom: 4,
         marginLeft: 4,
     },
     input: {
@@ -279,7 +320,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e2e8f0',
         borderRadius: 10,
-        height: 48,
+        height: 40,
         paddingHorizontal: 16,
         backgroundColor: 'white',
     },
@@ -300,7 +341,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderRadius: 12,
         width: 444, // 500 (max width) - 28*2 (padding)
-        marginTop: 52,
+        marginTop: 44,
         elevation: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
@@ -332,17 +373,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'flex-end',
         alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 16,
+        padding: 24,
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#fff',
         gap: 12,
     },
     saveBtn: {
-        backgroundColor: '#3b82f6',
-        borderRadius: 10,
-        elevation: 2,
+        backgroundColor: '#5e35a1', // Matched Purple
+        borderRadius: 12,
+        elevation: 0,
     },
 });
 

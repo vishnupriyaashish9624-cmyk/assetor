@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, LayoutAnimation, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, LayoutAnimation, Platform, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppLayout from '../components/AppLayout';
 import KpiCard from '../components/KpiCard';
@@ -17,6 +17,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5032/api';
 
 const GroupManagementScreen = ({ navigation }) => {
+    const { width } = useWindowDimensions();
+    const isMobile = width < 1024; // Tablet/Mobile Breakpoint
+
     const { token, user } = useAuthStore();
     const [client, setClient] = useState(null);
     const [companies, setCompanies] = useState([]);
@@ -162,30 +165,57 @@ const GroupManagementScreen = ({ navigation }) => {
     const handleSaveCompany = async (data) => {
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            const payload = { ...data, client_id: client?.id };
+            const realClientId = client?.id && client.id !== 'standalone' ? client.id : null;
+            const payload = { ...data, client_id: realClientId };
 
             let response;
             if (editingCompany) {
+                console.log('[handleSaveCompany] PUT updating company', editingCompany.id);
                 response = await axios.put(`${API_URL}/companies/${editingCompany.id}`, payload, config);
+                console.log('[handleSaveCompany] PUT done');
                 showAlert('Success', 'Company updated successfully.', 'success');
             } else {
+                console.log('[handleSaveCompany] POST creating company, payload keys:', Object.keys(payload));
                 response = await axios.post(`${API_URL}/companies`, payload, config);
+                console.log('[handleSaveCompany] POST done, response:', response.data);
                 showAlert('Success', 'New company added to your group.', 'success');
             }
 
-            // Refresh list and get the latest companies
-            const freshCompanies = await fetchData(true);
+            // Construct the full company object for optimistic update
+            // We merge the returned minimal data (id, name...) with the form input data
+            const savedData = response.data.data;
+            const fullSavedCompany = {
+                ...data,
+                ...savedData,
+                employee_count: editingCompany ? editingCompany.employee_count : 0, // Preserve count on edit, 0 on new
+                asset_count: editingCompany ? editingCompany.asset_count : 0
+            };
 
-            // Auto-select the company we just worked on
-            const targetId = editingCompany ? editingCompany.id : response.data.data.id;
-            const fullCompany = freshCompanies?.find(c => c.id === targetId);
+            // Manual State Update for Immediate Feedback
+            setCompanies(prev => {
+                const list = prev || [];
+                if (editingCompany) {
+                    return list.map(c => c.id === fullSavedCompany.id ? fullSavedCompany : c);
+                } else {
+                    return [...list, fullSavedCompany];
+                }
+            });
 
-            if (fullCompany) {
-                handleSelectCompany(fullCompany, true);
+            // If it's a new company, auto-select it
+            if (!editingCompany) {
+                handleSelectCompany(fullSavedCompany);
+            } else if (selectedCompany?.id === fullSavedCompany.id) {
+                // If editing the currently selected company, update the detail view too
+                setSelectedCompany(fullSavedCompany);
             }
 
-            return response.data.data;
+            // Refresh list in background - don't await this to prevent blocking the modal close
+            console.log('[handleSaveCompany] Triggering background fetchData...');
+            fetchData(true).catch(err => console.error('[handleSaveCompany] Background fetch failed:', err));
+
+            return fullSavedCompany;
         } catch (error) {
+            console.error('[handleSaveCompany] ERROR:', error.response?.data || error.message);
             showAlert('Error', error.response?.data?.message || error.message, 'error');
             throw error;
         }
@@ -268,22 +298,24 @@ const GroupManagementScreen = ({ navigation }) => {
                         <Text style={styles.title}>Group Management</Text>
                         <Text style={styles.subtitle}>{client?.name || 'Loading...'}</Text>
                     </View>
-                    <TouchableOpacity
-                        style={styles.primaryBtn}
-                        onPress={() => {
-                            setEditingCompany(null);
-                            setCompanyModalVisible(true);
-                        }}
-                    >
-                        <MaterialCommunityIcons name="plus" size={20} color="white" />
-                        <Text style={styles.primaryBtnText}>Add Company</Text>
-                    </TouchableOpacity>
                 </View>
 
-                <View style={styles.mainGrid}>
+                <View style={[styles.mainGrid, isMobile && { flexDirection: 'column' }]}>
                     {/* COMPANIES LIST */}
                     <View style={styles.listSection}>
-                        <Text style={styles.sectionTitle}>Companies in Group</Text>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Companies in Group</Text>
+                            <TouchableOpacity
+                                style={styles.primaryBtn}
+                                onPress={() => {
+                                    setEditingCompany(null);
+                                    setCompanyModalVisible(true);
+                                }}
+                            >
+                                <MaterialCommunityIcons name="plus" size={20} color="white" />
+                                <Text style={styles.primaryBtnText}>Add Company</Text>
+                            </TouchableOpacity>
+                        </View>
                         {loading ? (
                             <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 40 }} />
                         ) : (
@@ -319,7 +351,7 @@ const GroupManagementScreen = ({ navigation }) => {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-                                    <View style={styles.itemStats}>
+                                    <View style={[styles.itemStats, isMobile && { flexDirection: 'row', justifyContent: 'space-around', gap: 10 }]}>
                                         <View style={styles.statMini}>
                                             <Text style={styles.statVal}>{comp.employee_count || 0}</Text>
                                             <Text style={styles.statLab}>Staff</Text>

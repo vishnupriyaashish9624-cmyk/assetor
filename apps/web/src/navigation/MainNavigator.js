@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar';
 import DashboardScreen from '../screens/DashboardScreen';
 import AssetsScreen from '../screens/AssetsScreen';
 import AssetDisplayScreen from '../screens/AssetDisplayScreen';
+import VehicleDisplayScreen from '../screens/VehicleDisplayScreen';
 import PlaceholderScreen from '../screens/PlaceholderScreen';
 import SuperadminDashboardScreen from '../screens/SuperadminDashboardScreen';
 
@@ -70,6 +71,7 @@ const MainNavigator = () => {
             <Drawer.Screen name="Reports" component={ReportsScreen} />
             <Drawer.Screen name="ModulesHome" component={ModulesHomeScreen} />
             <Drawer.Screen name="AssetDisplay" component={AssetDisplayScreen} />
+            <Drawer.Screen name="VehicleDisplay" component={VehicleDisplayScreen} />
             <Drawer.Screen name="ModuleDetails" component={ModuleDetailsScreen} />
             <Drawer.Screen name="ModuleTemplates" component={ModuleTemplatesScreen} />
             <Drawer.Screen name="ModuleSections" component={ModuleSectionsScreen} />

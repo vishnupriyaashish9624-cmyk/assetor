@@ -1,24 +1,29 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Mock Data
 const recentAssets = [
-    { id: '1', name: 'MacBook Pro M2', assetId: 'AST-0092', company: 'Acme Corp', status: 'Assigned', date: '20 mins ago' },
-    { id: '2', name: 'Dell XPS 15', assetId: 'AST-0091', company: 'Globex Inc', status: 'Available', date: '1 hour ago' },
-    { id: '3', name: 'Herman Miller Chair', assetId: 'AST-0090', company: 'Acme Corp', status: 'Maintenance', date: '2 hours ago' },
-    { id: '4', name: 'iPhone 15', assetId: 'AST-0089', company: 'Acme Corp', status: 'Assigned', date: '4 hours ago' },
-    { id: '5', name: 'Samsung Monitor', assetId: 'AST-0088', company: 'Globex Inc', status: 'Available', date: '5 hours ago' },
+    { id: '1', name: 'MacBook Pro M2', assetId: 'AST-0092', category: 'Laptop', serial: 'SN-MW2023X', company: 'Acme Corp', status: 'Assigned', date: 'Nov 10, 2025' },
+    { id: '2', name: 'Dell XPS 15', assetId: 'AST-0091', category: 'Laptop', serial: 'SN-DL9982Y', company: 'Globex Inc', status: 'Available', date: 'Nov 11, 2025' },
+    { id: '3', name: 'Herman Miller Chair', assetId: 'AST-0090', category: 'Furniture', serial: 'SN-HM7721A', company: 'Acme Corp', status: 'Maintenance', date: 'Nov 12, 2025' },
+    { id: '4', name: 'iPhone 15', assetId: 'AST-0089', category: 'Mobile', serial: 'SN-AP5512B', company: 'Acme Corp', status: 'Assigned', date: 'Nov 13, 2025' },
+    { id: '5', name: 'Samsung Monitor', assetId: 'AST-0088', category: 'Monitor', serial: 'SN-SM1102C', company: 'Globex Inc', status: 'Available', date: 'Nov 14, 2025' },
+    { id: '6', name: 'iPad Air', assetId: 'AST-0087', category: 'Tablet', serial: 'SN-AP8821D', company: 'Tech Solutions', status: 'Assigned', date: 'Nov 15, 2025' },
 ];
 
 const StatusPill = ({ status }) => {
     let bg, color;
     switch (status) {
-        case 'Assigned': bg = '#dbeafe'; color = '#1e40af'; break; // Blue
+        case 'Assigned': bg = '#dcfce7'; color = '#15803d'; break; // Green-ish for active-like
         case 'Available': bg = '#dcfce7'; color = '#15803d'; break; // Green
         case 'Maintenance': bg = '#fee2e2'; color = '#b91c1c'; break; // Red
         default: bg = '#f1f5f9'; color = '#475569';
     }
+    // Using Active/Deactive logic from image for visual parity if needed, but keeping status names
+    // Image has 'Active' (Green) and 'Deactive' (Red).
+    // Mapping: Available/Assigned -> Active (Green), Maintenance -> Deactive (Red)
+
     return (
         <View style={[styles.pill, { backgroundColor: bg }]}>
             <Text style={[styles.pillText, { color }]}>{status}</Text>
@@ -27,40 +32,74 @@ const StatusPill = ({ status }) => {
 };
 
 const RecentAssetsPanel = ({ showCompany = true }) => {
+    const { width } = useWindowDimensions();
+    const isMobile = width < 1200;
+
+    // Helper for conditional styles
+    const getColStyle = (fixedWidth, flexVal, align = 'left') => {
+        return isMobile
+            ? { width: fixedWidth, textAlign: align, justifyContent: align === 'center' ? 'center' : 'flex-start' }
+            : { flex: flexVal, textAlign: align, justifyContent: align === 'center' ? 'center' : 'flex-start' };
+    };
+
     return (
         <View style={styles.card}>
             <View style={styles.header}>
                 <Text style={styles.title}>Recent Assets</Text>
-                <Text style={styles.link}>View All</Text>
+                <TouchableOpacity>
+                    <Text style={styles.link}>View All</Text>
+                </TouchableOpacity>
             </View>
-            <View style={styles.table}>
-                {/* Table Header */}
-                <View style={[styles.row, styles.headerRow]}>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 2 }]}>Asset Name</Text>
-                    {showCompany && <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Company</Text>}
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Status</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1, textAlign: 'right' }]}>Added</Text>
-                </View>
-
-                {recentAssets.map((item, index) => (
-                    <View key={item.id} style={[styles.row, index !== recentAssets.length - 1 && styles.borderBottom]}>
-                        <View style={[styles.cell, { flex: 2, flexDirection: 'row', alignItems: 'center' }]}>
-                            <View style={styles.iconBox}>
-                                <MaterialCommunityIcons name="laptop" size={16} color="#3b82f6" />
-                            </View>
-                            <View>
-                                <Text style={styles.cellTextPrimary}>{item.name}</Text>
-                                <Text style={styles.cellTextSub}>{item.assetId}</Text>
-                            </View>
-                        </View>
-                        {showCompany && <Text style={[styles.cell, styles.cellTextSecondary, { flex: 1 }]}>{item.company}</Text>}
-                        <View style={[styles.cell, { flex: 1 }]}>
-                            <StatusPill status={item.status} />
-                        </View>
-                        <Text style={[styles.cell, styles.cellTextSecondary, { flex: 1, textAlign: 'right' }]}>{item.date}</Text>
+            <ScrollView horizontal={isMobile} style={styles.scrollContainer} showsHorizontalScrollIndicator={isMobile}>
+                <View style={[styles.table, !isMobile && { minWidth: '100%' }]}>
+                    {/* Table Header */}
+                    <View style={styles.headerRow}>
+                        <Text style={[styles.headerCell, getColStyle(100, 0.8)]}>#ID</Text>
+                        <Text style={[styles.headerCell, getColStyle(200, 2)]}>Asset Name</Text>
+                        <Text style={[styles.headerCell, getColStyle(150, 1.2)]}>Category</Text>
+                        <Text style={[styles.headerCell, getColStyle(150, 1.2)]}>Serial No.</Text>
+                        <Text style={[styles.headerCell, getColStyle(120, 1)]}>Date</Text>
+                        {showCompany && <Text style={[styles.headerCell, getColStyle(150, 1.2)]}>Company</Text>}
+                        <Text style={[styles.headerCell, getColStyle(100, 1, 'center')]}>Status</Text>
+                        <Text style={[styles.headerCell, getColStyle(100, 0.8, 'center')]}>Actions</Text>
                     </View>
-                ))}
-            </View>
+
+                    {recentAssets.map((item, index) => (
+                        <View key={item.id} style={styles.row}>
+                            <Text style={[styles.cellTextBold, getColStyle(100, 0.8)]}>#{item.assetId}</Text>
+
+                            <View style={[styles.cell, getColStyle(200, 2), { flexDirection: 'row', alignItems: 'center' }]}>
+                                <View style={styles.avatar}>
+                                    <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                                </View>
+                                <Text style={styles.cellTextPrimary}>{item.name}</Text>
+                            </View>
+
+                            <Text style={[styles.cellTextSecondary, getColStyle(150, 1.2)]}>{item.category}</Text>
+                            <Text style={[styles.cellTextSecondary, getColStyle(150, 1.2)]}>{item.serial}</Text>
+                            <Text style={[styles.cellTextSecondary, getColStyle(120, 1)]}>{item.date}</Text>
+
+                            {showCompany && <Text style={[styles.cellTextSecondary, getColStyle(150, 1.2)]}>{item.company}</Text>}
+
+                            <View style={[getColStyle(100, 1, 'center'), { alignItems: 'center' }]}>
+                                <StatusPill status={item.status} />
+                            </View>
+
+                            <View style={[styles.actions, getColStyle(100, 0.8, 'center')]}>
+                                <TouchableOpacity style={styles.actionBtn}>
+                                    <MaterialCommunityIcons name="eye-outline" size={18} color="#3b82f6" />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn}>
+                                    <MaterialCommunityIcons name="pencil-outline" size={18} color="#64748b" />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn}>
+                                    <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            </ScrollView>
         </View>
     );
 };
@@ -74,6 +113,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.03,
         shadowRadius: 8,
+        elevation: 3,
         flex: 1,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.02)',
@@ -84,76 +124,89 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     title: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
         color: '#1e293b',
     },
     link: {
-        fontSize: 13,
+        fontSize: 14,
         color: '#3b82f6',
         fontWeight: '600',
-        cursor: 'pointer' // web only
+    },
+    scrollContainer: {
+        width: '100%',
     },
     table: {
-        flex: 1,
+        minWidth: 1000, // Ensure horizontal scroll on small screens
+    },
+    headerRow: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+        paddingVertical: 12,
+        marginBottom: 8,
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-    },
-    headerRow: {
+        paddingVertical: 14,
         borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-        marginBottom: 8,
-        paddingBottom: 12
-    },
-    borderBottom: {
-        borderBottomWidth: 1,
-        borderBottomColor: '#f8fafc',
-    },
-    cell: {
-        // Flex handled inline
+        borderBottomColor: '#e2e8f0', // Darker gray for visibility
+        borderStyle: 'dashed',
     },
     headerCell: {
-        fontSize: 11,
+        fontSize: 12,
         color: '#94a3b8',
         fontWeight: '600',
         textTransform: 'uppercase',
-        letterSpacing: 0.5
+        letterSpacing: 0.5,
+    },
+    cellTextBold: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#334155',
     },
     cellTextPrimary: {
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
         color: '#334155',
-    },
-    cellTextSub: {
-        fontSize: 11,
-        color: '#94a3b8',
     },
     cellTextSecondary: {
         fontSize: 13,
         color: '#64748b',
     },
-    iconBox: {
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        backgroundColor: '#eff6ff',
+    avatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#e0f2fe',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: 10,
+    },
+    avatarText: {
+        color: '#0369a1',
+        fontWeight: '700',
+        fontSize: 12,
     },
     pill: {
-        paddingHorizontal: 8,
+        paddingHorizontal: 10,
         paddingVertical: 4,
-        borderRadius: 12,
-        alignSelf: 'flex-start',
+        borderRadius: 6,
+        alignSelf: 'center',
     },
     pillText: {
         fontSize: 11,
         fontWeight: '600',
     },
+    actions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 8,
+    },
+    actionBtn: {
+        padding: 4,
+    }
 });
 
 export default RecentAssetsPanel;

@@ -1,27 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image, Platform, Pressable } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import useAuthStore from '../store/authStore';
 
-const Topbar = () => {
+const Topbar = ({ onMenuPress, isMobile }) => {
     const user = useAuthStore((state) => state.user);
-    const [companyExpanded, setCompanyExpanded] = useState(false);
-    const [selectedCompany, setSelectedCompany] = useState({ id: 'all', name: 'All Companies' });
-
-    const companies = [
-        { id: 'all', name: 'All Companies' },
-        { id: '1', name: 'Acme Corp' },
-        { id: '2', name: 'Globex Inc' },
-    ];
-
-    const handleSelectCompany = (company) => {
-        setSelectedCompany(company);
-        setCompanyExpanded(false);
-        // In real app, dispatch action to set global tenant context
-    };
 
     return (
-        <View style={styles.container}>
+        <LinearGradient
+            colors={['#f1f1f1ff', 'rgb(219, 219, 219)']}
+            start={{ x: 1, y: 1 }}
+            end={{ x: 0, y: 0 }}
+            style={styles.container}
+        >
+            {isMobile && (
+                <TouchableOpacity onPress={onMenuPress} style={{ marginRight: 16 }}>
+                    <MaterialCommunityIcons name="menu" size={28} color="#64748b" />
+                </TouchableOpacity>
+            )}
+
             {/* Search Input */}
             <View style={styles.searchContainer}>
                 <Ionicons name="search-outline" size={20} color="#94a3b8" style={styles.searchIcon} />
@@ -35,38 +33,7 @@ const Topbar = () => {
             {/* Right Actions */}
             <View style={styles.rightSection}>
 
-                {/* Company Selector */}
-                {user?.role === 'SUPER_ADMIN' && (
-                    <View style={styles.companySelector}>
-                        <TouchableOpacity
-                            style={styles.companyButton}
-                            onPress={() => setCompanyExpanded(!companyExpanded)}
-                        >
-                            <MaterialCommunityIcons name="domain" size={20} color="#64748b" style={{ marginRight: 8 }} />
-                            <Text style={styles.companyButtonText}>{selectedCompany.name}</Text>
-                            <Ionicons name="chevron-down" size={16} color="#64748b" style={{ marginLeft: 8 }} />
-                        </TouchableOpacity>
 
-                        {companyExpanded && (
-                            <View style={styles.dropdown}>
-                                {companies.map((c) => (
-                                    <Pressable
-                                        key={c.id}
-                                        style={[styles.dropdownItem, selectedCompany.id === c.id && styles.activeDropdownItem]}
-                                        onPress={() => handleSelectCompany(c)}
-                                    >
-                                        <Text style={[styles.dropdownText, selectedCompany.id === c.id && styles.activeDropdownText]}>
-                                            {c.name}
-                                        </Text>
-                                        {selectedCompany.id === c.id && <Ionicons name="checkmark" size={16} color="#3b82f6" />}
-                                    </Pressable>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-                )}
-
-                <View style={styles.divider} />
 
                 <TouchableOpacity style={styles.iconButton}>
                     <Ionicons name="notifications-outline" size={20} color="#64748b" />
@@ -91,16 +58,17 @@ const Topbar = () => {
                     </View>
                 </View>
             </View>
-        </View>
+        </LinearGradient>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
+        width: '100%',
         height: 70,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.06)',
+        // backgroundColor: 'rgba(255,255,255,0.9)', // Replaced by LinearGradient
+        // borderBottomWidth: 1,
+        // borderBottomColor: 'rgba(0,0,0,0.06)',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -109,8 +77,7 @@ const styles = StyleSheet.create({
         zIndex: 100, // Higher z-index for dropdown
     },
     searchContainer: {
-        flex: 1,
-        maxWidth: 360,
+        width: 300,
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#f1f5f9',

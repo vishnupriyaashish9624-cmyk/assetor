@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { Card, Text, Button, IconButton, ActivityIndicator, Chip, DataTable, Portal, Modal } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../api/client';
@@ -17,6 +17,11 @@ const ModulesHomeScreen = ({ navigation }) => {
     const [viewDetailsVisible, setViewDetailsVisible] = useState(false);
     const [selectedModule, setSelectedModule] = useState(null);
     const [initialSection, setInitialSection] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const itemsPerPage = 10;
+    const { width } = useWindowDimensions();
+    const isMobile = width < 1024; // Treat tablets as mobile for better layout
 
     useEffect(() => {
         fetchModules();
@@ -25,7 +30,9 @@ const ModulesHomeScreen = ({ navigation }) => {
     const fetchModules = async () => {
         try {
             setLoading(true);
+            console.log('[ModulesHomeScreen] Fetching module-master...');
             const response = await api.get('module-master');
+            console.log('[ModulesHomeScreen] module-master response:', response.status);
             // User requested SELECT * FROM module_master and only these details.
             // Mapping module_id to id for DataTable consistency, and name to name.
             const mapped = (response.data.data || []).map(m => ({
@@ -159,6 +166,17 @@ const ModulesHomeScreen = ({ navigation }) => {
         return name.includes(searchStr);
     });
 
+    const totalItems = filteredModules.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+    const paginatedModules = filteredModules.slice(startIndex, endIndex);
+
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
+
     return (
         <AppLayout navigation={navigation} title="Modules">
             <View style={styles.container}>
@@ -171,8 +189,8 @@ const ModulesHomeScreen = ({ navigation }) => {
                 </View>
 
                 {/* Controls Header (Matching Assets page) */}
-                <View style={styles.controlsHeader}>
-                    <View style={styles.searchWrapper}>
+                <View style={[styles.controlsHeader, isMobile && { flexDirection: 'column' }]}>
+                    <View style={[styles.searchWrapper, isMobile && { width: '100%', maxWidth: '100%' }]}>
                         <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={styles.searchIcon} />
                         <TextInput
                             placeholder="Search modules..."
@@ -184,7 +202,7 @@ const ModulesHomeScreen = ({ navigation }) => {
                     </View>
 
                     <TouchableOpacity
-                        style={styles.addButton}
+                        style={[styles.addButton, isMobile && { width: '100%' }]}
                         onPress={handleAddModule}
                         activeOpacity={0.8}
                     >
@@ -218,49 +236,135 @@ const ModulesHomeScreen = ({ navigation }) => {
                 ) : (
                     /* Module List Section (Table like style) */
                     <Card style={styles.tableCard}>
-                        <DataTable>
-                            <DataTable.Header style={styles.tableHeader}>
-                                <DataTable.Title textStyle={[styles.headerText, { flex: 2 }]}>Module Name</DataTable.Title>
-                                <DataTable.Title numeric textStyle={styles.headerText}>Sections</DataTable.Title>
-                                <DataTable.Title numeric textStyle={styles.headerText}>Fields</DataTable.Title>
-                                <DataTable.Title numeric textStyle={styles.headerText}>Actions</DataTable.Title>
-                            </DataTable.Header>
 
+                        {isMobile ? (
                             <ScrollView style={{ maxHeight: 'calc(100vh - 350px)' }}>
-                                {filteredModules.map((item) => (
-                                    <DataTable.Row key={item.id} style={styles.row}>
-                                        <DataTable.Cell style={{ flex: 2 }}>
-                                            <View style={styles.nameCell}>
+                                {paginatedModules.map((item) => (
+                                    <View key={item.id} style={styles.mobileCardItem}>
+                                        <View style={styles.mobileCardInfos}>
+                                            <View style={styles.mobileHeaderRow}>
                                                 <View style={styles.iconBox}>
-                                                    <MaterialCommunityIcons name="layers-outline" size={18} color="#3b82f6" />
+                                                    <MaterialCommunityIcons name="layers-outline" size={18} color="#ff9800" />
                                                 </View>
-                                                <Text style={styles.moduleName}>{item.name}</Text>
-                                            </View>
-                                        </DataTable.Cell>
-
-                                        <DataTable.Cell numeric>
-                                            <Text style={styles.cellText}>{item.section_count || 0}</Text>
-                                        </DataTable.Cell>
-                                        <DataTable.Cell numeric>
-                                            <Text style={styles.cellText}>{item.field_count || 0}</Text>
-                                        </DataTable.Cell>
-
-                                        <DataTable.Cell numeric>
-                                            <View style={styles.actionButtons}>
+                                                <Text style={[styles.moduleName, { flex: 1, fontWeight: '600', color: '#1e293b' }]} numberOfLines={1}>{item.name}</Text>
                                                 <IconButton
                                                     icon="eye-outline"
-                                                    size={20}
-                                                    iconColor="#64748b"
+                                                    size={22}
+                                                    iconColor="rgb(239, 149, 10)"
                                                     onPress={() => handleViewModule(item)}
+                                                    style={{ margin: 0 }}
                                                 />
                                             </View>
-                                        </DataTable.Cell>
-                                    </DataTable.Row>
+
+                                            <View style={styles.mobileStatsRow}>
+                                                <View style={styles.mobileStatBadge}>
+                                                    <Text style={styles.mobileStatLabel}>Sections:</Text>
+                                                    <Text style={styles.mobileStatValue}>{item.section_count || 0}</Text>
+                                                </View>
+                                                <View style={styles.mobileStatBadge}>
+                                                    <Text style={styles.mobileStatLabel}>Fields:</Text>
+                                                    <Text style={styles.mobileStatValue}>{item.field_count || 0}</Text>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    </View>
                                 ))}
                             </ScrollView>
-                        </DataTable>
+                        ) : (
+                            <DataTable>
+                                <DataTable.Header style={styles.tableHeader}>
+                                    <DataTable.Title style={{ flex: 3 }} textStyle={styles.headerText}>Module Name</DataTable.Title>
+                                    <DataTable.Title style={{ flex: 0.5 }} textStyle={styles.headerText}>Sections</DataTable.Title>
+                                    <DataTable.Title style={{ flex: 0.5 }} textStyle={styles.headerText}>Fields</DataTable.Title>
+                                    <DataTable.Title style={{ flex: 0.5 }} textStyle={styles.headerText}>Actions</DataTable.Title>
+                                </DataTable.Header>
+
+                                <ScrollView style={{ maxHeight: 'calc(100vh - 350px)' }}>
+                                    {paginatedModules.map((item) => (
+                                        <DataTable.Row key={item.id} style={styles.row}>
+                                            <DataTable.Cell style={{ flex: 3 }}>
+                                                <View style={styles.nameCell}>
+                                                    <View style={styles.iconBox}>
+                                                        <MaterialCommunityIcons name="layers-outline" size={18} color="#ff9800" />
+                                                    </View>
+                                                    <Text style={styles.moduleName}>{item.name}</Text>
+                                                </View>
+                                            </DataTable.Cell>
+
+                                            <DataTable.Cell style={{ flex: 0.5 }}>
+                                                <Text style={styles.cellText}>{item.section_count || 0}</Text>
+                                            </DataTable.Cell>
+                                            <DataTable.Cell style={{ flex: 0.5 }}>
+                                                <Text style={styles.cellText}>{item.field_count || 0}</Text>
+                                            </DataTable.Cell>
+
+                                            <DataTable.Cell style={{ flex: 0.5 }}>
+                                                <View style={styles.actionButtons}>
+                                                    <IconButton
+                                                        icon="eye-outline"
+                                                        size={20}
+                                                        iconColor="rgb(239, 149, 10)"
+                                                        onPress={() => handleViewModule(item)}
+                                                    />
+                                                </View>
+                                            </DataTable.Cell>
+                                        </DataTable.Row>
+                                    ))}
+                                </ScrollView>
+                            </DataTable>
+                        )}
+
+
+                        {/* Pagination */}
+                        <View style={[styles.paginationContainer, isMobile && { justifyContent: 'center' }]}>
+                            {!isMobile && (
+                                <Text style={styles.paginationInfo}>
+                                    Showing <Text style={styles.paginationBold}>{totalItems === 0 ? 0 : startIndex + 1}</Text> to <Text style={styles.paginationBold}>{endIndex}</Text> of <Text style={styles.paginationBold}>{totalItems}</Text>
+                                </Text>
+                            )}
+                            <View style={styles.paginationButtons}>
+                                <TouchableOpacity
+                                    style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}
+                                    onPress={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                >
+                                    <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>«</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}
+                                    onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>‹</Text>
+                                </TouchableOpacity>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                    <TouchableOpacity
+                                        key={page}
+                                        style={[styles.pageBtn, currentPage === page && styles.pageBtnActive]}
+                                        onPress={() => setCurrentPage(page)}
+                                    >
+                                        <Text style={[styles.pageBtnText, currentPage === page && styles.pageBtnActiveText]}>{page}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                                <TouchableOpacity
+                                    style={[styles.pageBtn, currentPage === totalPages && styles.pageBtnDisabled]}
+                                    onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    <Text style={[styles.pageBtnText, currentPage === totalPages && styles.pageBtnTextDisabled]}>›</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.pageBtn, currentPage === totalPages && styles.pageBtnDisabled]}
+                                    onPress={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    <Text style={[styles.pageBtnText, currentPage === totalPages && styles.pageBtnTextDisabled]}>»</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                     </Card>
-                )}
+                )
+                }
 
                 <ModuleFormModal
                     visible={modalVisible}
@@ -356,6 +460,7 @@ const ModulesHomeScreen = ({ navigation }) => {
                                     onPress={() => setViewDetailsVisible(false)}
                                     style={styles.detailCloseBtn}
                                     labelStyle={styles.detailCloseBtnText}
+                                    buttonColor="#5e35a1"
                                 >
                                     Close Details
                                 </Button>
@@ -363,8 +468,8 @@ const ModulesHomeScreen = ({ navigation }) => {
                         </View>
                     </Modal>
                 </Portal>
-            </View>
-        </AppLayout>
+            </View >
+        </AppLayout >
     );
 };
 
@@ -380,7 +485,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#1e293b',
+        color: '#673ab7',
     },
     subtitle: {
         fontSize: 14,
@@ -399,9 +504,14 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#e2e8f0',
+        borderColor: 'rgb(255, 255, 255)',
         paddingHorizontal: 16,
         height: 48,
+        shadowColor: 'rgba(99, 99, 99, 0.2)',
+        shadowOffset: { width: -5, height: 3 },
+        shadowOpacity: 1,
+        shadowRadius: 18,
+        elevation: 6,
     },
     searchIcon: {
         marginRight: 10,
@@ -416,12 +526,12 @@ const styles = StyleSheet.create({
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#3b82f6',
+        backgroundColor: '#673ab7',
         paddingHorizontal: 20,
         height: 48,
         borderRadius: 8,
         justifyContent: 'center',
-        shadowColor: '#3b82f6',
+        shadowColor: '#673ab7',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 4,
@@ -435,29 +545,32 @@ const styles = StyleSheet.create({
     tableCard: {
         backgroundColor: 'white',
         borderRadius: 16,
-        elevation: 0,
+        elevation: 6,
         borderWidth: 1,
-        borderColor: '#f1f5f9',
+        borderColor: '#e8e0f0',
         overflow: 'hidden',
-        shadowColor: "#64748b",
+        shadowColor: '#673ab7',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
     },
     tableHeader: {
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#673ab7',
         borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
+        borderBottomColor: '#5e35a1',
     },
     headerText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#64748b',
+        color: '#ffffff',
         textTransform: 'uppercase',
     },
     row: {
-        borderBottomColor: '#f1f5f9',
-        height: 64,
+        borderBottomColor: '#e2e8f0',
+        borderBottomWidth: 1,
+        borderStyle: 'dotted',
+        minHeight: 64,
+        paddingVertical: 12,
     },
     nameCell: {
         flexDirection: 'row',
@@ -467,7 +580,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 8,
-        backgroundColor: '#eff6ff',
+        backgroundColor: '#fff3e0',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -535,7 +648,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#64748b',
         textAlign: 'center',
-        maxWidth: 300,
+        maxWidth: '80%',
         marginBottom: 24,
     },
     detailModal: {
@@ -663,12 +776,104 @@ const styles = StyleSheet.create({
     detailCloseBtn: {
         borderRadius: 12,
         paddingVertical: 4,
-        backgroundColor: '#6366f1',
+        backgroundColor: '#5e35a1',
     },
     detailCloseBtnText: {
         fontSize: 15,
         fontWeight: '700',
         color: 'white',
+    },
+    paginationContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingTop: 12,
+        paddingBottom: 24,
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+        width: '100%',
+        gap: 8,
+    },
+    paginationInfo: {
+        fontSize: 13,
+        color: '#64748b',
+    },
+    paginationBold: {
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    paginationButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    pageBtn: {
+        minWidth: 30,
+        height: 30,
+        borderRadius: 8,
+        backgroundColor: '#f1f5f9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginHorizontal: 2,
+    },
+    pageBtnActive: {
+        backgroundColor: '#673ab7',
+    },
+    pageBtnDisabled: {
+        opacity: 0.4,
+    },
+    pageBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#475569',
+    },
+    pageBtnActiveText: {
+        color: '#ffffff',
+    },
+    pageBtnTextDisabled: {
+        color: '#94a3b8',
+    },
+    // Mobile Styles
+    mobileCardItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+        backgroundColor: 'white',
+    },
+    mobileCardInfos: {
+        flex: 1,
+        gap: 8,
+    },
+    mobileHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mobileStatsRow: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingLeft: 48, // Align with text start (icon box width + margin)
+    },
+    mobileStatBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        gap: 4,
+    },
+    mobileStatLabel: {
+        fontSize: 12,
+        color: '#64748b',
+    },
+    mobileStatValue: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#1e293b',
     },
 });
 

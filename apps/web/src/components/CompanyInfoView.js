@@ -38,7 +38,7 @@ const CompanyInfoView = ({ company }) => {
     const InfoRow = ({ label, value, icon }) => (
         <View style={styles.infoRow}>
             <View style={styles.iconCircle}>
-                <MaterialCommunityIcons name={icon} size={18} color="#64748b" />
+                <MaterialCommunityIcons name={icon} size={15} color="#64748b" />
             </View>
             <View style={styles.infoTextContainer}>
                 <Text style={styles.infoLabel}>{label}</Text>
@@ -50,7 +50,7 @@ const CompanyInfoView = ({ company }) => {
     const Section = ({ title, icon, children }) => (
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
-                <MaterialCommunityIcons name={icon} size={20} color="#3b82f6" />
+                <MaterialCommunityIcons name={icon} size={16} color="#3b82f6" />
                 <Text style={styles.sectionTitle}>{title}</Text>
             </View>
             <View style={styles.sectionContent}>
@@ -60,11 +60,11 @@ const CompanyInfoView = ({ company }) => {
     );
 
     return (
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
             {/* Header Information */}
             <View style={styles.header}>
                 <View style={styles.logoBox}>
-                    <MaterialCommunityIcons name="domain" size={40} color="#3b82f6" />
+                    <MaterialCommunityIcons name="domain" size={30} color="#3b82f6" />
                 </View>
                 <View style={styles.headerText}>
                     <Text style={styles.companyName}>{company.name}</Text>
@@ -154,28 +154,26 @@ const CompanyInfoView = ({ company }) => {
                     </View>
                 </View>
             </Section>
-
-            <View style={{ height: 40 }} />
         </ScrollView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { padding: 4 },
+    container: { padding: 2, maxHeight: 520 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 14,
         backgroundColor: '#f8fafc',
-        padding: 16,
-        borderRadius: 12,
+        padding: 12,
+        borderRadius: 10,
         borderWidth: 1,
         borderColor: '#f1f5f9',
     },
     logoBox: {
-        width: 60,
-        height: 60,
-        borderRadius: 10,
+        width: 46,
+        height: 46,
+        borderRadius: 8,
         backgroundColor: 'white',
         justifyContent: 'center',
         alignItems: 'center',
@@ -185,33 +183,33 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 1,
     },
-    headerText: { marginLeft: 16, flex: 1 },
-    companyName: { fontSize: 20, fontWeight: '800', color: '#1e293b' },
-    subdomain: { fontSize: 13, color: '#64748b', marginTop: 1 },
+    headerText: { marginLeft: 12, flex: 1 },
+    companyName: { fontSize: 16, fontWeight: '800', color: '#1e293b' },
+    subdomain: { fontSize: 12, color: '#64748b', marginTop: 1 },
     statusBadge: {
         alignSelf: 'flex-start',
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 6,
-        marginTop: 6,
+        marginTop: 4,
     },
     statusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -10 },
-    column: { flex: 1, minWidth: 300, paddingHorizontal: 10 },
-    section: { marginBottom: 20 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
+    column: { flex: 1, minWidth: 260, paddingHorizontal: 6 },
+    section: { marginBottom: 12 },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
-        paddingBottom: 6,
+        marginBottom: 8,
+        paddingBottom: 4,
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
     },
     sectionTitle: {
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: '700',
         color: '#1e293b',
-        marginLeft: 8,
+        marginLeft: 6,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
@@ -219,19 +217,19 @@ const styles = StyleSheet.create({
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 8,
     },
     iconCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 6,
+        width: 24,
+        height: 24,
+        borderRadius: 5,
         backgroundColor: '#f1f5f9',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    infoTextContainer: { marginLeft: 10 },
-    infoLabel: { fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: '600' },
-    infoValue: { fontSize: 13, fontWeight: '600', color: '#334155', marginTop: 0 },
+    infoTextContainer: { marginLeft: 8 },
+    infoLabel: { fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', fontWeight: '600' },
+    infoValue: { fontSize: 12, fontWeight: '600', color: '#334155', marginTop: 0 },
     docList: { gap: 8 },
     docItem: {
         flexDirection: 'row',
@@ -253,18 +251,18 @@ const styles = StyleSheet.create({
     docName: { fontSize: 13, fontWeight: '600', color: '#1e293b' },
     docType: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
     emptyDocs: { fontSize: 12, color: '#94a3b8', fontStyle: 'italic' },
-    limitGrid: { flexDirection: 'row', gap: 12 },
+    limitGrid: { flexDirection: 'row', gap: 10 },
     limitCard: {
         flex: 1,
         backgroundColor: '#f0f9ff',
-        padding: 12,
-        borderRadius: 10,
+        padding: 10,
+        borderRadius: 8,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#e0f2fe',
     },
-    limitVal: { fontSize: 20, fontWeight: '800', color: '#0369a1' },
-    limitLab: { fontSize: 11, color: '#0ea5e9', fontWeight: '600', marginTop: 2 },
+    limitVal: { fontSize: 17, fontWeight: '800', color: '#0369a1' },
+    limitLab: { fontSize: 10, color: '#0ea5e9', fontWeight: '600', marginTop: 1 },
 });
 
 export default CompanyInfoView;

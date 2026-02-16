@@ -17,6 +17,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5021/api';
 const CompanyAdminDashboard = ({ navigation }) => {
     const { width } = useWindowDimensions();
     const isDesktop = width >= 1200;
+    const isMobile = width < 768;
     const { user } = useAuthStore();
     const [stats, setStats] = React.useState({
         total: 0,
@@ -56,13 +57,14 @@ const CompanyAdminDashboard = ({ navigation }) => {
                     <View style={styles.mainColumn}>
 
                         {/* 1. KPI Row (Stats) */}
-                        <View style={styles.kpiRow}>
+                        <View style={[styles.kpiRow, !isDesktop && { justifyContent: 'space-between' }]}>
                             <KpiCard
                                 title="Total Assets"
                                 value={stats.total.toLocaleString()}
                                 icon="cube-outline"
                                 gradientColors={['#3b82f6', '#2563eb']}
                                 iconBg="rgba(255,255,255,0.2)"
+                                style={{ minWidth: isMobile ? '45%' : 200, flex: 1 }}
                             />
                             <KpiCard
                                 title="Assigned Assets"
@@ -70,6 +72,7 @@ const CompanyAdminDashboard = ({ navigation }) => {
                                 icon="account-check-outline"
                                 gradientColors={['#6366f1', '#4f46e5']}
                                 iconBg="rgba(255,255,255,0.2)"
+                                style={{ minWidth: isMobile ? '45%' : 200, flex: 1 }}
                             />
                             <KpiCard
                                 title="Available Assets"
@@ -77,6 +80,7 @@ const CompanyAdminDashboard = ({ navigation }) => {
                                 icon="cube-send"
                                 gradientColors={['#f59e0b', '#d97706']}
                                 iconBg="rgba(255,255,255,0.2)"
+                                style={{ minWidth: isMobile ? '45%' : 200, flex: 1 }}
                             />
                             {/* Client Level Stats */}
                             {stats.clientCompanies > 0 && (
@@ -87,6 +91,7 @@ const CompanyAdminDashboard = ({ navigation }) => {
                                     gradientColors={['#8b5cf6', '#7c3aed']}
                                     iconBg="rgba(255,255,255,0.2)"
                                     onPress={() => navigation.navigate('Companies')}
+                                    style={{ minWidth: isMobile ? '45%' : 200, flex: 1 }}
                                 />
                             )}
                             {stats.clientEmployees > 0 && (
@@ -97,6 +102,7 @@ const CompanyAdminDashboard = ({ navigation }) => {
                                     gradientColors={['#10b981', '#059669']}
                                     iconBg="rgba(255,255,255,0.2)"
                                     onPress={() => navigation.navigate('Employees')}
+                                    style={{ minWidth: isMobile ? '45%' : 200, flex: 1 }}
                                 />
                             )}
                         </View>
@@ -107,7 +113,7 @@ const CompanyAdminDashboard = ({ navigation }) => {
                         </View>
 
                         {/* 3. Bottom Row: Bar, Donut, Recent Table */}
-                        <View style={styles.bottomRow}>
+                        <View style={[styles.bottomRow, !isDesktop && { flexDirection: 'column' }]}>
                             <View style={[styles.bottomCardWrapper, { flex: 1.2 }]}>
                                 <CategoryBarChart />
                             </View>

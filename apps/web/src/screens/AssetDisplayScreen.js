@@ -10,7 +10,7 @@ import AlertDialog from '../components/AlertDialog';
 
 const AssetDisplayScreen = ({ navigation }) => {
     const { width } = useWindowDimensions();
-    const isMobile = width < 768; // Mobile/Tablet breakpoint
+    const isMobile = width < 1024; // Mobile/Tablet breakpoint (Expanded to include tablets/small laptops)
     const [modules, setModules] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -78,7 +78,7 @@ const AssetDisplayScreen = ({ navigation }) => {
     useEffect(() => {
         const filterFields = async () => {
             if (unfilteredModuleDetails.length > 0 && modules.length > 0) {
-                const premisesModule = modules.find(m => m.module_id == 1);
+                const premisesModule = modules.find(m => m.module_id == 1 || (m.name || '').toLowerCase() === 'premises');
                 if (premisesModule && (formValues.country_id || formValues.premises_type_id || formValues.area_id || formValues.property_type_id)) {
                     const selectedFieldIds = await fetchSelectedFields(
                         premisesModule.module_id,
@@ -225,6 +225,7 @@ const AssetDisplayScreen = ({ navigation }) => {
             }));
 
             setModuleDetails(fullStructure);
+            setUnfilteredModuleDetails(fullStructure); // Store for dynamic filtering
         } catch (error) {
             console.error('Fetch structure error:', error);
             alert('Failed to load module details');
@@ -470,6 +471,7 @@ const AssetDisplayScreen = ({ navigation }) => {
                     return { ...sec, fields: fieldsRes.data.data || [] };
                 }));
                 setModuleDetails(fullStructure);
+                setUnfilteredModuleDetails(fullStructure); // Store for dynamic filtering
             }
         } catch (error) {
             console.error('Fetch snapshot error:', error);
@@ -927,9 +929,9 @@ const AssetDisplayScreen = ({ navigation }) => {
                     </View>
                 </View>
 
-                <View style={styles.controlsHeader}>
-                    <View style={styles.searchWrapper}>
-                        <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={styles.searchIcon} />
+                <View style={[styles.controlsHeader, isMobile && { flexDirection: 'column', gap: 12 }]}>
+                    <View style={[styles.searchWrapper, isMobile && { width: '100%', minHeight: 48, flexGrow: 0, flexShrink: 0 }]}>
+                        <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={{ marginRight: 10 }} />
                         <RNTextInput
                             placeholder="Search premises or locations..."
                             value={search}
@@ -941,7 +943,7 @@ const AssetDisplayScreen = ({ navigation }) => {
                     <Button
                         mode="contained"
                         onPress={handleAddPremises}
-                        style={styles.addButton}
+                        style={[styles.addButton, isMobile && { width: '100%' }]}
                         contentStyle={{ height: 48, paddingHorizontal: 16 }}
                         icon="plus"
                     >
@@ -953,6 +955,143 @@ const AssetDisplayScreen = ({ navigation }) => {
                     <View style={styles.centerContainer}>
                         <ActivityIndicator size="large" color="#3b82f6" />
                     </View>
+                ) : isMobile ? (
+                    <ScrollView style={{ marginTop: 10, paddingBottom: 80, maxHeight: 'calc(100vh - 250px)' }}>
+                        {premises.length === 0 ? (
+                            <View style={styles.emptyState}>
+                                <View style={styles.emptyIconCircle}>
+                                    <MaterialCommunityIcons name="office-building" size={40} color="#cbd5e1" />
+                                </View>
+                                <Text style={styles.emptyTitle}>No Premises Found</Text>
+                                <View style={{ marginTop: 16 }}>
+                                    <Button mode="contained" onPress={handleAddPremises} style={styles.addButton}>
+                                        Add First Premises
+                                    </Button>
+                                </View>
+                            </View>
+                        ) : (
+                            premises.map((item) => (
+                                <Surface key={item.premise_id} style={{
+                                    marginHorizontal: 4,
+                                    marginBottom: 16,
+                                    borderRadius: 12,
+                                    backgroundColor: 'white',
+                                    elevation: 2,
+                                    overflow: 'hidden',
+                                    borderWidth: 1,
+                                    borderColor: '#e2e8f0'
+                                }}>
+                                    <View style={{ padding: 16 }}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                            <View style={[styles.typeChip, {
+                                                backgroundColor: item.premise_type === 'OWNED' ? '#e0e7ff' : '#fff7ed',
+                                                paddingHorizontal: 10,
+                                                height: 24
+                                            }]}>
+                                                <Text style={{
+                                                    color: item.premise_type === 'OWNED' ? '#4338ca' : '#c2410c',
+                                                    fontWeight: '800',
+                                                    fontSize: 10,
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {item.premise_type}
+                                                </Text>
+                                            </View>
+                                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                                                <TouchableOpacity onPress={() => fetchPremiseSnapshot(item)} style={{ padding: 4, backgroundColor: '#f8fafc', borderRadius: 6 }}>
+                                                    <MaterialCommunityIcons name="eye-outline" size={18} color="#f59e0b" />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleEditPremise(item)} style={{ padding: 4, backgroundColor: '#f8fafc', borderRadius: 6 }}>
+                                                    <MaterialCommunityIcons name="pencil-outline" size={18} color="#6366f1" />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleDeletePremise(item)} style={{ padding: 4, backgroundColor: '#fef2f2', borderRadius: 6 }}>
+                                                    <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                                            <View style={{
+                                                width: 48, height: 48, borderRadius: 10,
+                                                backgroundColor: item.premises_use === 'OFFICE' ? '#eff6ff' : '#f0fdf4',
+                                                justifyContent: 'center', alignItems: 'center', marginRight: 16
+                                            }}>
+                                                <MaterialCommunityIcons
+                                                    name={item.premises_use === 'OFFICE' ? 'briefcase-outline' :
+                                                        item.premises_use === 'WAREHOUSE' ? 'warehouse' : 'domain'}
+                                                    size={24}
+                                                    color={item.premises_use === 'OFFICE' ? '#3b82f6' : '#16a34a'}
+                                                />
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1e293b', marginBottom: 2 }}>{item.premises_name}</Text>
+                                                <Text style={{ fontSize: 13, color: '#64748b' }}>{item.building_name || 'N/A'}</Text>
+                                            </View>
+                                        </View>
+                                        <Divider style={{ marginBottom: 16, backgroundColor: '#f1f5f9' }} />
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                            <View>
+                                                <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>USAGE</Text>
+                                                <Text style={{ color: '#334155', fontWeight: '600', fontSize: 13 }}>{item.premises_use || '-'}</Text>
+                                            </View>
+                                            <View>
+                                                <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>COUNTRY</Text>
+                                                <Text style={{ color: '#334155', fontWeight: '600', fontSize: 13 }}>{item.country || 'Unknown'}</Text>
+                                            </View>
+                                            <View style={{ alignItems: 'flex-end' }}>
+                                                <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>AREA</Text>
+                                                <Text style={{ color: '#334155', fontWeight: '600', fontSize: 13 }}>{item.area || 'Free Zone'}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </Surface>
+                            ))
+                        )}
+                        {premises.length > 0 && (
+
+                            <View style={[styles.paginationContainer, { flexDirection: width < 480 ? 'column' : 'row', gap: width < 480 ? 12 : 0, justifyContent: width < 480 ? 'center' : 'space-between' }]}>
+                                <Text style={[styles.paginationText, width < 480 && { marginBottom: 8, textAlign: 'center' }]}>
+                                    Showing {page * itemsPerPage + 1} to {Math.min((page + 1) * itemsPerPage, totalItems)} of {totalItems}
+                                </Text>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <TouchableOpacity
+                                        onPress={() => setPage(0)}
+                                        disabled={page === 0}
+                                        style={[styles.pageBtn, page === 0 && styles.pageBtnDisabled]}
+                                    >
+                                        <MaterialCommunityIcons name="chevron-double-left" size={20} color={page === 0 ? '#cbd5e1' : '#64748b'} />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        onPress={() => setPage(Math.max(0, page - 1))}
+                                        disabled={page === 0}
+                                        style={[styles.pageBtn, page === 0 && styles.pageBtnDisabled]}
+                                    >
+                                        <MaterialCommunityIcons name="chevron-left" size={20} color={page === 0 ? '#cbd5e1' : '#64748b'} />
+                                    </TouchableOpacity>
+
+                                    <View style={[styles.pageBtn, styles.pageBtnActive]}>
+                                        <Text style={styles.pageBtnTextActive}>{page + 1}</Text>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        onPress={() => setPage(Math.min(Math.ceil(totalItems / itemsPerPage) - 1, page + 1))}
+                                        disabled={page >= Math.ceil(totalItems / itemsPerPage) - 1}
+                                        style={[styles.pageBtn, page >= Math.ceil(totalItems / itemsPerPage) - 1 && styles.pageBtnDisabled]}
+                                    >
+                                        <MaterialCommunityIcons name="chevron-right" size={20} color={page >= Math.ceil(totalItems / itemsPerPage) - 1 ? '#cbd5e1' : '#64748b'} />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        onPress={() => setPage(Math.ceil(totalItems / itemsPerPage) - 1)}
+                                        disabled={page >= Math.ceil(totalItems / itemsPerPage) - 1}
+                                        style={[styles.pageBtn, page >= Math.ceil(totalItems / itemsPerPage) - 1 && styles.pageBtnDisabled]}
+                                    >
+                                        <MaterialCommunityIcons name="chevron-double-right" size={20} color={page >= Math.ceil(totalItems / itemsPerPage) - 1 ? '#cbd5e1' : '#64748b'} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+                    </ScrollView>
                 ) : (
                     <Card style={styles.tableCard}>
                         <DataTable>
@@ -1446,7 +1585,7 @@ const AssetDisplayScreen = ({ navigation }) => {
                     />
                 </Portal>
             </View>
-        </AppLayout>
+        </AppLayout >
     );
 };
 
@@ -1456,7 +1595,7 @@ const styles = StyleSheet.create({
     title: { fontSize: 24, fontWeight: 'bold', color: '#1e293b' },
     subtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
     controlsHeader: { flexDirection: 'row', marginBottom: 24, gap: 16 },
-    searchWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 16, height: 48 },
+    searchWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 24, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 16, height: 48 },
     addButton: { borderRadius: 8, justifyContent: 'center', backgroundColor: '#3b82f6' },
     searchIcon: { marginRight: 10 },
     searchInput: { flex: 1, fontSize: 14, color: '#1e293b', outlineStyle: 'none', height: '100%' },

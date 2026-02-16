@@ -4,9 +4,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
 
-const KpiCard = ({ title, value, icon, gradientColors, iconBg }) => {
+const KpiCard = ({ title, value, icon, gradientColors, iconBg, style }) => {
+    // Derive shadow color from the first gradient color, or default to blue
+    const shadowColor = gradientColors ? gradientColors[0] : '#3b82f6';
+
     return (
-        <View style={styles.cardContainer}>
+        <View style={[styles.cardContainer, style, { shadowColor: shadowColor }]}>
             <LinearGradient
                 colors={gradientColors || ['#3b82f6', '#2563eb']}
                 start={{ x: 0, y: 0 }}
@@ -36,7 +39,7 @@ const KpiCard = ({ title, value, icon, gradientColors, iconBg }) => {
                         <Text style={styles.cardValue}>{value}</Text>
                     </View>
                     <View style={[styles.iconCircle, { backgroundColor: iconBg || 'rgba(255,255,255,0.2)' }]}>
-                        <MaterialCommunityIcons name={icon} size={24} color="white" />
+                        <MaterialCommunityIcons name={icon} size={22} color="white" />
                     </View>
                 </View>
             </LinearGradient>
@@ -59,7 +62,7 @@ const styles = StyleSheet.create({
     gradient: {
         flex: 1,
         borderRadius: 18,
-        padding: 24,
+        padding: 16,
         overflow: 'hidden',
         justifyContent: 'center',
     },
@@ -68,9 +71,12 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         zIndex: 1,
+        width: '100%', // Ensure full width
     },
     textSection: {
         justifyContent: 'center',
+        flex: 1, // Allow text section to take available space
+        marginRight: 8, // Add spacing between text and icon
     },
     cardTitle: {
         fontSize: 14,
@@ -84,9 +90,9 @@ const styles = StyleSheet.create({
         color: '#ffffff',
     },
     iconCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 16, // Squircle
+        width: 40,
+        height: 40,
+        borderRadius: 12, // Squircle
         justifyContent: 'center',
         alignItems: 'center',
         backdropFilter: 'blur(10px)', // Glassy icon bg on web

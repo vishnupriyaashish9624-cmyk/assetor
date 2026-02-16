@@ -3,9 +3,9 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // In Expo web, we can use localStorage or AsyncStorage mapping
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5032api';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5032/api';
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
     user: null,
     token: null,
     isAuthenticated: false,
