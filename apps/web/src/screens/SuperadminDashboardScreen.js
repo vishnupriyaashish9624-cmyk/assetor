@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Image, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppLayout from '../components/AppLayout';
+import KpiCard from '../components/KpiCard';
 import axios from 'axios';
 import useAuthStore from '../store/authStore';
 import ClientFormModal from '../components/modals/ClientFormModal';
@@ -9,26 +10,27 @@ import CompanyFormModal from '../components/modals/CompanyFormModal';
 import EmployeeFormModal from '../components/modals/EmployeeFormModal';
 import AlertDialog from '../components/AlertDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
+import AssetStatusOverviewChart from '../components/AssetStatusOverviewChart';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5032/api';
 
 const SuperadminDashboardScreen = ({ navigation }) => {
     const { width } = useWindowDimensions();
-    const isMobile = width < 1200;
+    const isMobile = width < 1200; // Layout breakpoint
     const { token } = useAuthStore();
-
-    // Data State
     const [clients, setClients] = useState([]);
+    const [selectedClient, setSelectedClient] = useState(null);
+    const [selectedCompany, setSelectedCompany] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [detailsLoading, setDetailsLoading] = useState(false);
     const [globalKpis, setGlobalKpis] = useState({
         totalClients: 0,
         totalCompanies: 0,
         totalEmployees: 0,
         totalAssets: 0
     });
-    const [loading, setLoading] = useState(true);
 
-    // Modal State
+    // Modals
     const [clientModalVisible, setClientModalVisible] = useState(false);
     const [companyModalVisible, setCompanyModalVisible] = useState(false);
     const [employeeModalVisible, setEmployeeModalVisible] = useState(false);
@@ -36,11 +38,21 @@ const SuperadminDashboardScreen = ({ navigation }) => {
     const [editingCompany, setEditingCompany] = useState(null);
     const [editingEmployee, setEditingEmployee] = useState(null);
 
+    // Filter/Search
+    const [clientSearch, setClientSearch] = useState('');
+    const [companySearch, setCompanySearch] = useState('');
+
     // Dialog States
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'info' });
+    const [confirmConfig, setConfirmConfig] = useState({ visible: false, title: '', message: '', onConfirm: () => { }, danger: false });
 
+    // Helpers
     const showAlert = (title, message, type = 'info') => {
         setAlertConfig({ visible: true, title, message, type });
+    };
+
+    const showConfirm = (title, message, onConfirm, danger = false) => {
+        setConfirmConfig({ visible: true, title, message, onConfirm, danger });
     };
 
     // Initial Load
@@ -65,300 +77,397 @@ const SuperadminDashboardScreen = ({ navigation }) => {
         }
     };
 
-    // Handlers (Simplified for Dashboard Quick Actions)
+    // --- Client Handlers ---
+
     const handleSaveClient = async (data) => {
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            await axios.post(`${API_URL}/clients`, data, config);
-            showAlert('Success', 'Client created successfully!', 'success');
+            if (editingClient) {
+                await axios.put(`${API_URL}/clients/${editingClient.id}`, data, config);
+                showAlert('Success', 'Client updated successfully!', 'success');
+            } else {
+                await axios.post(`${API_URL}/clients`, data, config);
+                showAlert('Success', 'Client created successfully!', 'success');
+            }
             fetchData();
         } catch (error) {
+            console.error('Error saving client:', error);
             showAlert('Error', 'Failed to save client: ' + (error.response?.data?.message || error.message), 'error');
         }
     };
 
+    const handleDeleteClient = (client) => {
+        showConfirm(
+            'Delete Client',
+            `Are you sure you want to delete ${client.name}? This action cannot be undone.`,
+            async () => {
+                try {
+                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                    await axios.delete(`${API_URL}/clients/${client.id}`, config);
+                    if (selectedClient?.id === client.id) setSelectedClient(null);
+                    fetchData();
+                    showAlert('Deleted', 'Client has been removed.', 'success');
+                } catch (error) {
+                    console.error('Error deleting client:', error);
+                    showAlert('Error', 'Failed to delete client.', 'error');
+                }
+            },
+            true
+        );
+    };
+
+    const handleSelectClient = async (client) => {
+        if (selectedClient?.id === client.id) return;
+        setSelectedClient(client);
+        setSelectedCompany(null);
+
+        // Fetch details to get full object (e.g. companies list if not included in list view)
+        setDetailsLoading(true);
+        try {
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            const response = await axios.get(`${API_URL}/clients/${client.id}`, config);
+            setSelectedClient(response.data.data);
+        } catch (error) {
+            console.error('Error fetching client details:', error);
+        } finally {
+            setDetailsLoading(false);
+        }
+    };
+
+    // --- Company Handlers ---
+
     const handleSaveCompany = async (data) => {
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            await axios.post(`${API_URL}/companies`, data, config);
-            showAlert('Success', 'Company created successfully!', 'success');
-            fetchData();
+            if (editingCompany) {
+                await axios.put(`${API_URL}/companies/${editingCompany.id}`, data, config);
+                showAlert('Success', 'Company updated successfully!', 'success');
+            } else {
+                await axios.post(`${API_URL}/companies`, data, config);
+                showAlert('Success', 'Company created successfully!', 'success');
+            }
+            if (selectedClient) handleSelectClient(selectedClient); // Refresh list
+            fetchData(); // Refresh global KPIs
         } catch (error) {
+            console.error('Error saving company:', error);
             showAlert('Error', 'Failed to save company: ' + (error.response?.data?.message || error.message), 'error');
         }
     };
 
+    const handleDeleteCompany = (company) => {
+        showConfirm(
+            'Delete Company',
+            `Are you sure you want to delete ${company.name}?`,
+            async () => {
+                try {
+                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                    await axios.delete(`${API_URL}/companies/${company.id}`, config);
+                    if (selectedCompany?.id === company.id) setSelectedCompany(null);
+                    if (selectedClient) handleSelectClient(selectedClient);
+                    fetchData();
+                    showAlert('Deleted', 'Company has been removed.', 'success');
+                } catch (error) {
+                    console.error('Error deleting company:', error);
+                    showAlert('Error', 'Failed to delete company.', 'error');
+                }
+            },
+            true
+        );
+    };
+
+    const handleSelectCompany = async (company) => {
+        setSelectedCompany(company);
+        // Fetch company documents or other details if needed, but basic details are usually in the list item
+        // Could fetch stats here
+    };
+
+    // --- Employee Handlers ---
     const handleSaveEmployee = async (data) => {
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
             await axios.post(`${API_URL}/employees`, data, config);
-            showAlert('Success', 'Employee created successfully!', 'success');
+            if (selectedClient) handleSelectClient(selectedClient);
             fetchData();
+            showAlert('Success', 'Employee added successfully!', 'success');
         } catch (error) {
-            showAlert('Error', 'Failed to save employee: ' + (error.response?.data?.message || error.message), 'error');
+            console.error('Error saving employee:', error);
+            if (error.response?.data?.message === 'PRIVILEGE_DENIED') {
+                showAlert('Access Denied', 'This company does not have permission to add employees.', 'error');
+            } else if (error.response?.data?.message === 'LIMIT_EXCEEDED') {
+                showAlert('Limit Exceeded', error.response.data.detail, 'warning');
+            } else {
+                showAlert('Error', 'Failed to add employee: ' + (error.response?.data?.message || error.message), 'error');
+            }
+            throw error;
         }
     };
 
 
-    // --- Widgets ---
-
-    const OverviewBarChart = () => {
-        const data = [
-            { name: 'Jan', value: 4000 }, { name: 'Feb', value: 3000 },
-            { name: 'Mar', value: 2000 }, { name: 'Apr', value: 2780 },
-            { name: 'May', value: 1890 }, { name: 'Jun', value: 2390 },
-        ];
-        return (
-            <View style={styles.chartWidget}>
-                <View style={styles.widgetHeader}>
-                    <Text style={styles.widgetTitle}>Monthly Activity</Text>
-                    <MaterialCommunityIcons name="dots-horizontal" size={20} color="#94a3b8" />
-                </View>
-                <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={data} barSize={20}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                        <Tooltip cursor={{ fill: '#F1F5F9' }} contentStyle={{ backgroundColor: 'white', borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="value" fill="#34d399" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </View>
-        );
-    };
-
-    const CircularProgress = ({ title, percent, color }) => {
-        const data = [
-            { name: 'Completed', value: percent, color: color },
-            { name: 'Remaining', value: 100 - percent, color: '#f1f5f9' },
-        ];
-        return (
-            <View style={styles.circularWidget}>
-                <ResponsiveContainer width="100%" height={120}>
-                    <PieChart>
-                        <Pie
-                            data={data}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={35}
-                            outerRadius={45}
-                            startAngle={90}
-                            endAngle={-270}
-                            dataKey="value"
-                            stroke="none"
-                        >
-                            {data.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                        </Pie>
-                        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 16, fontWeight: 'bold', fill: '#1e293b' }}>
-                            {percent}%
-                        </text>
-                    </PieChart>
-                </ResponsiveContainer>
-                <Text style={styles.circularLabel}>{title}</Text>
-                <Text style={styles.circularSub}>Status</Text>
-            </View>
-        );
-    };
-
-    const StatsList = () => (
-        <View style={styles.listWidget}>
-            <Text style={styles.widgetTitle}>Recent Clients</Text>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 16 }}>
-                {clients.slice(0, 3).map((client, index) => (
-                    <View key={client.id || index} style={styles.listItem}>
-                        <View style={[styles.iconBox, { backgroundColor: index === 0 ? '#fee2e2' : index === 1 ? '#e0e7ff' : '#dcfce7' }]}>
-                            <MaterialCommunityIcons name="domain" size={18} color={index === 0 ? '#ef4444' : index === 1 ? '#6366f1' : '#22c55e'} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.listItemTitle}>{client.name}</Text>
-                            <Text style={styles.listItemSub}>{client.unique_id || 'ID-1234'}</Text>
-                        </View>
-                        <Text style={styles.listItemValue}>{client.companies_count} Co.</Text>
-                    </View>
-                ))}
-            </ScrollView>
-        </View>
-    );
-
-    const AreaGrowthChart = () => {
-        const data = [
-            { name: 'Mon', value: 400 },
-            { name: 'Tue', value: 300 },
-            { name: 'Wed', value: 550 },
-            { name: 'Thu', value: 450 },
-            { name: 'Fri', value: 650 },
-            { name: 'Sat', value: 500 },
-            { name: 'Sun', value: 700 },
-        ];
-        return (
-            <View style={styles.chartWidget}>
-                <View style={styles.widgetHeader}>
-                    <Text style={styles.widgetTitle}>Growth Analysis</Text>
-                </View>
-                <ResponsiveContainer width="100%" height={180}>
-                    <AreaChart data={data}>
-                        <defs>
-                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#facc15" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="#facc15" stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                        <Area type="monotone" dataKey="value" stroke="#eab308" fillOpacity={1} fill="url(#colorValue)" strokeWidth={3} />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </View>
-        );
-    };
-
-    const VerticalStats = () => (
-        <View style={styles.verticalStatsWidget}>
-            <Text style={styles.widgetTitle}>System Status</Text>
-            <View style={styles.statRow}>
-                <View style={styles.statDotGreen} />
-                <Text style={styles.statLabel}>Server Online</Text>
-            </View>
-            <View style={styles.statRow}>
-                <View style={styles.statDotPurple} />
-                <Text style={styles.statLabel}>DB Connected</Text>
-            </View>
-            <View style={styles.statRow}>
-                <View style={styles.statDotYellow} />
-                <Text style={styles.statLabel}>Sync Active</Text>
-            </View>
-        </View>
-    );
-
-    const QuickActionWidget = () => (
-        <View style={styles.quickActionWidget}>
-            <Text style={styles.whiteTitle}>Direct Actions</Text>
-            <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => setClientModalVisible(true)}>
-                    <MaterialCommunityIcons name="plus" size={20} color="white" />
-                    <Text style={styles.actionText}>Client</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => setCompanyModalVisible(true)}>
-                    <MaterialCommunityIcons name="plus" size={20} color="white" />
-                    <Text style={styles.actionText}>Company</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-
-
     if (loading) {
         return (
-            <AppLayout navigation={navigation} title="Dashboard">
+            <AppLayout navigation={navigation} title="Superadmin Control Center">
                 <View style={styles.centered}>
-                    <ActivityIndicator size="large" color="#8b5cf6" />
+                    <ActivityIndicator size="large" color="#3b82f6" />
                 </View>
             </AppLayout>
         );
     }
 
     return (
-        <AppLayout navigation={navigation} title="Dashboard">
-            <View style={styles.container}>
-                {/* Search Header */}
-                <View style={[styles.headerBar, isMobile && { flexDirection: 'column', alignItems: 'flex-start', gap: 12 }]}>
-                    <View>
-                        <Text style={styles.headerTitle}>Overview</Text>
-                        <Text style={styles.headerSubtitle}>Welcome back, Super Admin</Text>
-                    </View>
-                    <View style={styles.headerControls}>
-                        <View style={styles.searchContainer}>
-                            <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
-                            <TextInput placeholder="Search..." placeholderTextColor="#94a3b8" style={styles.headerInput} />
-                        </View>
-                        <TouchableOpacity style={styles.iconBtn}>
-                            <MaterialCommunityIcons name="bell-outline" size={22} color="#64748b" />
-                            <View style={styles.badge}><Text style={styles.badgeText}>3</Text></View>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.profileBtn}>
-                            <Image source={{ uri: 'https://ui-avatars.com/api/?name=Super+Admin&background=8b5cf6&color=fff' }} style={styles.avatar} />
-                        </TouchableOpacity>
-                    </View>
+        <AppLayout navigation={navigation} title="Superadmin Control Center">
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* KPI Section */}
+                <View style={[styles.kpiContainer, isMobile && { padding: 16, gap: 12 }]}>
+                    <KpiCard
+                        title="Total Clients"
+                        value={(globalKpis?.totalClients || 0).toString()}
+                        icon="domain"
+                        gradientColors={['#3b82f6', '#2563eb']}
+                        style={{ minWidth: isMobile ? '45%' : 200, margin: isMobile ? 4 : 8 }}
+                    />
+                    <KpiCard
+                        title="Total Companies"
+                        value={(globalKpis?.totalCompanies || 0).toString()}
+                        icon="office-building"
+                        gradientColors={['#10b981', '#059669']}
+                        style={{ minWidth: isMobile ? '45%' : 200, margin: isMobile ? 4 : 8 }}
+                    />
+                    <KpiCard
+                        title="Total Employees"
+                        value={(globalKpis?.totalEmployees || 0).toString()}
+                        icon="account-group"
+                        gradientColors={['#8b5cf6', '#7c3aed']}
+                        style={{ minWidth: isMobile ? '45%' : 200, margin: isMobile ? 4 : 8 }}
+                    />
+                    <KpiCard
+                        title="Total Assets"
+                        value={(globalKpis?.totalAssets || 0).toString()}
+                        icon="cube-outline"
+                        gradientColors={['#f59e0b', '#d97706']}
+                        style={{ minWidth: isMobile ? '45%' : 200, margin: isMobile ? 4 : 8 }}
+                    />
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                    {/* Top Stats Cards (New Design) */}
-                    <View style={styles.statsGrid}>
-                        <View style={styles.statCard}>
-                            <View style={[styles.statIcon, { backgroundColor: '#eff6ff' }]}>
-                                <MaterialCommunityIcons name="domain" size={24} color="#3b82f6" />
-                            </View>
-                            <View>
-                                <Text style={styles.statValue}>{globalKpis.totalClients}</Text>
-                                <Text style={styles.statLabel}>Total Clients</Text>
-                            </View>
+                {/* Main Content Areas */}
+                <View style={[
+                    styles.threeColumnLayout,
+                    isMobile && { flexDirection: 'column', height: 'auto', padding: 16, gap: 16 }
+                ]}>
+
+                    {/* Column 1: Clients List */}
+                    <View style={[styles.column, isMobile && { height: 500 }]}>
+                        <View style={styles.columnHeader}>
+                            <Text style={styles.columnTitle}>Clients</Text>
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => { setEditingClient(null); setClientModalVisible(true); }}
+                            >
+                                <MaterialCommunityIcons name="plus" size={20} color="white" />
+                            </TouchableOpacity>
                         </View>
-                        <View style={styles.statCard}>
-                            <View style={[styles.statIcon, { backgroundColor: '#f0fdf4' }]}>
-                                <MaterialCommunityIcons name="office-building" size={24} color="#10b981" />
-                            </View>
-                            <View>
-                                <Text style={styles.statValue}>{globalKpis.totalCompanies}</Text>
-                                <Text style={styles.statLabel}>Total Companies</Text>
-                            </View>
+
+                        <View style={styles.searchBar}>
+                            <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="Search clients..."
+                                value={clientSearch}
+                                onChangeText={setClientSearch}
+                                placeholderTextColor="#94a3b8"
+                            />
                         </View>
-                        <View style={styles.statCard}>
-                            <View style={[styles.statIcon, { backgroundColor: '#f5f3ff' }]}>
-                                <MaterialCommunityIcons name="account-group" size={24} color="#8b5cf6" />
-                            </View>
-                            <View>
-                                <Text style={styles.statValue}>{globalKpis.totalEmployees}</Text>
-                                <Text style={styles.statLabel}>Employees</Text>
-                            </View>
-                        </View>
-                        <View style={styles.statCard}>
-                            <View style={[styles.statIcon, { backgroundColor: '#fffbeb' }]}>
-                                <MaterialCommunityIcons name="cube-outline" size={24} color="#f59e0b" />
-                            </View>
-                            <View>
-                                <Text style={styles.statValue}>{globalKpis.totalAssets}</Text>
-                                <Text style={styles.statLabel}>Total Assets</Text>
-                            </View>
-                        </View>
+
+                        <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
+                            {(clients || []).filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(client => (
+                                <TouchableOpacity
+                                    key={client.id}
+                                    style={[styles.card, selectedClient?.id === client.id && styles.activeCard]}
+                                    onPress={() => handleSelectClient(client)}
+                                >
+                                    <View style={styles.cardHeader}>
+                                        <Text style={styles.cardTitle}>{client.name}</Text>
+                                        <View style={styles.cardActions}>
+                                            <TouchableOpacity onPress={async () => {
+                                                try {
+                                                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                                                    const res = await axios.get(`${API_URL}/clients/${client.id}`, config);
+                                                    setEditingClient(res.data.data);
+                                                } catch (e) {
+                                                    setEditingClient(client);
+                                                }
+                                                setClientModalVisible(true);
+                                            }}>
+                                                <MaterialCommunityIcons name="pencil" size={16} color="#3b82f6" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => handleDeleteClient(client)}>
+                                                <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
+                                            </TouchableOpacity>
+                                            <View style={[styles.statusBadge, client.status === 'ACTIVE' ? styles.statusActive : styles.statusSuspended]}>
+                                                <Text style={[styles.statusText, client.status === 'ACTIVE' ? { color: '#16a34a' } : { color: '#dc2626' }]}>{client.status}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <Text style={styles.cardSubtitle}>Limits: {client.max_companies} Companies</Text>
+                                    <View style={styles.progressBarBg}>
+                                        <View style={[styles.progressBarFill, { width: `${Math.min(((client.companies_count || 0) / (client.max_companies || 1)) * 100, 100)}%` }]} />
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
                     </View>
 
+                    {/* Column 2: Companies List */}
+                    <View style={[styles.column, isMobile && { height: 500 }]}>
+                        {selectedClient ? (
+                            <>
+                                <View style={styles.columnHeader}>
+                                    <Text style={styles.columnTitle} numberOfLines={1}>{selectedClient.name} — Companies</Text>
+                                    <TouchableOpacity
+                                        style={[styles.addButton, (selectedClient.companies_count >= selectedClient.max_companies) && styles.disabledButton]}
+                                        disabled={selectedClient.companies_count >= selectedClient.max_companies}
+                                        onPress={() => { setEditingCompany(null); setCompanyModalVisible(true); }}
+                                    >
+                                        <MaterialCommunityIcons name="plus" size={20} color="white" />
+                                    </TouchableOpacity>
+                                </View>
 
-                    {/* Main Grid Widgets */}
-                    <View style={[styles.mainGrid, isMobile && { flexDirection: 'column' }]}>
+                                <View style={styles.searchBar}>
+                                    <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
+                                    <TextInput
+                                        style={styles.searchInput}
+                                        placeholder="Search companies..."
+                                        value={companySearch}
+                                        onChangeText={setCompanySearch}
+                                        placeholderTextColor="#94a3b8"
+                                    />
+                                </View>
 
-                        {/* Row 1 */}
-                        <View style={[styles.gridColumn, { flex: 2, minWidth: 300 }]}>
-                            <OverviewBarChart />
-                        </View>
+                                {detailsLoading ? (
+                                    <ActivityIndicator style={{ marginTop: 20 }} color="#3b82f6" />
+                                ) : (
+                                    <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
+                                        {(selectedClient.companies || [])
+                                            .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
+                                            .map(company => (
+                                                <TouchableOpacity
+                                                    key={company.id}
+                                                    style={[styles.card, selectedCompany?.id === company.id && styles.activeCard]}
+                                                    onPress={() => handleSelectCompany(company)}
+                                                >
+                                                    <View style={styles.cardHeader}>
+                                                        <Text style={styles.cardTitle}>{company.name}</Text>
+                                                        <View style={styles.cardActions}>
+                                                            <TouchableOpacity onPress={() => { setEditingCompany(company); setCompanyModalVisible(true); }}>
+                                                                <MaterialCommunityIcons name="pencil" size={16} color="#3b82f6" />
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => handleDeleteCompany(company)}>
+                                                                <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
 
-                        <View style={[styles.gridColumn, { flex: 1, minWidth: 200, flexDirection: 'row', gap: 16 }]}>
-                            <CircularProgress title="Projects" percent={76} color="#facc15" />
-                            <CircularProgress title="Tasks" percent={53} color="#f472b6" />
-                        </View>
-
-                        <View style={[styles.gridColumn, { flex: 1, minWidth: 250 }]}>
-                            <StatsList />
-                        </View>
-
-                        {/* Row 2 */}
-                        <View style={[styles.gridColumn, { flex: 2, minWidth: 300 }]}>
-                            <AreaGrowthChart />
-                        </View>
-
-                        <View style={[styles.gridColumn, { flex: 1, minWidth: 200 }]}>
-                            <VerticalStats />
-                        </View>
-
-                        <View style={[styles.gridColumn, { flex: 1, minWidth: 200 }]}>
-                            <QuickActionWidget />
-                        </View>
+                                                    <View style={styles.statsRow}>
+                                                        <View style={styles.statusBadgeSmall}>
+                                                            <Text style={styles.statusTextSmall}>ACTIVE</Text>
+                                                        </View>
+                                                        <Text style={styles.statsText}>{company.employee_count}/{selectedClient.max_employees || 100} EMP</Text>
+                                                        <Text style={styles.statsText}>{company.asset_count}/{selectedClient.max_assets || 500} AST</Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        {(!selectedClient.companies || selectedClient.companies.length === 0) && (
+                                            <View style={styles.emptyState}>
+                                                <Text style={styles.emptyText}>No companies found.</Text>
+                                            </View>
+                                        )}
+                                    </ScrollView>
+                                )}
+                            </>
+                        ) : (
+                            <View style={styles.emptyColumnState}>
+                                <MaterialCommunityIcons name="domain" size={48} color="#e2e8f0" />
+                                <Text style={styles.emptyText}>Select a client to manage companies</Text>
+                            </View>
+                        )}
                     </View>
-                </ScrollView>
-            </View>
 
-            {/* Hidden Modals to preserve functionality */}
+                    {/* Column 3: Details */}
+                    <View style={[styles.column, isMobile && { height: 'auto', minHeight: 400 }]}>
+                        {(selectedCompany || selectedClient) ? (
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                <View style={styles.detailsHeader}>
+                                    <Text style={styles.detailTitle}>
+                                        {selectedCompany ? `${selectedCompany.name} Details` : `${selectedClient?.name} Details`}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.detailSection}>
+                                    <Text style={styles.sectionHeader}>IDENTITY & TENANCY</Text>
+                                    <DetailRow label="Code" value={selectedCompany?.company_code || selectedClient?.company_code || 'N/A'} />
+                                    <DetailRow label="Industry" value={selectedCompany?.industry || selectedClient?.industry || 'N/A'} />
+                                    <DetailRow label="Tenancy" value={selectedCompany ? (selectedClient?.tenancy_type || 'OWNED') : (selectedClient?.tenancy_type || 'OWNED')} isGreen={true} />
+                                </View>
+
+                                <View style={styles.detailSection}>
+                                    <Text style={styles.sectionHeader}>LOCATION & CONTACT</Text>
+                                    {selectedCompany ? (
+                                        <>
+                                            <Text style={styles.detailValue}>{selectedCompany.address || 'No address'}</Text>
+                                            <Text style={styles.detailSub}>{selectedCompany.city ? `${selectedCompany.city}, ${selectedCompany.country}` : 'No location set'}</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Text style={styles.detailValue}>{selectedClient.address || 'No address'}</Text>
+                                            <Text style={styles.detailSub}>{selectedClient.city ? `${selectedClient.city}, ${selectedClient.country}` : 'No location set'}</Text>
+                                        </>
+                                    )}
+                                </View>
+
+                                <View style={styles.detailSection}>
+                                    <Text style={styles.sectionHeader}>USAGE LIMITS</Text>
+                                    <DetailRow label="Employees" value={selectedCompany ? `${selectedCompany.employee_count}` : `${Object.values(selectedClient.companies || {}).reduce((acc, c) => acc + (c.employee_count || 0), 0)} / ${selectedClient.max_employees}`} />
+                                    <DetailRow label="Assets" value={selectedCompany ? `${selectedCompany.asset_count}` : `${Object.values(selectedClient.companies || {}).reduce((acc, c) => acc + (c.asset_count || 0), 0)} / ${selectedClient.max_assets}`} />
+                                </View>
+
+                                {selectedCompany && (
+                                    <View style={styles.detailSection}>
+                                        <Text style={styles.sectionHeader}>ACTIONS</Text>
+                                        <TouchableOpacity
+                                            style={styles.actionButton}
+                                            onPress={() => { setEditingEmployee(null); setEmployeeModalVisible(true); }}
+                                        >
+                                            <MaterialCommunityIcons name="account-plus" size={18} color="#3b82f6" />
+                                            <Text style={styles.actionButtonText}>Add Employee</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+                            </ScrollView>
+                        ) : (
+                            <View style={styles.emptyColumnState}>
+                                <MaterialCommunityIcons name="information-outline" size={48} color="#e2e8f0" />
+                                <Text style={styles.emptyText}>Select an item to view details</Text>
+                            </View>
+                        )}
+                    </View>
+
+                </View>
+
+                {/* Chart Section - Split 50/50 */}
+                <View style={[styles.chartRow, isMobile && { flexDirection: 'column', paddingHorizontal: 16, marginTop: 16 }]}>
+                    <View style={[styles.chartHalf, isMobile && { height: 'auto', marginBottom: 16 }]}>
+                        <AssetStatusOverviewChart />
+                    </View>
+                    <View style={[styles.chartHalf, isMobile && { height: 'auto' }]}>
+                    </View>
+                </View>
+            </ScrollView>
+
+            {/* Modals */}
+
+            {/* Modals */}
+
             <ClientFormModal
                 visible={clientModalVisible}
                 onClose={() => { setClientModalVisible(false); setEditingClient(null); }}
@@ -369,14 +478,19 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                 visible={companyModalVisible}
                 onClose={() => { setCompanyModalVisible(false); setEditingCompany(null); }}
                 onSave={handleSaveCompany}
+                clientId={selectedClient?.id}
+                clientName={selectedClient?.name}
                 company={editingCompany}
             />
             <EmployeeFormModal
                 visible={employeeModalVisible}
                 onClose={() => { setEmployeeModalVisible(false); setEditingEmployee(null); }}
                 onSave={handleSaveEmployee}
+                companyId={selectedCompany?.id}
+                companyName={selectedCompany?.name}
                 employee={editingEmployee}
             />
+
             <AlertDialog
                 visible={alertConfig.visible}
                 onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
@@ -384,173 +498,268 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                 message={alertConfig.message}
                 type={alertConfig.type}
             />
-
-        </AppLayout>
+            <ConfirmDialog
+                visible={confirmConfig.visible}
+                onDismiss={() => setConfirmConfig({ ...confirmConfig, visible: false })}
+                onConfirm={confirmConfig.onConfirm}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                danger={confirmConfig.danger}
+            />
+        </AppLayout >
     );
 };
 
+const DetailRow = ({ label, value, isGreen }) => (
+    <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={[styles.detailValueRight, isGreen && { color: '#16a34a', fontWeight: '700' }]}>{value}</Text>
+    </View>
+);
+
 const styles = StyleSheet.create({
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    container: {
-        flex: 1,
-        padding: 24,
-        backgroundColor: '#f8fafc',
-    },
-    // Header
-    headerBar: {
+    kpiContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 32,
-    },
-    headerTitle: { fontSize: 24, fontWeight: '700', color: '#1e293b' },
-    headerSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
-    headerControls: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'white',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        height: 44,
-        width: 250,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    headerInput: { flex: 1, marginLeft: 8, fontSize: 14, outlineStyle: 'none' },
-    iconBtn: { padding: 8, position: 'relative' },
-    badge: {
-        position: 'absolute',
-        top: 4,
-        right: 4,
-        backgroundColor: '#ef4444',
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    badgeText: { fontSize: 10, color: 'white', fontWeight: 'bold' },
-    avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: 'white' },
-
-    // Stats Grid
-    statsGrid: {
-        flexDirection: 'row',
-        gap: 24,
-        marginBottom: 32,
         flexWrap: 'wrap',
+        gap: 16,
+        padding: 32,
+        paddingBottom: 0,
     },
-    statCard: {
+    threeColumnLayout: {
+        height: 750,
+        flexDirection: 'row',
+        padding: 32,
+        gap: 24,
+    },
+    column: {
         flex: 1,
-        minWidth: 200,
         backgroundColor: 'white',
         borderRadius: 16,
         padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
         shadowColor: '#64748b',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 12,
         elevation: 2,
     },
-    statIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    statValue: { fontSize: 20, fontWeight: '700', color: '#1e293b' },
-    statLabel: { fontSize: 12, color: '#64748b' },
-
-    // Main Grid
-    mainGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 24,
-    },
-    gridColumn: {
-        backgroundColor: 'white',
-        borderRadius: 20,
-        padding: 24,
-        minHeight: 250,
-        shadowColor: '#64748b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 2,
-    },
-
-    // Widgets
-    widgetHeader: {
+    columnHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
     },
-    widgetTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
-    tooltip: {
-        backgroundColor: 'white',
+    columnTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1e293b',
+        flex: 1,
+    },
+    addButton: {
+        width: 32,
+        height: 32,
         borderRadius: 8,
-        border: 'none',
-        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+        backgroundColor: '#3b82f6',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    disabledButton: { opacity: 0.5 },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f1f5f9',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        height: 40,
+        marginBottom: 16,
+    },
+    searchInput: {
+        flex: 1,
+        marginLeft: 8,
+        fontSize: 14,
+        color: '#334155',
+        ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+    },
+    listContainer: {
+        flex: 1,
+    },
+    card: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    activeCard: {
+        borderColor: '#3b82f6',
+        backgroundColor: '#eff6ff',
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 8,
+    },
+    cardTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1e293b',
+        flex: 1,
+    },
+    cardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    statusBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        backgroundColor: '#f1f5f9',
+    },
+    statusActive: { backgroundColor: '#dcfce7' },
+    statusSuspended: { backgroundColor: '#fee2e2' },
+    statusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+    cardSubtitle: {
+        fontSize: 11,
+        color: '#64748b',
+        marginBottom: 6,
+    },
+    progressBarBg: {
+        height: 4,
+        backgroundColor: '#e2e8f0',
+        borderRadius: 2,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        backgroundColor: '#3b82f6',
     },
 
-    // Circular Widget
-    circularWidget: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    circularLabel: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginTop: 8 },
-    circularSub: { fontSize: 12, color: '#94a3b8' },
-
-    // List Widget
-    listItem: {
+    // Column 2 Items
+    statsRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        marginBottom: 16,
+        marginTop: 8,
+    },
+    chartRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 32,
+        marginTop: 24,
+        gap: 24,
+    },
+    chartHalf: {
+        flex: 1,
+        height: 300,
+    },
+    assetImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 16,
+    },
+    placeholderCard: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 24,
+        flex: 1,
+        minHeight: 300,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.02)',
+    },
+    statusBadgeSmall: {
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusTextSmall: {
+        fontSize: 10,
+        color: '#64748b',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+    },
+    statsText: {
+        fontSize: 11,
+        color: '#64748b',
+        fontWeight: '500',
+    },
+
+    // Details
+    detailsHeader: {
+        marginBottom: 24,
         paddingBottom: 16,
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
     },
-    iconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-    listItemTitle: { fontSize: 14, fontWeight: '600', color: '#334155' },
-    listItemSub: { fontSize: 12, color: '#94a3b8' },
-    listItemValue: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-
-    // Vertical Stats
-    verticalStatsWidget: { justifyContent: 'center' },
-    statRow: {
+    detailTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    detailSection: {
+        marginBottom: 32,
+    },
+    sectionHeader: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#94a3b8',
+        marginBottom: 16,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    detailLabel: {
+        fontSize: 13,
+        color: '#64748b',
+    },
+    detailValueRight: {
+        fontSize: 13,
+        color: '#1e293b',
+        fontWeight: '500',
+        textAlign: 'right',
+    },
+    detailValue: {
+        fontSize: 14,
+        color: '#1e293b',
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    detailSub: {
+        fontSize: 13,
+        color: '#64748b',
+    },
+    actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        marginBottom: 20,
-    },
-    statDotGreen: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e' },
-    statDotPurple: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#8b5cf6' },
-    statDotYellow: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#facc15' },
-
-    // Quick Actions
-    quickActionWidget: {
-        backgroundColor: '#6366f1',
-        borderRadius: 20,
-        padding: 24,
-        justifyContent: 'center',
-        flex: 1
-    },
-    whiteTitle: { fontSize: 16, fontWeight: '700', color: 'white', marginBottom: 20 },
-    actionRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
-    actionBtn: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 12,
+        gap: 8,
         padding: 12,
-        alignItems: 'center',
-        flex: 1
+        backgroundColor: '#eff6ff',
+        borderRadius: 8,
+        alignSelf: 'flex-start',
     },
-    actionText: { color: 'white', fontSize: 12, fontWeight: '600', marginTop: 4 },
+    actionButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#3b82f6',
+    },
 
-    chartWidget: { flex: 1 },
-    listWidget: { flex: 1 },
+    emptyColumnState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: { fontSize: 13, color: '#94a3b8', marginTop: 12, textAlign: 'center' },
 });
 
 export default SuperadminDashboardScreen;
