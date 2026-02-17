@@ -34,6 +34,8 @@ const SubModulesScreen = ({ navigation }) => {
     const [selectedPropertyType, setSelectedPropertyType] = useState(null);
     const [selectedType, setSelectedType] = useState(null);
     const [selectedArea, setSelectedArea] = useState(null);
+    const [selectedRegion, setSelectedRegion] = useState(null);
+    const [regions, setRegions] = useState([]);
     const [status, setStatus] = useState(true);
 
     // Structure Data
@@ -63,6 +65,7 @@ const SubModulesScreen = ({ navigation }) => {
         setSelectedPropertyType(null);
         setSelectedType(null);
         setSelectedArea(null);
+        setSelectedRegion(null);
         setStatus(true);
         setModuleSections([]);
         setSectionFields({});
@@ -83,6 +86,7 @@ const SubModulesScreen = ({ navigation }) => {
         setSelectedPropertyType(propType || null);
         setSelectedType(type || null);
         setSelectedArea(area || null);
+        setSelectedRegion(item.region ? { name: item.region } : null);
         setStatus(item.is_active === 1 || item.status === 'ACTIVE');
 
         // Populate selected fields from item.selected_fields
@@ -136,6 +140,43 @@ const SubModulesScreen = ({ navigation }) => {
         fetchInitialData();
         fetchCompanyModules();
     }, []);
+
+    // Fetch regions when country changes
+    useEffect(() => {
+        const fetchRegions = async () => {
+            setRegions([]);
+            if (!selectedModule) setSelectedRegion(null);
+
+            if (!selectedCountry) return;
+
+            const countryName = selectedCountry.country_name || selectedCountry.name;
+            if (!countryName) return;
+
+            let queryCountry = countryName;
+            if (queryCountry.toLowerCase() === 'uae') queryCountry = 'United Arab Emirates';
+            if (queryCountry.toLowerCase() === 'usa') queryCountry = 'United States';
+            if (queryCountry.toLowerCase() === 'uk') queryCountry = 'United Kingdom';
+
+            try {
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: queryCountry })
+                });
+                const data = await res.json();
+                if (data.data && data.data.states) {
+                    setRegions(data.data.states.map(s => ({
+                        name: s.name,
+                        state_code: s.state_code
+                    })));
+                }
+            } catch (e) {
+                console.error('Fetch regions error', e);
+            }
+        };
+
+        fetchRegions();
+    }, [selectedCountry?.id]);
 
     useEffect(() => {
         if (!modalVisible) {
@@ -259,6 +300,7 @@ const SubModulesScreen = ({ navigation }) => {
                 property_type_id: selectedPropertyType?.id || null,
                 premises_type_id: selectedType?.id || null,
                 area_id: selectedArea?.id || null,
+                region: selectedRegion ? (selectedRegion.name || selectedRegion.label) : null,
                 is_active: status,
                 status_id: status ? 1 : 2,
                 selected_fields: selectedFieldIds
@@ -820,6 +862,7 @@ const SubModulesScreen = ({ navigation }) => {
                                     {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name')}
                                     {renderStructure()}
                                     {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name')}
+                                    {renderDropdown("Region", "Select Region...", selectedRegion, regions, setSelectedRegion, 'region', 'name')}
                                     {renderDropdown("Property Type", "Select...", selectedPropertyType, propertyTypes, setSelectedPropertyType, 'property', 'name')}
                                     {renderDropdown("Premise Type", "Select...", selectedType, types, setSelectedType, 'type', 'type_name')}
                                     {renderDropdown("Area", "Select Area...", selectedArea, areas, setSelectedArea, 'area', 'name')}
@@ -834,6 +877,7 @@ const SubModulesScreen = ({ navigation }) => {
                                 <View style={[styles.formRow, { zIndex: dropdownOpen ? 1000 : 1 }]}>
                                     {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name', { flex: 1.5, marginRight: 8 })}
                                     {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name', { flex: 1.2, marginRight: 8 })}
+                                    {renderDropdown("Region", "Select...", selectedRegion, regions, setSelectedRegion, 'region', 'name', { flex: 1.2, marginRight: 8 })}
                                     {renderDropdown("Property Type", "Select...", selectedPropertyType, propertyTypes, setSelectedPropertyType, 'property', 'name', { flex: 1, marginRight: 8 })}
                                     {renderDropdown("Premise Type", "Select...", selectedType, types, setSelectedType, 'type', 'type_name', { flex: 1, marginRight: 8 })}
                                     {renderDropdown("Area", "Select Area...", selectedArea, areas, setSelectedArea, 'area', 'name', { flex: 1.2, marginRight: 8 })}

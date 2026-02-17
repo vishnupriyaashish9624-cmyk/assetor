@@ -236,17 +236,7 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
                                             activeOutlineColor="#3b82f6"
                                         />
                                     </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.fieldLabelText}>Field Key (Auto)</Text>
-                                        <TextInput
-                                            mode="outlined"
-                                            value={fieldKey}
-                                            onChangeText={setFieldKey}
-                                            style={styles.input}
-                                            outlineColor="#e2e8f0"
-                                            activeOutlineColor="#3b82f6"
-                                        />
-                                    </View>
+
                                 </View>
 
                                 <View style={styles.row}>
@@ -297,8 +287,9 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
                                     value={placeholder}
                                     onChangeText={setPlaceholder}
                                     style={styles.input}
-                                    outlineColor="#e2e8f0"
                                     activeOutlineColor="#3b82f6"
+                                    placeholder="e.g. Enter client name"
+                                    placeholderTextColor="#94a3b8"
                                 />
 
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 20 }}>

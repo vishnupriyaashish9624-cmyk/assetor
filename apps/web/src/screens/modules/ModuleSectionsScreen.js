@@ -22,6 +22,13 @@ const ModuleSectionsScreen = ({ navigation }) => {
     const [viewingFields, setViewingFields] = useState([]);
     const [fieldsLoading, setFieldsLoading] = useState(false);
     const [viewModalVisible, setViewModalVisible] = useState(false);
+    const [expandedModules, setExpandedModules] = useState([]);
+
+    const toggleModule = (moduleName) => {
+        setExpandedModules(prev =>
+            prev.includes(moduleName) ? prev.filter(m => m !== moduleName) : [...prev, moduleName]
+        );
+    };
 
     useEffect(() => {
         setPage(0);
@@ -120,6 +127,17 @@ const ModuleSectionsScreen = ({ navigation }) => {
         return name.includes(searchStr) || module.includes(searchStr);
     });
 
+    // Group by Module
+    const groupedSections = filteredSections.reduce((acc, section) => {
+        const modName = section.module_name || 'Uncategorized';
+        if (!acc[modName]) acc[modName] = [];
+        acc[modName].push(section);
+        return acc;
+    }, {});
+
+    const moduleNames = Object.keys(groupedSections).sort();
+    const totalModules = moduleNames.length;
+
     return (
         <AppLayout navigation={navigation} title="Module Sections">
             <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -157,7 +175,7 @@ const ModuleSectionsScreen = ({ navigation }) => {
                     <View style={styles.centerContainer}>
                         <ActivityIndicator size="large" color="#3b82f6" />
                     </View>
-                ) : filteredSections.length === 0 ? (
+                ) : totalModules === 0 ? (
                     <View style={styles.emptyState}>
                         <View style={styles.emptyIconCircle}>
                             <MaterialCommunityIcons name="view-grid-plus-outline" size={48} color="#94a3b8" />
@@ -209,59 +227,92 @@ const ModuleSectionsScreen = ({ navigation }) => {
                         ) : (
                             <DataTable>
                                 <DataTable.Header style={styles.tableHeader}>
-                                    <DataTable.Title style={{ flex: 3 }} textStyle={styles.headerText}>Module</DataTable.Title>
-                                    <DataTable.Title style={{ flex: 3 }} textStyle={styles.headerText}>Section Name</DataTable.Title>
-                                    <DataTable.Title numeric style={{ flex: 1 }} textStyle={styles.headerText}>Order</DataTable.Title>
-                                    <DataTable.Title numeric style={{ flex: 2 }} textStyle={styles.headerText}>Actions</DataTable.Title>
+                                    <DataTable.Title style={{ maxWidth: 50 }}></DataTable.Title>
+                                    <DataTable.Title style={{ flex: 3 }} textStyle={styles.headerText}>MODULE NAME</DataTable.Title>
+                                    <DataTable.Title numeric style={{ flex: 1 }} textStyle={styles.headerText}>SECTIONS COUNT</DataTable.Title>
+                                    <DataTable.Title numeric style={{ flex: 1 }} textStyle={styles.headerText}>ACTIONS</DataTable.Title>
                                 </DataTable.Header>
 
                                 <ScrollView style={styles.tableScrollView} showsVerticalScrollIndicator={true}>
-                                    {filteredSections
+                                    {moduleNames
                                         .slice(page * itemsPerPage, (page + 1) * itemsPerPage)
-                                        .map((item) => (
-                                            <DataTable.Row key={item.id} style={styles.row}>
-                                                <DataTable.Cell style={{ flex: 3 }}>
-                                                    <View style={styles.moduleCell}>
-                                                        <MaterialCommunityIcons name="layers-outline" size={16} color="rgb(255, 152, 0)" style={{ marginRight: 8 }} />
-                                                        <Text style={styles.moduleNameText} numberOfLines={1}>{item.module_name}</Text>
-                                                    </View>
-                                                </DataTable.Cell>
-                                                <DataTable.Cell style={{ flex: 3 }}>
-                                                    <Text style={styles.sectionNameText} numberOfLines={1}>{item.name}</Text>
-                                                </DataTable.Cell>
-                                                <DataTable.Cell numeric style={{ flex: 1 }}>
-                                                    <Text style={styles.cellText}>{item.sort_order}</Text>
-                                                </DataTable.Cell>
-                                                <DataTable.Cell numeric style={{ flex: 2 }}>
-                                                    <View style={styles.actionButtons}>
-                                                        <TouchableOpacity
-                                                            style={[styles.actionBtn, styles.viewActionBtn]}
-                                                            onPress={() => handleViewSection(item)}
-                                                            activeOpacity={0.7}
-                                                        >
-                                                            <MaterialCommunityIcons name="eye-outline" size={18} color="rgb(239, 149, 10)" />
-                                                        </TouchableOpacity>
+                                        .map((modName, index) => {
+                                            const isExpanded = expandedModules.includes(modName);
+                                            const modSections = groupedSections[modName];
+                                            return (
+                                                <View key={modName} style={{ borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
+                                                    <DataTable.Row style={{ backgroundColor: index % 2 === 0 ? 'white' : '#f8fafc', height: 56 }}>
+                                                        <DataTable.Cell style={{ maxWidth: 50, justifyContent: 'center' }}>
+                                                            <TouchableOpacity onPress={() => toggleModule(modName)}>
+                                                                <MaterialCommunityIcons name={isExpanded ? "chevron-down" : "chevron-right"} size={24} color="#64748b" />
+                                                            </TouchableOpacity>
+                                                        </DataTable.Cell>
+                                                        <DataTable.Cell style={{ flex: 3 }}>
+                                                            <View style={styles.moduleCell}>
+                                                                <MaterialCommunityIcons name="view-module" size={20} color="#673ab7" style={{ marginRight: 12 }} />
+                                                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>{modName}</Text>
+                                                            </View>
+                                                        </DataTable.Cell>
+                                                        <DataTable.Cell numeric style={{ flex: 1 }}>
+                                                            <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                                                                <Text style={{ color: '#3b82f6', fontWeight: '700', fontSize: 12 }}>{modSections.length}</Text>
+                                                            </View>
+                                                        </DataTable.Cell>
+                                                        <DataTable.Cell numeric style={{ flex: 1 }}>
+                                                            <Button mode="text" labelStyle={{ fontSize: 12 }} onPress={() => toggleModule(modName)}>
+                                                                {isExpanded ? 'Collapse' : 'View Sections'}
+                                                            </Button>
+                                                        </DataTable.Cell>
+                                                    </DataTable.Row>
 
-                                                        <TouchableOpacity
-                                                            style={[styles.actionBtn, styles.editActionBtn]}
-                                                            onPress={() => handleEditSection(item)}
-                                                            activeOpacity={0.7}
-                                                        >
-                                                            <MaterialCommunityIcons name="pencil-outline" size={18} color="rgb(99, 102, 241)" />
-                                                        </TouchableOpacity>
+                                                    {isExpanded && (
+                                                        <View style={{ backgroundColor: '#f1f5f9', padding: 16, paddingLeft: 66 }}>
+                                                            <DataTable style={{ backgroundColor: 'white', borderRadius: 8, elevation: 1 }}>
+                                                                <DataTable.Header style={{ height: 44, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
+                                                                    <DataTable.Title style={{ flex: 3 }} textStyle={{ fontSize: 11, fontWeight: 'bold', color: '#64748b' }}>SECTION NAME</DataTable.Title>
+                                                                    <DataTable.Title numeric style={{ flex: 1 }} textStyle={{ fontSize: 11, fontWeight: 'bold', color: '#64748b' }}>ORDER</DataTable.Title>
+                                                                    <DataTable.Title numeric style={{ flex: 2 }} textStyle={{ fontSize: 11, fontWeight: 'bold', color: '#64748b' }}>ACTIONS</DataTable.Title>
+                                                                </DataTable.Header>
+                                                                {modSections.sort((a, b) => a.sort_order - b.sort_order).map((item) => (
+                                                                    <DataTable.Row key={item.id} style={{ height: 48, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                                                                        <DataTable.Cell style={{ flex: 3 }}>
+                                                                            <Text style={{ fontSize: 13, color: '#334155', fontWeight: '500' }}>{item.name}</Text>
+                                                                        </DataTable.Cell>
+                                                                        <DataTable.Cell numeric style={{ flex: 1 }}>
+                                                                            <Text style={{ fontSize: 13, color: '#64748b' }}>{item.sort_order}</Text>
+                                                                        </DataTable.Cell>
+                                                                        <DataTable.Cell numeric style={{ flex: 2 }}>
+                                                                            <View style={styles.actionButtons}>
+                                                                                <TouchableOpacity
+                                                                                    style={styles.actionBtn}
+                                                                                    onPress={() => handleViewSection(item)}
+                                                                                >
+                                                                                    <MaterialCommunityIcons name="eye-outline" size={18} color="rgb(239, 149, 10)" />
+                                                                                </TouchableOpacity>
 
-                                                        <TouchableOpacity
-                                                            style={[styles.actionBtn, styles.deleteActionBtn]}
-                                                            onPress={() => handleDeleteSection(item.id)}
-                                                            activeOpacity={0.7}
-                                                        >
-                                                            <MaterialCommunityIcons name="trash-can-outline" size={18} color="rgb(152, 37, 152)" />
-                                                        </TouchableOpacity>
-                                                    </View>
+                                                                                <TouchableOpacity
+                                                                                    style={styles.actionBtn}
+                                                                                    onPress={() => handleEditSection(item)}
+                                                                                >
+                                                                                    <MaterialCommunityIcons name="pencil-outline" size={18} color="rgb(99, 102, 241)" />
+                                                                                </TouchableOpacity>
 
-                                                </DataTable.Cell>
-                                            </DataTable.Row>
-                                        ))}
+                                                                                <TouchableOpacity
+                                                                                    style={styles.actionBtn}
+                                                                                    onPress={() => handleDeleteSection(item.id)}
+                                                                                >
+                                                                                    <MaterialCommunityIcons name="trash-can-outline" size={18} color="rgb(152, 37, 152)" />
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                        </DataTable.Cell>
+                                                                    </DataTable.Row>
+                                                                ))}
+                                                            </DataTable>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
                                 </ScrollView>
 
                             </DataTable>
@@ -272,7 +323,7 @@ const ModuleSectionsScreen = ({ navigation }) => {
                             {!isMobile && (
                                 <View style={styles.paginationLeft}>
                                     <Text style={styles.paginationInfo}>
-                                        Showing <Text style={styles.paginationBold}>{page * itemsPerPage + 1}</Text> to <Text style={styles.paginationBold}>{Math.min((page + 1) * itemsPerPage, filteredSections.length)}</Text> of <Text style={styles.paginationBold}>{filteredSections.length}</Text>
+                                        Showing <Text style={styles.paginationBold}>{page * itemsPerPage + 1}</Text> to <Text style={styles.paginationBold}>{Math.min((page + 1) * itemsPerPage, totalModules)}</Text> of <Text style={styles.paginationBold}>{totalModules}</Text> (Modules)
                                     </Text>
                                 </View>
                             )}
@@ -295,8 +346,8 @@ const ModuleSectionsScreen = ({ navigation }) => {
                                 </TouchableOpacity>
 
                                 {/* Page Numbers */}
-                                {Array.from({ length: Math.ceil(filteredSections.length / itemsPerPage) }).map((_, i) => {
-                                    if (i === page || i === 0 || i === Math.ceil(filteredSections.length / itemsPerPage) - 1 || (i >= page - 1 && i <= page + 1)) {
+                                {Array.from({ length: Math.ceil(totalModules / itemsPerPage) }).map((_, i) => {
+                                    if (i === page || i === 0 || i === Math.ceil(totalModules / itemsPerPage) - 1 || (i >= page - 1 && i <= page + 1)) {
                                         return (
                                             <TouchableOpacity
                                                 key={i}
@@ -313,19 +364,19 @@ const ModuleSectionsScreen = ({ navigation }) => {
                                 })}
 
                                 <TouchableOpacity
-                                    style={[styles.pageBtn, styles.pageBtnNav, (page >= Math.ceil(filteredSections.length / itemsPerPage) - 1) && styles.pageBtnDisabled]}
+                                    style={[styles.pageBtn, styles.pageBtnNav, (page >= Math.ceil(totalModules / itemsPerPage) - 1) && styles.pageBtnDisabled]}
                                     onPress={() => setPage(page + 1)}
-                                    disabled={page >= Math.ceil(filteredSections.length / itemsPerPage) - 1}
+                                    disabled={page >= Math.ceil(totalModules / itemsPerPage) - 1}
                                 >
-                                    <MaterialCommunityIcons name="chevron-right" size={18} color={(page >= Math.ceil(filteredSections.length / itemsPerPage) - 1) ? "#cbd5e1" : "#673ab7"} />
+                                    <MaterialCommunityIcons name="chevron-right" size={18} color={(page >= Math.ceil(totalModules / itemsPerPage) - 1) ? "#cbd5e1" : "#673ab7"} />
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
-                                    style={[styles.pageBtn, styles.pageBtnNav, (page >= Math.ceil(filteredSections.length / itemsPerPage) - 1) && styles.pageBtnDisabled]}
-                                    onPress={() => setPage(Math.ceil(filteredSections.length / itemsPerPage) - 1)}
-                                    disabled={page >= Math.ceil(filteredSections.length / itemsPerPage) - 1}
+                                    style={[styles.pageBtn, styles.pageBtnNav, (page >= Math.ceil(totalModules / itemsPerPage) - 1) && styles.pageBtnDisabled]}
+                                    onPress={() => setPage(Math.ceil(totalModules / itemsPerPage) - 1)}
+                                    disabled={page >= Math.ceil(totalModules / itemsPerPage) - 1}
                                 >
-                                    <MaterialCommunityIcons name="chevron-double-right" size={18} color={(page >= Math.ceil(filteredSections.length / itemsPerPage) - 1) ? "#cbd5e1" : "#673ab7"} />
+                                    <MaterialCommunityIcons name="chevron-double-right" size={18} color={(page >= Math.ceil(totalModules / itemsPerPage) - 1) ? "#cbd5e1" : "#673ab7"} />
                                 </TouchableOpacity>
                             </View>
                         </View>

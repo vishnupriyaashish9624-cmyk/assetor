@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, TextInput as NativeTextInput } from 'react-native';
-import { Text, TextInput, Button, Switch, Menu, Divider, IconButton, Surface, Searchbar } from 'react-native-paper';
+import { Text, TextInput, Button, Switch, Menu, Divider, IconButton, Surface, Searchbar, Checkbox, Chip } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../api/client';
 import ModuleSectionFormModal from './ModuleSectionFormModal';
 import AlertDialog from '../AlertDialog';
 import ConfirmDialog from '../ConfirmDialog';
+import FileConfigDialog from './FileConfigDialog';
 
 const FIELD_TYPES = [
     { label: 'Textbox', value: 'text', icon: 'form-textbox' },
@@ -62,6 +63,35 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
     // Dialog States
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'info' });
     const [confirmConfig, setConfirmConfig] = useState({ visible: false, title: '', message: '', onConfirm: () => { }, danger: false });
+
+    // File Configuration Dialog State
+    const [fileConfigDialogVisible, setFileConfigDialogVisible] = useState(false);
+    const [fileConfigTarget, setFileConfigTarget] = useState({ mode: 'none', index: -1 }); // mode: 'edit' or 'draft'
+    const [currentFileConfig, setCurrentFileConfig] = useState({});
+    const [previewDates, setPreviewDates] = useState({});
+
+    const parseFileConfig = (str) => {
+        if (str && str.startsWith("JSON:")) {
+            try { return JSON.parse(str.replace("JSON:", "")); } catch (e) { return {}; }
+        }
+        return {};
+    };
+
+    const openFileConfigDialog = (mode, index = -1, currentPlaceholder = '') => {
+        setFileConfigTarget({ mode, index });
+        setCurrentFileConfig(parseFileConfig(currentPlaceholder));
+        setFileConfigDialogVisible(true);
+    };
+
+    const handleFileConfigSave = (config) => {
+        const str = "JSON:" + JSON.stringify(config);
+        if (fileConfigTarget.mode === 'edit') {
+            setPlaceholder(str);
+        } else if (fileConfigTarget.mode === 'draft') {
+            updateDraftRow(fileConfigTarget.index, 'placeholder', str);
+        }
+        setFileConfigDialogVisible(false);
+    };
 
     const showAlert = (title, message, type = 'info') => {
         setAlertConfig({ visible: true, title, message, type });
@@ -544,21 +574,11 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                 activeOutlineColor="#3b82f6"
                                                 dense
                                                 disabled={!selectedSection}
+                                                placeholder="e.g. Client Name"
+                                                placeholderTextColor="#94a3b8"
                                             />
                                         </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.fieldLabel}>Field Key (Auto)</Text>
-                                            <TextInput
-                                                mode="outlined"
-                                                value={fieldKey}
-                                                onChangeText={setFieldKey}
-                                                style={styles.input}
-                                                outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                dense
-                                                disabled={!selectedSection}
-                                            />
-                                        </View>
+
                                     </View>
 
                                     {/* Row 2: Type & Sort Order */}
@@ -619,21 +639,44 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                 disabled={!selectedSection}
                                             />
                                         </View>
+
+                                        {/* Inline File Options Button */}
+                                        {['file', 'image', 'signature'].includes(currentType.value) && (
+                                            <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 2 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        openFileConfigDialog('edit', -1, placeholder);
+                                                    }}
+                                                    style={{ height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 4, borderStyle: 'dashed' }}
+                                                >
+                                                    <MaterialCommunityIcons name="cog" size={16} color="#3b82f6" />
+                                                    <Text style={{ color: '#3b82f6', fontSize: 12, fontWeight: '600' }}>
+                                                        {placeholder && placeholder.startsWith("JSON:") ? "Edit Options" : "Add Options"}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
                                     </View>
 
                                     {/* Row 3: Placeholder */}
                                     <View style={{ marginBottom: 16 }}>
                                         <Text style={styles.fieldLabel}>Placeholder / Helper Text</Text>
-                                        <TextInput
-                                            mode="outlined"
-                                            value={placeholder}
-                                            onChangeText={setPlaceholder}
-                                            style={styles.input}
-                                            outlineColor="#e2e8f0"
-                                            activeOutlineColor="#3b82f6"
-                                            dense
-                                            disabled={!selectedSection}
-                                        />
+                                        {/* File options moved inline above */}
+                                        {!['file', 'image', 'signature'].includes(currentType.value) && (
+                                            <TextInput
+                                                mode="outlined"
+                                                value={placeholder}
+                                                onChangeText={setPlaceholder}
+                                                style={styles.input}
+                                                outlineColor="#e2e8f0"
+                                                activeOutlineColor="#3b82f6"
+                                                dense
+                                                disabled={!selectedSection}
+                                                placeholder="e.g. Enter client name"
+                                                placeholderTextColor="#94a3b8"
+                                            />
+                                        )}
+                                        {/* Enabled Fields Preview Removed */}
                                     </View>
 
                                     {/* Row 4: Options Configuration (Conditional) */}
@@ -809,22 +852,14 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                             style={styles.input}
                                                             dense
                                                             outlineColor="#cbd5e1"
+                                                            placeholder="e.g. Phone Number"
+                                                            placeholderTextColor="#94a3b8"
                                                         />
                                                     </View>
-                                                    <View style={{ flex: 1 }}>
-                                                        <Text style={styles.fieldLabel}>Key</Text>
-                                                        <TextInput
-                                                            mode="outlined"
-                                                            value={draft.field_key}
-                                                            onChangeText={(txt) => updateDraftRow(idx, 'field_key', txt)}
-                                                            style={styles.input}
-                                                            dense
-                                                            outlineColor="#cbd5e1"
-                                                        />
-                                                    </View>
+
                                                 </View>
 
-                                                {/* Row 2: Type & Sort */}
+                                                {/* Row 2: Type & Sort & Config */}
                                                 <View style={styles.inputRow}>
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={styles.fieldLabel}>Type</Text>
@@ -848,7 +883,10 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                                 {FIELD_TYPES.map(t => (
                                                                     <Menu.Item
                                                                         key={t.value}
-                                                                        onPress={() => { updateDraftRow(idx, 'field_type', t.value); setActiveTypeMenuIndex(null); }}
+                                                                        onPress={() => {
+                                                                            updateDraftRow(idx, 'field_type', t.value);
+                                                                            setActiveTypeMenuIndex(null);
+                                                                        }}
                                                                         title={t.label}
                                                                         leadingIcon={t.icon}
                                                                     />
@@ -868,20 +906,48 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                             outlineColor="#cbd5e1"
                                                         />
                                                     </View>
+
+                                                    {/* File Fetching UI */}
+
+
+                                                    {/* File Config Button inline */}
+                                                    {['file', 'image', 'signature'].includes(draft.field_type) && (
+                                                        <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 2 }}>
+                                                            <TouchableOpacity
+                                                                onPress={() => {
+                                                                    openFileConfigDialog('draft', idx, draft.placeholder);
+                                                                }}
+                                                                style={{ height: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 4, borderStyle: 'dashed' }}
+                                                            >
+                                                                <MaterialCommunityIcons name="cog" size={16} color="#3b82f6" />
+                                                                <Text style={{ color: '#3b82f6', fontSize: 12, fontWeight: '600' }}>
+                                                                    File Configuration
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
                                                 </View>
 
-                                                {/* Row 3: Placeholder */}
-                                                <View style={{ marginBottom: 12 }}>
-                                                    <Text style={styles.fieldLabel}>Placeholder</Text>
-                                                    <TextInput
-                                                        mode="outlined"
-                                                        value={draft.placeholder}
-                                                        onChangeText={(txt) => updateDraftRow(idx, 'placeholder', txt)}
-                                                        style={styles.input}
-                                                        dense
-                                                        outlineColor="#cbd5e1"
-                                                    />
-                                                </View>
+                                                {/* Row 3: Placeholder (Hidden for file types) */}
+                                                {!['file', 'image', 'signature'].includes(draft.field_type) && (
+                                                    <View style={{ marginBottom: 12 }}>
+                                                        <Text style={styles.fieldLabel}>Placeholder</Text>
+                                                        <TextInput
+                                                            mode="outlined"
+                                                            value={draft.placeholder}
+                                                            onChangeText={(txt) => updateDraftRow(idx, 'placeholder', txt)}
+                                                            style={styles.input}
+                                                            dense
+                                                            outlineColor="#cbd5e1"
+                                                            placeholder="e.g. 050-1234567"
+                                                            placeholderTextColor="#94a3b8"
+                                                        />
+                                                    </View>
+                                                )}
+
+                                                {/* File Configuration Preview */}
+                                                {/* Files Preview Removed */}
+
 
                                                 {/* Row 4: Options */}
                                                 {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(draft.field_type) && (
@@ -995,12 +1061,54 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                             )}
                                         </View>
                                         <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                            {fieldKey || 'field_key'} • {currentType.label}
+                                            {currentType.label}
                                         </Text>
-                                        {!!placeholder && (
-                                            <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
-                                                Placeholder: "{placeholder}"
-                                            </Text>
+                                        {['file', 'image', 'signature'].includes(currentType.value) ? (
+                                            (() => {
+                                                const config = (placeholder && placeholder.startsWith("JSON:")) ? parseFileConfig(placeholder) : {};
+                                                return (
+                                                    <View style={{ marginTop: 8 }}>
+                                                        <View style={{ padding: 8, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                            <MaterialCommunityIcons name={currentType.icon} size={20} color="#94a3b8" />
+                                                            <Text style={{ color: '#64748b', fontSize: 12 }}>Upload File Area</Text>
+                                                        </View>
+                                                        {(config.expiry || config.startDate || config.endDate) && (
+                                                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                                {config.startDate && (
+                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                                {config.endDate && (
+                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                                {config.expiry && (
+                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                );
+                                            })()
+                                        ) : (
+                                            !!placeholder && (
+                                                <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
+                                                    Placeholder: "{placeholder}"
+                                                </Text>
+                                            )
                                         )}
                                     </View>
                                 </View>
@@ -1049,8 +1157,47 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                         </View>
                                                     </View>
                                                     <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                        {draft.field_key || '...'} • {dType.label}
+                                                        {dType.label}
                                                     </Text>
+                                                    {['file', 'image', 'signature'].includes(draft.field_type) && (() => {
+                                                        const config = (draft.placeholder && draft.placeholder.startsWith("JSON:")) ? parseFileConfig(draft.placeholder) : {};
+                                                        return (
+                                                            <View style={{ marginTop: 6 }}>
+                                                                <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                                    <MaterialCommunityIcons name={dType.icon} size={16} color="#94a3b8" />
+                                                                    <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
+                                                                </View>
+                                                                {(config.expiry || config.startDate || config.endDate) && (
+                                                                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                                        {config.startDate && (
+                                                                            <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                                <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                    <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                                </View>
+                                                                            </View>
+                                                                        )}
+                                                                        {config.endDate && (
+                                                                            <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                                <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                    <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                                </View>
+                                                                            </View>
+                                                                        )}
+                                                                        {config.expiry && (
+                                                                            <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                                <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                    <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                                </View>
+                                                                            </View>
+                                                                        )}
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        );
+                                                    })()}
                                                 </View>
                                             </View>
                                             {/* Draft Options Preview */}
@@ -1101,8 +1248,47 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                 {!!field.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
                                             </View>
                                             <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                {field.field_key} • {field.field_type}
+                                                {field.field_type}
                                             </Text>
+                                            {['file', 'image', 'signature'].includes(field.field_type) && (() => {
+                                                const config = (field.placeholder && field.placeholder.startsWith("JSON:")) ? parseFileConfig(field.placeholder) : {};
+                                                return (
+                                                    <View style={{ marginTop: 6 }}>
+                                                        <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                            <MaterialCommunityIcons name={field.field_type === 'image' ? 'image-outline' : field.field_type === 'signature' ? 'draw' : 'file-upload-outline'} size={16} color="#94a3b8" />
+                                                            <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
+                                                        </View>
+                                                        {(config.expiry || config.startDate || config.endDate) && (
+                                                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                                {config.startDate && (
+                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                                {config.endDate && (
+                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                                {config.expiry && (
+                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                );
+                                            })()}
                                         </View>
 
                                         {/* Action Buttons - HIDE IF READ ONLY */}
@@ -1162,6 +1348,12 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                 title={confirmConfig.title}
                 message={confirmConfig.message}
                 danger={confirmConfig.danger}
+            />
+            <FileConfigDialog
+                visible={fileConfigDialogVisible}
+                onDismiss={() => setFileConfigDialogVisible(false)}
+                onSave={handleFileConfigSave}
+                initialConfig={currentFileConfig}
             />
         </View>
     );

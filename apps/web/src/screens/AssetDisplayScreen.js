@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TextInput as RNTextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TextInput as RNTextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import { Card, Text, Button, IconButton, ActivityIndicator, Chip, DataTable, Portal, Modal, Surface, TextInput, Menu, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
@@ -7,6 +7,13 @@ import AppLayout from '../components/AppLayout';
 import ModuleFormModal from '../components/modals/ModuleFormModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AlertDialog from '../components/AlertDialog';
+
+const parseFileConfig = (str) => {
+    if (str && str.startsWith("JSON:")) {
+        try { return JSON.parse(str.replace("JSON:", "")); } catch (e) { return {}; }
+    }
+    return {};
+};
 
 const AssetDisplayScreen = ({ navigation }) => {
     const { width } = useWindowDimensions();
@@ -38,6 +45,7 @@ const AssetDisplayScreen = ({ navigation }) => {
 
     // Header Dropdown States
     const [countryMenuVisible, setCountryMenuVisible] = useState(false);
+    const [regionMenuVisible, setRegionMenuVisible] = useState(false);
     const [formTypeMenuVisible, setFormTypeMenuVisible] = useState(false);
     const [typeMenuVisible, setTypeMenuVisible] = useState(false);
     const [areaMenuVisible, setAreaMenuVisible] = useState(false);
@@ -52,6 +60,14 @@ const AssetDisplayScreen = ({ navigation }) => {
     // Delete Confirmation Dialog State
     const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [externalStates, setExternalStates] = useState([]);
+    const [expandedRows, setExpandedRows] = useState([]);
+
+    const toggleRow = (id) => {
+        setExpandedRows(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
 
     useEffect(() => {
         fetchModules();
@@ -104,6 +120,46 @@ const AssetDisplayScreen = ({ navigation }) => {
 
         filterFields();
     }, [formValues.country_id, formValues.premises_type_id, formValues.area_id, formValues.property_type_id, unfilteredModuleDetails]);
+
+    // Fetch states from external API when country changes
+    useEffect(() => {
+        const fetchExternalStates = async () => {
+            setExternalStates([]); // Clear previous states to avoid stale data
+
+            if (!formValues.country) {
+                return;
+            }
+
+            // Normalize country name for common abbreviations
+            let queryCountry = formValues.country;
+            if (queryCountry.toLowerCase() === 'uae') queryCountry = 'United Arab Emirates';
+            if (queryCountry.toLowerCase() === 'usa') queryCountry = 'United States';
+            if (queryCountry.toLowerCase() === 'uk') queryCountry = 'United Kingdom';
+
+            try {
+                // Using fetch for external API
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: queryCountry })
+                });
+                const data = await res.json();
+                if (data.data && data.data.states) {
+                    setExternalStates(data.data.states.map(s => ({
+                        option_label: s.name,
+                        option_value: s.name
+                    })));
+                } else {
+                    setExternalStates([]);
+                }
+            } catch (e) {
+                console.error('External state fetch error:', e);
+                setExternalStates([]);
+            }
+        };
+
+        fetchExternalStates();
+    }, [formValues.country]);
 
     const fetchAreas = async () => {
         try {
@@ -755,7 +811,12 @@ const AssetDisplayScreen = ({ navigation }) => {
                                             >
                                                 <ScrollView style={{ maxHeight: 200, width: 220 }}>
                                                     {(() => {
-                                                        const options = field.options && field.options.length > 0 ? field.options : [];
+                                                        // Override options for 'state' field if we have external states
+                                                        let options = field.options && field.options.length > 0 ? field.options : [];
+                                                        if ((field.field_key === 'state' || field.label === 'State') && externalStates.length > 0) {
+                                                            options = externalStates;
+                                                        }
+
                                                         console.log(`Field ${field.label} (${field.field_key}) options:`, options);
 
                                                         if (options.length === 0) {
@@ -790,6 +851,8 @@ const AssetDisplayScreen = ({ navigation }) => {
                                 }
 
                                 if (isFile || isImage) {
+                                    const config = parseFileConfig(field.placeholder);
+
                                     return (
                                         <View key={field.id} style={[styles.formRow, { width: fieldWidth }]}>
                                             <Text style={styles.inputLabel}>{field.label}</Text>
@@ -855,6 +918,109 @@ const AssetDisplayScreen = ({ navigation }) => {
                                                     />
                                                 )}
                                             </TouchableOpacity>
+
+                                            {/* Render Conditional Date Fields */}
+                                            {(() => {
+                                                const renderDateInput = (label, key, placeholder) => (
+                                                    <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>{label}</Text>
+                                                        <View style={{ height: 40, width: '100%', position: 'relative' }}>
+                                                            <TextInput
+                                                                mode="outlined"
+                                                                placeholder={placeholder}
+                                                                value={formValues[key] || ''}
+                                                                onChangeText={(text) => onInputChange(key, text)}
+                                                                style={[styles.textInput, { height: 40, fontSize: 13, backgroundColor: 'white' }]}
+                                                                outlineColor="#e2e8f0"
+                                                                activeOutlineColor="#3b82f6"
+                                                                theme={{ roundness: 8 }}
+                                                                right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" />}
+                                                            />
+                                                            {Platform.OS === 'web' && React.createElement('input', {
+                                                                type: 'date',
+                                                                value: formValues[key] || '',
+                                                                onChange: (e) => onInputChange(key, e.target.value),
+                                                                onClick: (e) => {
+                                                                    try {
+                                                                        if (e.target.showPicker) e.target.showPicker();
+                                                                    } catch (err) {
+                                                                        console.log('Date picker error:', err);
+                                                                    }
+                                                                },
+                                                                style: {
+                                                                    position: 'absolute',
+                                                                    top: 0,
+                                                                    left: 0,
+                                                                    width: '100%',
+                                                                    height: '100%',
+                                                                    opacity: 0,
+                                                                    zIndex: 10,
+                                                                    cursor: 'pointer'
+                                                                }
+                                                            })}
+                                                        </View>
+                                                    </View>
+                                                );
+
+                                                if (config.expiry || config.startDate || config.endDate || config.policyNo || config.issueDate || config.reminder || config.coverageType) {
+                                                    return (
+                                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                            {config.policyNo && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>PROPERTY INSURANCE POLICY NO.</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="Enter Policy No."
+                                                                        value={formValues[`${field.field_key}_policy_no`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_policy_no`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.issueDate && renderDateInput("ISSUE DATE", `${field.field_key}_issue_date`, "YYYY-MM-DD")}
+                                                            {config.startDate && renderDateInput("START DATE", `${field.field_key}_start_date`, "YYYY-MM-DD")}
+                                                            {config.endDate && renderDateInput("END DATE", `${field.field_key}_end_date`, "YYYY-MM-DD")}
+                                                            {config.expiry && renderDateInput("EXPIRY DATE", `${field.field_key}_expiry`, "YYYY-MM-DD")}
+                                                            {config.coverageType && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>COVERAGE TYPE</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="Enter Coverage Type"
+                                                                        value={formValues[`${field.field_key}_coverage_type`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_coverage_type`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.reminder && (
+                                                                <View style={{ flexGrow: 1, flexBasis: '100%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>REMINDER (DAYS BEFORE EXPIRY)</Text>
+                                                                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                                                                        {[30, 60, 90].map(days => (
+                                                                            <Chip
+                                                                                key={days}
+                                                                                selected={formValues[`${field.field_key}_reminder`] === String(days)}
+                                                                                onPress={() => onInputChange(`${field.field_key}_reminder`, String(days))}
+                                                                                showSelectedOverlay
+                                                                                style={{ backgroundColor: formValues[`${field.field_key}_reminder`] === String(days) ? '#e0f2fe' : '#f1f5f9' }}
+                                                                                textStyle={{ color: formValues[`${field.field_key}_reminder`] === String(days) ? '#0284c7' : '#64748b' }}
+                                                                            >{days} Days</Chip>
+                                                                        ))}
+                                                                    </View>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </View>
                                     );
                                 }
@@ -1096,7 +1262,8 @@ const AssetDisplayScreen = ({ navigation }) => {
                     <Card style={styles.tableCard}>
                         <DataTable>
                             <DataTable.Header style={styles.tableHeader}>
-                                <DataTable.Title style={{ flex: 1.2, justifyContent: 'flex-start', backgroundColor: '#6c7ae0', paddingLeft: 16 }} textStyle={styles.headerText}>Type</DataTable.Title>
+                                <DataTable.Title style={{ maxWidth: 50 }}></DataTable.Title>
+                                <DataTable.Title style={{ flex: 1.2, justifyContent: 'flex-start', backgroundColor: '#6c7ae0', paddingLeft: 0 }} textStyle={styles.headerText}>Type</DataTable.Title>
                                 <DataTable.Title style={{ flex: 3, justifyContent: 'flex-start', backgroundColor: '#6c7ae0' }} textStyle={styles.headerText}>Premises Name</DataTable.Title>
                                 <DataTable.Title style={{ flex: 1.5, justifyContent: 'flex-start', backgroundColor: '#6c7ae0' }} textStyle={styles.headerText}>Usage</DataTable.Title>
                                 <DataTable.Title style={{ flex: 2, justifyContent: 'flex-start', backgroundColor: '#6c7ae0' }} textStyle={styles.headerText}>Country</DataTable.Title>
@@ -1339,6 +1506,51 @@ const AssetDisplayScreen = ({ navigation }) => {
                                             </View>
 
                                             <View style={styles.headerField}>
+                                                <Text style={styles.inputLabel}>Region</Text>
+                                                <Menu
+                                                    visible={regionMenuVisible}
+                                                    onDismiss={() => setRegionMenuVisible(false)}
+                                                    anchorPosition="bottom"
+                                                    statusBarHeight={44}
+                                                    anchor={
+                                                        <TouchableOpacity onPress={() => isAdding && setRegionMenuVisible(true)}>
+                                                            <TextInput
+                                                                mode="outlined"
+                                                                placeholder="Region"
+                                                                value={formValues.region || ''}
+                                                                editable={false}
+                                                                style={styles.textInput}
+                                                                pointerEvents="none"
+                                                                outlineColor="#e2e8f0"
+                                                                activeOutlineColor="#3b82f6"
+                                                                theme={{ roundness: 8 }}
+                                                                right={<TextInput.Icon icon="chevron-down" onPress={() => isAdding && setRegionMenuVisible(true)} />}
+                                                            />
+                                                        </TouchableOpacity>
+                                                    }
+                                                    contentStyle={styles.menuContent}
+                                                >
+                                                    <ScrollView style={{ maxHeight: 250, width: 180 }}>
+                                                        {externalStates.length > 0 ? (
+                                                            externalStates.map((s, i) => (
+                                                                <Menu.Item
+                                                                    key={i}
+                                                                    onPress={() => {
+                                                                        onInputChange('region', s.option_label);
+                                                                        setRegionMenuVisible(false);
+                                                                    }}
+                                                                    title={s.option_label}
+                                                                    titleStyle={styles.menuItemLabel}
+                                                                />
+                                                            ))
+                                                        ) : (
+                                                            <Menu.Item title="No regions available" disabled />
+                                                        )}
+                                                    </ScrollView>
+                                                </Menu>
+                                            </View>
+
+                                            <View style={styles.headerField}>
                                                 <Text style={styles.inputLabel}>Property Type</Text>
                                                 <Menu
                                                     visible={formTypeMenuVisible}
@@ -1535,7 +1747,7 @@ const AssetDisplayScreen = ({ navigation }) => {
                                                     onPress={() => {
                                                         // Validate Step 0
                                                         if (currentStep === 0) {
-                                                            if (!formValues.country || !formValues.premise_type || !formValues.premises_use || !formValues.area) {
+                                                            if (!formValues.country || !formValues.premise_type || !formValues.premises_use || !formValues.area || (externalStates.length > 0 && !formValues.region)) {
                                                                 alert('Please select all General Information fields before proceeding.');
                                                                 return;
                                                             }

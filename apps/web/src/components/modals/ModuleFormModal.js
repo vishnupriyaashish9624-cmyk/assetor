@@ -27,6 +27,10 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
     const [selectedArea, setSelectedArea] = useState(null);
     const [areaMenu, setAreaMenu] = useState(false);
 
+    const [regions, setRegions] = useState([]);
+    const [selectedRegion, setSelectedRegion] = useState(null);
+    const [regionMenu, setRegionMenu] = useState(false);
+
     const [selectedPropertyType, setSelectedPropertyType] = useState(null);
     const [ownershipMenu, setOwnershipMenu] = useState(false);
     const [propertyTypes, setPropertyTypes] = useState([]); // Added state
@@ -72,6 +76,7 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                 if (module.property_type_id) setSelectedPropertyType({ id: module.property_type_id, name: module.property_type });
                 if (module.premises_type_id) setSelectedType({ id: module.premises_type_id, type_name: module.premises_type });
                 if (module.area_id) setSelectedArea({ id: module.area_id, name: module.area_name });
+                if (module.region) setSelectedRegion({ name: module.region });
             } else {
                 // New module registration
                 setSelectedMaster(null);
@@ -79,6 +84,7 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                 setSelectedCountry(null);
                 setSelectedType(null);
                 setSelectedArea(null);
+                setSelectedRegion(null);
                 setSelectedPropertyType(null);
                 setSearchQuery('');
             }
@@ -99,6 +105,46 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
             setCatalogLoading(false);
         }
     };
+
+    // Fetch regions when country changes
+    useEffect(() => {
+        const fetchRegions = async () => {
+            setRegions([]);
+            // Ensure we clear selected region if country changes and it doesn't match? 
+            // Better to let user re-select, or if editing, keep if valid. 
+            // For now, if user changes country, region should likely reset unless prepopulated.
+            if (!module) setSelectedRegion(null);
+
+            if (!selectedCountry) return;
+
+            const countryName = selectedCountry.country_name || selectedCountry.name;
+            if (!countryName) return;
+
+            let queryCountry = countryName;
+            if (queryCountry.toLowerCase() === 'uae') queryCountry = 'United Arab Emirates';
+            if (queryCountry.toLowerCase() === 'usa') queryCountry = 'United States';
+            if (queryCountry.toLowerCase() === 'uk') queryCountry = 'United Kingdom';
+
+            try {
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: queryCountry })
+                });
+                const data = await res.json();
+                if (data.data && data.data.states) {
+                    setRegions(data.data.states.map(s => ({
+                        name: s.name,
+                        state_code: s.state_code
+                    })));
+                }
+            } catch (e) {
+                console.error('Fetch regions error', e);
+            }
+        };
+
+        fetchRegions();
+    }, [selectedCountry?.id]); // Depend on ID to avoid loop if object ref changes
 
 
 
@@ -131,6 +177,7 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                 property_type_id: selectedPropertyType?.id || null,
                 premises_type_id: selectedType?.id || null,
                 area_id: selectedArea?.id || null,
+                region: selectedRegion?.name || null,
                 status_id: status === 'ACTIVE' ? 1 : 2
             });
         } catch (err) {
@@ -254,6 +301,48 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 title={c.country_name || c.name}
                                             />
                                         ))}
+                                    </ScrollView>
+                                </Menu>
+                            </View>
+
+                            {/* Region Selection */}
+                            <View style={{ flex: 1.1, minWidth: 100 }}>
+                                <Text style={styles.label}>Region</Text>
+                                <Menu
+                                    visible={regionMenu}
+                                    onDismiss={() => setRegionMenu(false)}
+                                    anchor={
+                                        <TouchableOpacity onPress={() => !viewOnly && setRegionMenu(true)}>
+                                            <TextInput
+                                                mode="outlined"
+                                                value={selectedRegion ? selectedRegion.name : ''}
+                                                placeholder="Select Region"
+                                                editable={false}
+                                                style={{ backgroundColor: 'white' }}
+                                                outlineColor="#e2e8f0"
+                                                activeOutlineColor="#3b82f6"
+                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setRegionMenu(true)} />}
+                                                pointerEvents="none"
+                                            />
+                                        </TouchableOpacity>
+                                    }
+                                    contentStyle={styles.menuContent}
+                                >
+                                    <ScrollView style={{ maxHeight: 250 }}>
+                                        {regions.length > 0 ? (
+                                            regions.map((r, i) => (
+                                                <Menu.Item
+                                                    key={i}
+                                                    onPress={() => {
+                                                        setSelectedRegion(r);
+                                                        setRegionMenu(false);
+                                                    }}
+                                                    title={r.name}
+                                                />
+                                            ))
+                                        ) : (
+                                            <Menu.Item title={selectedCountry ? "No regions found" : "Select Country first"} disabled />
+                                        )}
                                     </ScrollView>
                                 </Menu>
                             </View>

@@ -18,10 +18,12 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
     const [propertyTypes, setPropertyTypes] = useState([]);
     const [premisesTypes, setPremisesTypes] = useState([]);
     const [areas, setAreas] = useState([]);
+    const [regions, setRegions] = useState([]);
 
     // Dropdown Menus Visibility
     const [menus, setMenus] = useState({
         country: false,
+        region: false,
         propertyType: false,
         premisesType: false,
         area: false
@@ -40,7 +42,9 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
         premises_type_id: null,
         area_id: null,
         status: 'Active',
+        status: 'Active',
         country_name: '',
+        region: '',
         property_type_name: '',
         premises_type_name: '',
         area_name: ''
@@ -59,6 +63,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
             if (initialData && Object.keys(initialData).length > 0) {
                 setClassification({
                     country_id: initialData.country_id || null,
+                    region: initialData.region || '',
                     property_type_id: initialData.property_type_id || null,
                     premises_type_id: initialData.premises_type_id || null,
                     area_id: initialData.area_id || null,
@@ -80,6 +85,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
             } else {
                 setClassification({
                     country_id: null,
+                    region: '',
                     property_type_id: null,
                     premises_type_id: null,
                     area_id: null,
@@ -102,6 +108,47 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
             fetchModuleConfig();
         }
     }, [classification.country_id, classification.property_type_id, classification.premises_type_id, classification.area_id]);
+
+    // Fetch regions when country changes
+    useEffect(() => {
+        const fetchRegions = async () => {
+            setRegions([]);
+            // Create a local var for country name to avoid dependency loop issues if using state directly inside async
+            const cName = classification.country_name;
+            if (!cName) return;
+
+            // Reset region if country changed and existing region is not valid? 
+            // For now, if user acts to change country, they should re-select region.
+            // But we might be initializing. If prioritizing user experience, only clear if mismatch.
+            // Simplified: We just fetch. Logic for clearing is handled if user manually changes country in dropdown.
+
+            let queryCountry = cName;
+            if (queryCountry.toLowerCase() === 'uae') queryCountry = 'United Arab Emirates';
+            if (queryCountry.toLowerCase() === 'usa') queryCountry = 'United States';
+            if (queryCountry.toLowerCase() === 'uk') queryCountry = 'United Kingdom';
+
+            try {
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: queryCountry })
+                });
+                const data = await res.json();
+                if (data.data && data.data.states) {
+                    setRegions(data.data.states.map(s => ({
+                        name: s.name,
+                        state_code: s.state_code
+                    })));
+                }
+            } catch (e) {
+                console.error('Fetch regions error', e);
+            }
+        };
+
+        if (classification.country_name) {
+            fetchRegions();
+        }
+    }, [classification.country_name]);
 
     const fetchDropdowns = async () => {
         setInitializing(true);
@@ -258,6 +305,29 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                         {countries.map(c => (
                             <Menu.Item key={c.id} onPress={() => { toggleMenu('country', false); setClassification(p => ({ ...p, country_id: c.id, country_name: c.country_name || c.name })); }} title={c.country_name || c.name} />
                         ))}
+                    </Menu>
+                </View>
+
+                {/* Region */}
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Region</Text>
+                    <Menu
+                        visible={menus.region}
+                        onDismiss={() => toggleMenu('region', false)}
+                        anchor={
+                            <TouchableOpacity style={styles.dropdownInfo} onPress={() => toggleMenu('region', true)}>
+                                <Text style={classification.region ? styles.inputText : styles.placeholder}>
+                                    {classification.region || 'Select Region'}
+                                </Text>
+                                <MaterialCommunityIcons name="chevron-down" size={20} color="#94a3b8" />
+                            </TouchableOpacity>
+                        }
+                    >
+                        {regions.length > 0 ? regions.map((r, i) => (
+                            <Menu.Item key={i} onPress={() => { toggleMenu('region', false); setClassification(p => ({ ...p, region: r.name })); }} title={r.name} />
+                        )) : (
+                            <Menu.Item disabled title="No regions available" />
+                        )}
                     </Menu>
                 </View>
 

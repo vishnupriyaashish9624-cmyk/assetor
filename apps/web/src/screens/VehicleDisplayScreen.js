@@ -9,6 +9,14 @@ import VehicleWizardModal from '../components/modals/VehicleWizardModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AlertDialog from '../components/AlertDialog';
 
+
+const parseFileConfig = (str) => {
+    if (str && str.startsWith("JSON:")) {
+        try { return JSON.parse(str.replace("JSON:", "")); } catch (e) { return {}; }
+    }
+    return {};
+};
+
 const VehicleDisplayScreen = ({ navigation }) => {
     const { width } = useWindowDimensions();
     const isMobile = width < 1024; // Mobile/Tablet breakpoint
@@ -748,6 +756,154 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                     />
                                                 )}
                                             </TouchableOpacity>
+
+                                            {/* Render Conditional Date Fields */}
+                                            {(() => {
+                                                const config = parseFileConfig(field.placeholder);
+
+                                                const pickDate = (key) => {
+                                                    if (typeof document !== 'undefined') {
+                                                        const input = document.createElement('input');
+                                                        input.type = 'date';
+                                                        input.value = formValues[key] || '';
+                                                        input.onchange = (e) => onInputChange(key, e.target.value);
+                                                        // create a temporary form to ensure compatibility
+                                                        input.style.opacity = '0';
+                                                        input.style.position = 'fixed';
+                                                        input.style.top = '0';
+                                                        document.body.appendChild(input);
+
+                                                        // Try showPicker first (modern browsers)
+                                                        if (input.showPicker) {
+                                                            input.showPicker();
+                                                        } else {
+                                                            input.click();
+                                                        }
+
+                                                        // clean up
+                                                        setTimeout(() => document.body.removeChild(input), 10000);
+                                                    }
+                                                };
+
+                                                if (config.expiry || config.startDate || config.endDate || config.policyNo || config.issueDate || config.reminder || config.coverageType) {
+                                                    return (
+                                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                            {config.policyNo && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>PROPERTY INSURANCE POLICY NO.</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="Enter Policy No."
+                                                                        value={formValues[`${field.field_key}_policy_no`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_policy_no`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.issueDate && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>ISSUE DATE</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="YYYY-MM-DD"
+                                                                        value={formValues[`${field.field_key}_issue_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_issue_date`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_issue_date`)} />}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.startDate && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="YYYY-MM-DD"
+                                                                        value={formValues[`${field.field_key}_start_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_start_date`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_start_date`)} />}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.endDate && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="YYYY-MM-DD"
+                                                                        value={formValues[`${field.field_key}_end_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_end_date`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_end_date`)} />}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.expiry && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="YYYY-MM-DD"
+                                                                        value={formValues[`${field.field_key}_expiry`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_expiry`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_expiry`)} />}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.coverageType && (
+                                                                <View style={{ flexGrow: 1, flexBasis: isMobile ? '100%' : '45%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>COVERAGE TYPE</Text>
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder="Enter Coverage Type"
+                                                                        value={formValues[`${field.field_key}_coverage_type`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_coverage_type`, text)}
+                                                                        style={[styles.textInput, { height: 40, fontSize: 13 }]}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#3b82f6"
+                                                                        theme={{ roundness: 8 }}
+                                                                    />
+                                                                </View>
+                                                            )}
+                                                            {config.reminder && (
+                                                                <View style={{ flexGrow: 1, flexBasis: '100%' }}>
+                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>REMINDER (DAYS BEFORE EXPIRY)</Text>
+                                                                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                                                                        {[30, 60, 90].map(days => (
+                                                                            <Chip
+                                                                                key={days}
+                                                                                selected={formValues[`${field.field_key}_reminder`] === String(days)}
+                                                                                onPress={() => onInputChange(`${field.field_key}_reminder`, String(days))}
+                                                                                showSelectedOverlay
+                                                                                style={{ backgroundColor: formValues[`${field.field_key}_reminder`] === String(days) ? '#e0f2fe' : '#f1f5f9' }}
+                                                                                textStyle={{ color: formValues[`${field.field_key}_reminder`] === String(days) ? '#0284c7' : '#64748b' }}
+                                                                            >{days} Days</Chip>
+                                                                        ))}
+                                                                    </View>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </View>
                                     );
                                 }
