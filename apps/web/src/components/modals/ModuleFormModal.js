@@ -490,17 +490,6 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                     >
                         Close
                     </Button>
-                    <Button
-                        mode="contained"
-                        onPress={handleSave}
-                        loading={loading}
-                        style={styles.saveBtn}
-                        contentStyle={{ height: 44, paddingHorizontal: 16 }}
-                        labelStyle={{ fontSize: 15, fontWeight: '700' }}
-                        disabled={viewOnly}
-                    >
-                        {module ? 'Save Module Settings' : 'Enable Module'}
-                    </Button>
                 </View>
 
             </Modal>

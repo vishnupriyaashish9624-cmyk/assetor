@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedback, Platform } from 'react-native';
-import { FiX } from 'react-icons/fi';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const BaseModal = ({ visible, onClose, title, children, width, closeOnBackdrop = true }) => {
     return (
@@ -15,11 +15,11 @@ const BaseModal = ({ visible, onClose, title, children, width, closeOnBackdrop =
                     <View style={styles.backdrop} />
                 </TouchableWithoutFeedback>
 
-                <View style={[styles.modalContent, width && { width, maxWidth: '90%' }]}>
+                <View style={[styles.modalContent, { width: width || 400, maxWidth: '95%' }]}>
                     <View style={styles.header}>
                         <Text style={styles.title}>{title}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <FiX size={20} color="#64748b" />
+                            <MaterialCommunityIcons name="close" size={24} color="#64748b" />
                         </TouchableOpacity>
                     </View>
                     <View style={styles.body}>
@@ -34,9 +34,10 @@ const BaseModal = ({ visible, onClose, title, children, width, closeOnBackdrop =
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 1000,
     },
     backdrop: {
         position: 'absolute',
@@ -44,23 +45,29 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
+        backgroundColor: 'transparent',
     },
     modalContent: {
-        width: 360,
         backgroundColor: 'white',
         borderRadius: 16,
-        padding: 24,
+        padding: 0, // Padding handled by internal container for better control
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 10,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+        elevation: 20,
+        zIndex: 1001,
+        overflow: 'hidden',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        paddingHorizontal: 24,
+        paddingTop: 24,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
     },
     title: {
         fontSize: 18,
@@ -71,7 +78,7 @@ const styles = StyleSheet.create({
         padding: 4,
     },
     body: {
-        gap: 16,
+        padding: 24,
     }
 });
 

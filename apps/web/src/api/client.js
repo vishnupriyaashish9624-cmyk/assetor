@@ -9,6 +9,7 @@ const getBaseURL = () => {
 
 const api = axios.create({
     baseURL: getBaseURL(),
+    timeout: 15000, // 15 seconds timeout
 });
 
 // Request Interceptor - Attach token

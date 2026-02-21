@@ -119,6 +119,7 @@ const Sidebar = ({ activeRoute = 'Dashboard', navigation, onClose }) => {
                 { key: 'AssetDisplay', label: 'Premises display', icon: 'monitor-dashboard', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
                 { key: 'VehicleDisplay', label: 'Vehicle', icon: 'car-side', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
                 { key: 'Employees', label: 'Staff members', icon: 'account-group-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+                { key: 'Roles', label: 'Roles', icon: 'shield-account-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
             ]
         },
 

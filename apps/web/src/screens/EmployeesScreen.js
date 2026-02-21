@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppLayout from '../components/AppLayout';
 import EmployeeFormModal from '../components/modals/EmployeeFormModal';
@@ -20,8 +20,8 @@ const EmployeesScreen = ({ navigation }) => {
         fetchEmployees();
     }, []);
 
-    const fetchEmployees = async () => {
-        setLoading(true);
+    const fetchEmployees = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await axios.get(`${API_URL}/employees`, {
@@ -29,11 +29,15 @@ const EmployeesScreen = ({ navigation }) => {
             });
             if (response.data.success) {
                 setEmployees(response.data.data);
+            } else {
+                Alert.alert('Error', response.data.message || 'Failed to fetch employees.');
             }
         } catch (error) {
             console.error('Error fetching employees:', error);
+            const errorMessage = error.response?.data?.message || error.message;
+            Alert.alert('Error', `Failed to fetch employees: ${errorMessage}`);
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     };
 
@@ -42,18 +46,60 @@ const EmployeesScreen = ({ navigation }) => {
             const token = await AsyncStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
+            let res;
             if (editingEmployee) {
-                await axios.put(`${API_URL}/employees/${editingEmployee.id}`, data, config);
+                res = await axios.put(`${API_URL}/employees/${editingEmployee.id}`, data, config);
             } else {
-                await axios.post(`${API_URL}/employees`, data, config);
+                res = await axios.post(`${API_URL}/employees`, data, config);
             }
 
-            await fetchEmployees();
+            // Refresh in background WITHOUT awaiting
+            (async () => {
+                try {
+                    await fetchEmployees(false);
+                } catch (bgErr) {
+                    console.error('Background refresh failed:', bgErr);
+                }
+            })();
+
             setModalVisible(false);
             setEditingEmployee(null);
+            return res.data;
         } catch (error) {
             console.error('Error saving employee:', error);
+            const msg = error.response?.data?.message || error.response?.data?.detail || error.message;
+            alert('Error: ' + msg); // Basic feedback
             throw error;
+        }
+    };
+
+    const handleDeleteEmployee = async (employee) => {
+        const confirmDelete = Platform.OS === 'web'
+            ? window.confirm(`Are you sure you want to delete "${employee.name}"? This will also remove their login account.`)
+            : await new Promise((resolve) =>
+                Alert.alert(
+                    'Delete Employee',
+                    `Are you sure you want to delete "${employee.name}"?`,
+                    [
+                        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                        { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+                    ]
+                )
+            );
+
+        if (!confirmDelete) return;
+
+        try {
+            const token = await AsyncStorage.getItem('token');
+            await axios.delete(`${API_URL}/employees/${employee.id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            // Remove from local state immediately for instant UI feedback
+            setEmployees(prev => prev.filter(e => e.id !== employee.id));
+        } catch (error) {
+            console.error('Delete employee error:', error);
+            const msg = error.response?.data?.message || error.message;
+            Alert.alert('Error', `Failed to delete employee: ${msg}`);
         }
     };
 
@@ -69,7 +115,9 @@ const EmployeesScreen = ({ navigation }) => {
                 </View>
             </View>
             <View style={styles.cell}>
-                <Text style={styles.cellText}>{item.position || 'N/A'}</Text>
+                <View style={styles.roleBadge}>
+                    <Text style={styles.roleBadgeText}>{item.role_name || (item.position || 'N/A')}</Text>
+                </View>
             </View>
             <View style={styles.cell}>
                 <View style={styles.companyBadge}>
@@ -80,10 +128,19 @@ const EmployeesScreen = ({ navigation }) => {
                 <Text style={styles.cellText}>{item.phone || 'N/A'}</Text>
             </View>
             <View style={styles.actionCell}>
-                <TouchableOpacity style={styles.actionButton}>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                        setEditingEmployee(item);
+                        setModalVisible(true);
+                    }}
+                >
                     <MaterialCommunityIcons name="pencil-outline" size={18} color="#3b82f6" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleDeleteEmployee(item)}
+                >
                     <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />
                 </TouchableOpacity>
             </View>
@@ -126,7 +183,7 @@ const EmployeesScreen = ({ navigation }) => {
                     <FlatList
                         data={employees}
                         renderItem={renderItem}
-                        keyExtractor={(item) => item.id.toString()}
+                        keyExtractor={(item, index) => `${item.id}-${index}`}
                         ListEmptyComponent={() => (
                             <View style={styles.emptyContainer}>
                                 <MaterialCommunityIcons name="account-search-outline" size={48} color="#e2e8f0" />
@@ -263,6 +320,20 @@ const styles = StyleSheet.create({
     companyBadgeText: {
         fontSize: 11,
         color: '#475569',
+        fontWeight: '600',
+    },
+    roleBadge: {
+        backgroundColor: '#eff6ff',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: '#dbeafe',
+    },
+    roleBadgeText: {
+        fontSize: 11,
+        color: '#2563eb',
         fontWeight: '600',
     },
     actionCell: {

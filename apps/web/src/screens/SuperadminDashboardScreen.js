@@ -60,8 +60,8 @@ const SuperadminDashboardScreen = ({ navigation }) => {
         fetchData();
     }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
             const [clientsRes, kpisRes] = await Promise.all([
@@ -70,9 +70,9 @@ const SuperadminDashboardScreen = ({ navigation }) => {
             ]);
             setClients(clientsRes.data?.data || []);
             setGlobalKpis(kpisRes.data?.data || { totalClients: 0, totalCompanies: 0, totalEmployees: 0, totalAssets: 0 });
-            setLoading(false);
         } catch (error) {
             console.error('Error fetching data:', error);
+        } finally {
             setLoading(false);
         }
     };
@@ -87,9 +87,9 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                 showAlert('Success', 'Client updated successfully!', 'success');
             } else {
                 await axios.post(`${API_URL}/clients`, data, config);
-                showAlert('Success', 'Client created successfully!', 'success');
+                showAlert('Success', 'Client created successfully! Login credentials sent to email.', 'success');
             }
-            fetchData();
+            fetchData(true);
         } catch (error) {
             console.error('Error saving client:', error);
             showAlert('Error', 'Failed to save client: ' + (error.response?.data?.message || error.message), 'error');
@@ -147,7 +147,7 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                 showAlert('Success', 'Company created successfully!', 'success');
             }
             if (selectedClient) handleSelectClient(selectedClient); // Refresh list
-            fetchData(); // Refresh global KPIs
+            fetchData(true); // Refresh global KPIs
         } catch (error) {
             console.error('Error saving company:', error);
             showAlert('Error', 'Failed to save company: ' + (error.response?.data?.message || error.message), 'error');
@@ -183,22 +183,47 @@ const SuperadminDashboardScreen = ({ navigation }) => {
 
     // --- Employee Handlers ---
     const handleSaveEmployee = async (data) => {
+        setDetailsLoading(true);
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            await axios.post(`${API_URL}/employees`, data, config);
-            if (selectedClient) handleSelectClient(selectedClient);
-            fetchData();
-            showAlert('Success', 'Employee added successfully!', 'success');
+            let res;
+
+            if (editingEmployee) {
+                res = await axios.put(`${API_URL}/employees/${editingEmployee.id}`, data, config);
+                showAlert('Success', 'Employee updated successfully!', 'success');
+            } else {
+                res = await axios.post(`${API_URL}/employees`, data, config);
+                showAlert('Success', 'Employee added successfully!', 'success');
+            }
+
+            // Refresh in background WITHOUT awaiting
+            (async () => {
+                try {
+                    await Promise.all([
+                        selectedClient ? handleSelectClient(selectedClient) : Promise.resolve(),
+                        fetchData(true)
+                    ]);
+                } catch (bgErr) {
+                    console.error('Background refresh failed:', bgErr);
+                }
+            })();
+
+            setEmployeeModalVisible(false);
+            setEditingEmployee(null);
+            return res.data;
         } catch (error) {
             console.error('Error saving employee:', error);
-            if (error.response?.data?.message === 'PRIVILEGE_DENIED') {
+            const msg = error.response?.data?.message || error.response?.data?.detail || error.message;
+            if (msg === 'PRIVILEGE_DENIED') {
                 showAlert('Access Denied', 'This company does not have permission to add employees.', 'error');
-            } else if (error.response?.data?.message === 'LIMIT_EXCEEDED') {
-                showAlert('Limit Exceeded', error.response.data.detail, 'warning');
+            } else if (msg === 'LIMIT_EXCEEDED') {
+                showAlert('Limit Exceeded', error.response?.data?.detail || msg, 'warning');
             } else {
-                showAlert('Error', 'Failed to add employee: ' + (error.response?.data?.message || error.message), 'error');
+                showAlert('Error', 'Failed to save employee: ' + msg, 'error');
             }
             throw error;
+        } finally {
+            setDetailsLoading(false);
         }
     };
 
@@ -278,9 +303,9 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                         </View>
 
                         <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
-                            {(clients || []).filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(client => (
+                            {(clients || []).filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map((client, idx) => (
                                 <TouchableOpacity
-                                    key={client.id}
+                                    key={`client-${client.id}-${idx}`}
                                     style={[styles.card, selectedClient?.id === client.id && styles.activeCard]}
                                     onPress={() => handleSelectClient(client)}
                                 >
@@ -349,9 +374,9 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                                     <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
                                         {(selectedClient.companies || [])
                                             .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
-                                            .map(company => (
+                                            .map((company, idx) => (
                                                 <TouchableOpacity
-                                                    key={company.id}
+                                                    key={`comp-${company.id}-${idx}`}
                                                     style={[styles.card, selectedCompany?.id === company.id && styles.activeCard]}
                                                     onPress={() => handleSelectCompany(company)}
                                                 >
@@ -403,25 +428,15 @@ const SuperadminDashboardScreen = ({ navigation }) => {
                                 </View>
 
                                 <View style={styles.detailSection}>
-                                    <Text style={styles.sectionHeader}>IDENTITY & TENANCY</Text>
+                                    <Text style={styles.sectionHeader}>IDENTITY</Text>
                                     <DetailRow label="Code" value={selectedCompany?.company_code || selectedClient?.company_code || 'N/A'} />
                                     <DetailRow label="Industry" value={selectedCompany?.industry || selectedClient?.industry || 'N/A'} />
-                                    <DetailRow label="Tenancy" value={selectedCompany ? (selectedClient?.tenancy_type || 'OWNED') : (selectedClient?.tenancy_type || 'OWNED')} isGreen={true} />
                                 </View>
 
                                 <View style={styles.detailSection}>
-                                    <Text style={styles.sectionHeader}>LOCATION & CONTACT</Text>
-                                    {selectedCompany ? (
-                                        <>
-                                            <Text style={styles.detailValue}>{selectedCompany.address || 'No address'}</Text>
-                                            <Text style={styles.detailSub}>{selectedCompany.city ? `${selectedCompany.city}, ${selectedCompany.country}` : 'No location set'}</Text>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Text style={styles.detailValue}>{selectedClient.address || 'No address'}</Text>
-                                            <Text style={styles.detailSub}>{selectedClient.city ? `${selectedClient.city}, ${selectedClient.country}` : 'No location set'}</Text>
-                                        </>
-                                    )}
+                                    <Text style={styles.sectionHeader}>CONTACT</Text>
+                                    <DetailRow label="Email" value={selectedCompany?.email || selectedClient?.email || 'N/A'} />
+                                    <DetailRow label="Phone" value={selectedCompany?.telephone || selectedClient?.telephone || 'N/A'} />
                                 </View>
 
                                 <View style={styles.detailSection}>

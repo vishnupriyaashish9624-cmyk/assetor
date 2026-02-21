@@ -90,8 +90,8 @@ const CompanyInfoView = ({ company }) => {
                     <Section title="Tenancy" icon="home-city">
                         <InfoRow label="Type" value={company.tenancy_type} icon="office-building" />
                         <InfoRow label="Landlord" value={company.landlord_name} icon="account-tie" />
-                        <InfoRow label="Contract Start" value={company.contract_start_date} icon="calendar-import" />
-                        <InfoRow label="Contract End" value={company.contract_end_date} icon="calendar-export" />
+                        <InfoRow label="Lease Start" value={company.lease_start_date} icon="calendar-play" />
+                        <InfoRow label="Lease End" value={company.lease_end_date} icon="calendar-check" />
                     </Section>
                 </View>
 
@@ -99,10 +99,10 @@ const CompanyInfoView = ({ company }) => {
                 <View style={styles.column}>
                     <Section title="Location" icon="map-marker">
                         <InfoRow label="Country" value={company.country} icon="earth" />
-                        <InfoRow label="City / State" value={`${company.city || ''}, ${company.state || ''}`} icon="city-variant" />
-                        <InfoRow label="Area" value={company.area} icon="map-legend" />
-                        <InfoRow label="Address" value={company.address} icon="home-map-marker" />
-                        <InfoRow label="Makani" value={company.makani_number} icon="numeric" />
+                        <InfoRow label="City" value={company.city} icon="city" />
+                        <InfoRow label="Area" value={company.area} icon="map-marker-radius" />
+                        <InfoRow label="Address" value={company.address} icon="home-variant" />
+                        <InfoRow label="Makani No" value={company.makani_no} icon="tag-text" />
                     </Section>
 
                     <Section title="Contact" icon="phone">
@@ -154,7 +154,7 @@ const CompanyInfoView = ({ company }) => {
                     </View>
                 </View>
             </Section>
-        </ScrollView>
+        </ScrollView >
     );
 };
 

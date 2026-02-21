@@ -10,6 +10,7 @@ router.use(authMiddleware);
 const sharedRoles = ['SUPER_ADMIN', 'COMPANY_ADMIN'];
 
 router.get('/', requireRole(sharedRoles), companyController.getCompanies);
+router.get('/:id', requireRole(sharedRoles), companyController.getCompanyById);
 router.post('/', requireRole(sharedRoles), companyController.createCompany);
 router.put('/:id', requireRole(sharedRoles), companyController.updateCompany);
 router.delete('/:id', requireRole(sharedRoles), companyController.deleteCompany);

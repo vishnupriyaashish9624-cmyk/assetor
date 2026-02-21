@@ -9,6 +9,7 @@ import useAuthStore from './src/store/authStore';
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
 import MainNavigator from './src/navigation/MainNavigator';
+import ForceResetPasswordScreen from './src/screens/ForceResetPasswordScreen';
 
 // Debug utilities (available in browser console as window.debugAuth())
 import './src/utils/authDebug';
@@ -32,7 +33,7 @@ const theme = {
 };
 
 export default function App() {
-  const { isAuthenticated, loadStorage, checkAuth } = useAuthStore();
+  const { isAuthenticated, user, loadStorage, checkAuth } = useAuthStore();
 
   useEffect(() => {
     loadStorage();
@@ -40,6 +41,7 @@ export default function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      console.log('[App] isAuthenticated=true. Triggering session refresh...');
       checkAuth();
     }
   }, [isAuthenticated]);
@@ -55,6 +57,8 @@ export default function App() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
             <Stack.Screen name="Login" component={LoginScreen} />
+          ) : user?.force_reset ? (
+            <Stack.Screen name="ForceReset" component={ForceResetPasswordScreen} />
           ) : (
             <Stack.Screen name="Main" component={MainNavigator} />
           )}

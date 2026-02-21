@@ -364,7 +364,7 @@ const SubModulesScreen = ({ navigation }) => {
                             <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled={true}>
                                 {options.map((opt, idx) => (
                                     <TouchableOpacity
-                                        key={idx}
+                                        key={`opt-${idx}-${opt[labelKey] || opt.id}`}
                                         style={styles.dropdownItem}
                                         onPress={() => {
                                             onSelect(opt);
@@ -419,19 +419,19 @@ const SubModulesScreen = ({ navigation }) => {
                                 <MaterialCommunityIcons name="alert-circle-outline" size={24} color="#94a3b8" />
                                 <Text style={{ color: '#94a3b8', marginTop: 8 }}>No sections found for this module.</Text>
                             </View>
-                        ) : moduleSections.map((section) => {
+                        ) : moduleSections.map((section, sidx) => {
                             const isExpanded = expandedSectionId === section.id;
                             const fields = sectionFields[section.id] || [];
                             return (
-                                <View key={section.id} style={styles.accordionContainer}>
+                                <View key={`section-${section.id}-${sidx}`} style={styles.accordionContainer}>
                                     <TouchableOpacity style={styles.accordionHeader} onPress={() => handleSectionPress(section.id)}>
                                         <Text style={styles.accordionTitle}>{section.name}</Text>
                                         <MaterialCommunityIcons name={isExpanded ? "chevron-up" : "chevron-down"} size={20} />
                                     </TouchableOpacity>
                                     {isExpanded && (
                                         <View style={styles.accordionContent}>
-                                            {fields.map(field => (
-                                                <TouchableOpacity key={field.id} style={styles.fieldItem} onPress={() => toggleFieldSelection(field.id)}>
+                                            {fields.map((field, fidx) => (
+                                                <TouchableOpacity key={`field-${field.id}-${fidx}`} style={styles.fieldItem} onPress={() => toggleFieldSelection(field.id)}>
                                                     <Checkbox.Android status={selectedFields[field.id] ? 'checked' : 'unchecked'} color="#673ab7" />
                                                     <Text>{field.label}</Text>
                                                 </TouchableOpacity>
@@ -501,12 +501,12 @@ const SubModulesScreen = ({ navigation }) => {
                             <>
                                 {isMobile ? (
                                     <ScrollView style={{ maxHeight: 'calc(100vh - 350px)', padding: 12 }}>
-                                        {paginatedItems.map((item) => {
+                                        {paginatedItems.map((item, idx) => {
                                             const isPremisesItem = filterModule?.module_name === 'Premises' || item.module_name === 'Premises' || item.module_name === 'Office Premises';
 
                                             if (isPremisesItem) {
                                                 return (
-                                                    <View key={item.id} style={{
+                                                    <View key={`mobile-prem-${item.id}-${idx}`} style={{
                                                         backgroundColor: 'white',
                                                         borderRadius: 12,
                                                         padding: 16,
@@ -573,7 +573,7 @@ const SubModulesScreen = ({ navigation }) => {
 
                                             // Generic Mobile Card
                                             return (
-                                                <View key={item.id} style={styles.mobileCardItem}>
+                                                <View key={`mobile-gen-${item.id}-${idx}`} style={styles.mobileCardItem}>
                                                     <View style={styles.mobileTopRow}>
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                                                             <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#fff3e0', justifyContent: 'center', alignItems: 'center' }}>
@@ -640,7 +640,7 @@ const SubModulesScreen = ({ navigation }) => {
                                             {/* Table Content */}
                                             <ScrollView style={{ maxHeight: 'calc(100vh - 460px)' }}>
                                                 {paginatedItems.map((item, index) => (
-                                                    <DataTable.Row key={item.id} style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: index % 2 === 0 ? 'white' : '#f8fafc', height: 60 }]}>
+                                                    <DataTable.Row key={`desktop-prem-${item.id}-${index}`} style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: index % 2 === 0 ? 'white' : '#f8fafc', height: 60 }]}>
 
                                                         {/* TYPE Column */}
                                                         <DataTable.Cell style={{ flex: 1 }}>
@@ -720,8 +720,8 @@ const SubModulesScreen = ({ navigation }) => {
                                                 <DataTable.Title style={{ flex: 1 }} textStyle={{ color: 'white', fontWeight: 'bold' }}>ACTION</DataTable.Title>
                                             </DataTable.Header>
                                             <ScrollView style={{ maxHeight: 'calc(100vh - 460px)' }}>
-                                                {paginatedItems.map((item) => (
-                                                    <DataTable.Row key={item.id} style={styles.row}>
+                                                {paginatedItems.map((item, index) => (
+                                                    <DataTable.Row key={`desktop-gen-${item.id}-${index}`} style={styles.row}>
                                                         <DataTable.Cell style={{ flex: 2 }}>
                                                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                                                 <View style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: '#fff3e0', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
@@ -796,7 +796,7 @@ const SubModulesScreen = ({ navigation }) => {
                                             if (i === page || i === 0 || i === Math.ceil(totalItems / itemsPerPage) - 1 || (i >= page - 1 && i <= page + 1)) {
                                                 return (
                                                     <TouchableOpacity
-                                                        key={i}
+                                                        key={`page-${i}`}
                                                         style={[styles.pageBtn, page === i ? styles.pageBtnActive : styles.pageBtnOutlined]}
                                                         onPress={() => setPage(i)}
                                                     >

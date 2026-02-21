@@ -18,11 +18,21 @@ const useAuthStore = create((set, get) => ({
             const response = await axios.post(`${API_URL}/auth/login`, { email, password });
             const { token, user } = response.data;
 
-            await AsyncStorage.setItem('token', token);
-            await AsyncStorage.setItem('user', JSON.stringify(user));
+            console.log('[AuthStore] Login response user:', user);
 
-            set({ user, token, isAuthenticated: true, loading: false });
-            return { success: true };
+            // Normalize force_reset to strict boolean
+            const forceReset = user.force_reset === 1 || user.force_reset === true || user.force_reset === 'true';
+
+            // Create new user object to ensure state update triggers
+            const userWithFlag = { ...user, force_reset: forceReset };
+
+            console.log('[AuthStore] Normalized user for state:', userWithFlag);
+
+            await AsyncStorage.setItem('token', token);
+            await AsyncStorage.setItem('user', JSON.stringify(userWithFlag));
+
+            set({ user: userWithFlag, token, isAuthenticated: true, loading: false });
+            return { success: true, forceReset: forceReset };
         } catch (error) {
             const message = error.response?.data?.message || 'Login failed';
             set({ error: message, loading: false });
@@ -59,8 +69,13 @@ const useAuthStore = create((set, get) => ({
 
             if (response.data.success) {
                 const user = response.data.user;
-                await AsyncStorage.setItem('user', JSON.stringify(user));
-                set({ user, isAuthenticated: true });
+
+                // Normalize force_reset to strict boolean
+                const forceReset = user.force_reset === 1 || user.force_reset === true || user.force_reset === 'true';
+                const userWithFlag = { ...user, force_reset: forceReset };
+
+                await AsyncStorage.setItem('user', JSON.stringify(userWithFlag));
+                set({ user: userWithFlag, isAuthenticated: true });
                 console.log('[AuthStore] Session refreshed with latest permissions');
             }
         } catch (error) {
@@ -70,6 +85,33 @@ const useAuthStore = create((set, get) => ({
                 get().logout();
             }
         }
+    },
+
+    completeForceReset: async () => {
+        const currentUser = get().user;
+        if (!currentUser) return;
+
+        const updatedUser = { ...currentUser, force_reset: false };
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
+    },
+
+    hasPermission: (moduleKey, action = 'can_view') => {
+        const user = get().user;
+        if (!user) return false;
+
+        // Super Admin ignores RBAC
+        if (user.role === 'SUPER_ADMIN') return true;
+
+        // If no permissions loaded, check role
+        if (!user.permissions || user.permissions.length === 0) {
+            // Fallback: If it's a dashboard/basic item, allow for all logged in
+            if (['Dashboard', 'Companies'].includes(moduleKey)) return true;
+            return false;
+        }
+
+        const perm = user.permissions.find(p => p.module_name === moduleKey.toLowerCase());
+        return perm ? !!perm[action] : false;
     }
 }));
 

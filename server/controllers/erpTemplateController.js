@@ -31,7 +31,7 @@ exports.getTemplates = async (req, res) => {
             WHERE t.company_id = ? AND t.is_active = 1
             ORDER BY t.created_at DESC
         `;
-        const [rows] = await db.execute(query, [req.user?.company_id]);
+        const [rows] = await db.execute(query, [req.user?.company_id || 0]);
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error('getTemplates error:', error);
@@ -44,7 +44,7 @@ exports.getTemplateDetail = async (req, res) => {
     try {
         const [templates] = await db.execute(
             'SELECT * FROM module_templates WHERE id = ? AND company_id = ?',
-            [id, req.user.company_id]
+            [id, req.user?.company_id || 0]
         );
         if (templates.length === 0) return res.status(404).json({ success: false, message: 'Template not found' });
         const template = templates[0];
@@ -100,7 +100,7 @@ exports.createTemplate = async (req, res) => {
         // 1. Create Template
         const [tRows] = await connection.execute(
             'INSERT INTO module_templates (company_id, module_id, template_name) VALUES (?, ?, ?) RETURNING id',
-            [req.user.company_id, module_id, template_name || '']
+            [req.user?.company_id || 0, module_id, template_name || '']
         );
         const templateId = tRows[0].id;
 
@@ -162,7 +162,7 @@ exports.createTemplate = async (req, res) => {
 
 exports.createConfiguration = async (req, res) => {
     const { module_id, template_name, description, use_template_sections } = req.body;
-    const company_id = req.user.company_id;
+    const company_id = req.user?.company_id || 0;
 
     if (!module_id) return res.status(400).json({ success: false, message: 'Module is required' });
     if (!template_name || template_name.trim().length < 3) return res.status(400).json({ success: false, message: 'Template Name must be at least 3 characters' });
@@ -222,7 +222,7 @@ exports.updateTemplate = async (req, res) => {
         // Check ownership
         const [check] = await connection.execute(
             'SELECT id FROM module_templates WHERE id = ? AND company_id = ?',
-            [id, req.user.company_id]
+            [id, req.user?.company_id || 0]
         );
         if (check.length === 0) throw new Error('Template not found');
 
@@ -293,7 +293,7 @@ exports.deleteTemplate = async (req, res) => {
 
         const [check] = await connection.execute(
             'SELECT id FROM module_templates WHERE id = ? AND company_id = ?',
-            [id, req.user.company_id]
+            [id, req.user?.company_id || 0]
         );
         if (check.length === 0) {
             connection.rollback();

@@ -9,8 +9,10 @@ const path = require('path');
 exports.listCompanyModules = async (req, res) => {
     try {
         const companyId = req.user?.company_id || req.companyId;
+        console.log(`[listCompanyModules] User: ${req.user?.email}, Resolved CompanyId: ${companyId}`);
 
         if (!companyId) {
+            console.error('[listCompanyModules] 403: No companyId resolved');
             return res.status(403).json({ success: false, message: 'Company context missing for user.' });
         }
 
@@ -43,6 +45,7 @@ exports.listCompanyModules = async (req, res) => {
         `;
 
         const [rows] = await db.execute(query, [companyId]);
+        console.log(`[listCompanyModules] DB Query returned ${rows.length} rows for company ${companyId}`);
 
         const mapped = rows.map(r => ({
             ...r,
@@ -66,7 +69,11 @@ exports.addCompanyModule = async (req, res) => {
     const { module_id, is_active, country_id, property_type_id, premises_type_id, area_id, status_id, selected_fields } = req.body;
     const companyId = req.user?.company_id || req.companyId;
 
-    console.log('[addCompanyModule] Received Payload:', { module_id, country_id, property_type_id, area_id, field_count: selected_fields?.length });
+    console.log('[DEBUG] addCompanyModule context check:');
+    console.log(' - User:', req.user?.email, 'Role:', req.user?.role);
+    console.log(' - companyId resolved:', companyId);
+    console.log(' - req.companyId (from tenantScope):', req.companyId);
+    console.log(' - req.user.company_id (from token):', req.user?.company_id);
 
     if (!module_id) {
         return res.status(400).json({ success: false, message: 'Module selection is required' });
@@ -209,9 +216,11 @@ exports.updateCompanyModule = async (req, res) => {
 exports.getModuleMaster = async (req, res) => {
     try {
         const companyId = req.user?.company_id || req.companyId;
-        if (!companyId) {
-            return res.status(403).json({ success: false, message: 'Forbidden: missing company context' });
-        }
+        console.log('[getModuleMaster] User:', JSON.stringify(req.user));
+        console.log('[getModuleMaster] CompanyID:', companyId);
+        const userRole = String(req.user?.role || '').toUpperCase();
+
+        const queryParameter = companyId || 0; // Use 0 or -1 to ensure SQL comparison (company_id = NULL is false, which is what we want for no mappings)
 
         const query = `
             SELECT 
@@ -240,7 +249,7 @@ exports.getModuleMaster = async (req, res) => {
             GROUP BY mm.module_id, mm.module_name, mm.is_active, mm.created_at
             ORDER BY mm.module_name
         `;
-        const [rows] = await db.execute(query, [companyId, companyId, companyId, companyId]);
+        const [rows] = await db.execute(query, [queryParameter, queryParameter, queryParameter, queryParameter]);
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error('[API] getModuleMaster Error:', error);

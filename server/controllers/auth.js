@@ -8,30 +8,27 @@ exports.login = async (req, res) => {
     const cleanPassword = password?.trim();
 
     try {
-        console.log(`[AuthDebug] Checking email: "${cleanEmail}"`);
-        const [users] = await db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
-        console.log(`[AuthDebug] Users found: ${users.length}`);
+        const [users] = await db.execute('SELECT * FROM users WHERE LOWER(email) = ? ORDER BY id DESC', [cleanEmail]);
 
         if (users.length === 0) {
-            console.log(`[AuthDebug] User not found: ${cleanEmail}`);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        const user = users[0];
-        console.log(`[AuthDebug] User found: ID=${user.id}, Role=${user.role}`);
-        console.log(`[AuthDebug] Input password length: ${cleanPassword.length}`);
-        console.log(`[AuthDebug] Stored hash length: ${user.password ? user.password.length : 'null'}`);
+        let user = null;
+        let isMatch = false;
 
-        // Use bcrypt to compare
-        const isMatch = await bcrypt.compare(cleanPassword, user.password);
-        console.log(`[AuthDebug] Password match result: ${isMatch}`);
+        // Try password against all matching accounts (workaround for duplicates)
+        for (const u of users) {
+            const match = await bcrypt.compare(cleanPassword, u.password);
+            if (match) {
+                user = u;
+                isMatch = true;
+                break;
+            }
+        }
 
         if (!isMatch) {
-            console.log(`[AuthDebug] ❌ Password mismatch for ${cleanEmail}`);
-            // Temporary: Log if the password matches the hardcoded one to verify input
-            const testMatch = await bcrypt.compare('superadmin123', user.password);
-            console.log(`[AuthDebug] Does stored hash match 'superadmin123'? ${testMatch}`);
-
+            console.log(`[Auth] Password mismatch for ${cleanEmail} (${users.length} accounts found)`);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
@@ -39,19 +36,40 @@ exports.login = async (req, res) => {
             return res.status(403).json({ success: false, message: 'User account is inactive' });
         }
 
-        // Fetch enabled modules from client if user has client_id
+        // Fetch enabled modules: Prioritize Company settings, fallback to Client settings
         let enabledModules = [];
-        if (user.client_id) {
-            try {
+        try {
+            if (user.company_id) {
+                const [companies] = await db.execute('SELECT enabled_modules FROM companies WHERE id = ?', [user.company_id]);
+                if (companies.length > 0 && companies[0].enabled_modules) {
+                    enabledModules = typeof companies[0].enabled_modules === 'string'
+                        ? JSON.parse(companies[0].enabled_modules)
+                        : companies[0].enabled_modules;
+                }
+            }
+
+            // Fallback to client modules if company modules are empty/null
+            if ((!enabledModules || enabledModules.length === 0) && user.client_id) {
                 const [clients] = await db.execute('SELECT enabled_modules FROM clients WHERE id = ?', [user.client_id]);
                 if (clients.length > 0 && clients[0].enabled_modules) {
-                    enabledModules = typeof clients[0].enabled_modules === 'string'
+                    const clientModules = typeof clients[0].enabled_modules === 'string'
                         ? JSON.parse(clients[0].enabled_modules)
                         : clients[0].enabled_modules;
+                    enabledModules = clientModules;
                 }
-            } catch (moduleError) {
-                console.error('[Auth] Error fetching enabled_modules:', moduleError);
-                // Continue with empty array - don't fail login
+            }
+        } catch (moduleError) {
+            console.error('[Auth] Error fetching enabled_modules:', moduleError);
+        }
+
+        // Fetch RBAC Permissions if role_id is present
+        let permissions = [];
+        if (user.role_id) {
+            try {
+                const [permRows] = await db.execute('SELECT module_name, can_view, can_create, can_edit, can_delete FROM role_permissions WHERE role_id = ?', [user.role_id]);
+                permissions = permRows;
+            } catch (permError) {
+                console.error('[Auth] Error fetching role permissions:', permError);
             }
         }
 
@@ -61,6 +79,7 @@ exports.login = async (req, res) => {
                 company_id: user.company_id,
                 client_id: user.client_id,
                 role: user.role,
+                role_id: user.role_id,
                 name: user.name,
                 email: user.email
             },
@@ -76,20 +95,26 @@ exports.login = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                role_id: user.role_id,
                 company_id: user.company_id,
                 client_id: user.client_id,
-                enabled_modules: enabledModules
+                enabled_modules: enabledModules,
+                permissions: permissions,
+                force_reset: user.force_reset
             }
         });
     } catch (error) {
+        const fs = require('fs');
+        const errMsg = `[LOGIN ERROR] ${new Date().toISOString()}\nMessage: ${error.message}\nStack: ${error.stack}\n\n`;
         console.error('Login error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        try { fs.appendFileSync(require('path').join(__dirname, '..', 'login_error.log'), errMsg); } catch (e) { }
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };
 
 exports.getMe = async (req, res) => {
     try {
-        const [users] = await db.execute('SELECT id, name, email, role, company_id, client_id, status FROM users WHERE id = ?', [req.user.id]);
+        const [users] = await db.execute('SELECT id, name, email, role, role_id, company_id, client_id, status, force_reset FROM users WHERE id = ?', [req.user.id]);
 
         if (users.length === 0) {
             return res.status(404).json({ success: false, message: 'User not found' });
@@ -97,9 +122,23 @@ exports.getMe = async (req, res) => {
 
         const user = users[0];
         let enabledModules = [];
+        let permissions = [];
 
-        // Fetch enabled modules if client_id exists
-        if (user.client_id) {
+        // Fetch enabled modules: Prioritize Company, fallback to Client
+        if (user.company_id) {
+            try {
+                const [companies] = await db.execute('SELECT enabled_modules FROM companies WHERE id = ?', [user.company_id]);
+                if (companies.length > 0 && companies[0].enabled_modules) {
+                    enabledModules = typeof companies[0].enabled_modules === 'string'
+                        ? JSON.parse(companies[0].enabled_modules)
+                        : companies[0].enabled_modules;
+                }
+            } catch (err) {
+                console.error('[GetMe] Error fetching company enabled_modules:', err);
+            }
+        }
+
+        if ((!enabledModules || enabledModules.length === 0) && user.client_id) {
             try {
                 const [clients] = await db.execute('SELECT enabled_modules FROM clients WHERE id = ?', [user.client_id]);
                 if (clients.length > 0 && clients[0].enabled_modules) {
@@ -108,7 +147,17 @@ exports.getMe = async (req, res) => {
                         : clients[0].enabled_modules;
                 }
             } catch (err) {
-                console.error('[GetMe] Error fetching enabled_modules:', err);
+                console.error('[GetMe] Error fetching client enabled_modules:', err);
+            }
+        }
+
+        // Fetch RBAC Permissions if role_id is present
+        if (user.role_id) {
+            try {
+                const [permRows] = await db.execute('SELECT module_name, can_view, can_create, can_edit, can_delete FROM role_permissions WHERE role_id = ?', [user.role_id]);
+                permissions = permRows;
+            } catch (permError) {
+                console.error('[GetMe] Error fetching role permissions:', permError);
             }
         }
 
@@ -116,10 +165,30 @@ exports.getMe = async (req, res) => {
             success: true,
             user: {
                 ...user,
-                enabled_modules: enabledModules
+                enabled_modules: enabledModules,
+                permissions: permissions
             }
         });
     } catch (error) {
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+exports.updatePassword = async (req, res) => {
+    const { password } = req.body;
+    const userId = req.user.id; // Corrected to use req.user.id from middleware
+
+    if (!password || password.length < 8) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        // Force reset is cleared on successful password update
+        await db.execute('UPDATE users SET password = ?, force_reset = false WHERE id = ?', [hashedPassword, userId]);
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Update password error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };

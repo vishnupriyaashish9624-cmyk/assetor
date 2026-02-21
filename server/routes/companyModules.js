@@ -4,7 +4,7 @@ const controller = require('../controllers/companyModulesController');
 const { authMiddleware } = require('../middleware/auth');
 const tenantScope = require('../middleware/tenant');
 
-// Support for the catalog dropdown (Global - No Tenant Scope needed)
+// Support for the catalog dropdown (Global - No Tenant Scope needed as they are read-only catalogs)
 router.get('/module-master', authMiddleware, controller.getModuleMaster);
 router.get('/countries', authMiddleware, controller.getCountries);
 router.get('/premises-types', authMiddleware, controller.getPremisesTypes);

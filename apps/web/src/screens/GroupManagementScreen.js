@@ -71,6 +71,7 @@ const GroupManagementScreen = ({ navigation }) => {
                 try {
                     const allCompRes = await axios.get(`${API_URL}/companies`, config);
                     const allComps = allCompRes.data.data || [];
+                    console.log('[GroupManagementScreen] Fetched companies:', allComps.length, 'First comp admin info:', allComps[0] ? { name: allComps[0].name, admin_name: allComps[0].admin_name } : 'none');
 
                     if (allComps.length > 0) {
                         // We found companies! Use the first one to determine "Client" context if needed
@@ -123,13 +124,15 @@ const GroupManagementScreen = ({ navigation }) => {
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
-            if (!silent) setLoading(false);
+            setLoading(false);
+            setDetailsLoading(false);
         }
     };
 
     const fetchClientInfo = async (clientId, config) => {
         const clientRes = await axios.get(`${API_URL}/clients/${clientId}`, config);
         const fetchedCompanies = clientRes.data.data.companies || [];
+        console.log('[GroupManagementScreen] Fetched client companies:', fetchedCompanies.length, 'First comp admin info:', fetchedCompanies[0] ? { name: fetchedCompanies[0].name, admin_name: fetchedCompanies[0].admin_name } : 'none');
         setClient(clientRes.data.data);
         setCompanies(fetchedCompanies);
 
@@ -182,13 +185,12 @@ const GroupManagementScreen = ({ navigation }) => {
             }
 
             // Construct the full company object for optimistic update
-            // We merge the returned minimal data (id, name...) with the form input data
+            // Prioritize server data (savedData) as it now includes admin joins
             const savedData = response.data.data;
             const fullSavedCompany = {
-                ...data,
                 ...savedData,
-                employee_count: editingCompany ? editingCompany.employee_count : 0, // Preserve count on edit, 0 on new
-                asset_count: editingCompany ? editingCompany.asset_count : 0
+                employee_count: savedData.employee_count !== undefined ? savedData.employee_count : (editingCompany ? editingCompany.employee_count : 0),
+                asset_count: savedData.asset_count !== undefined ? savedData.asset_count : (editingCompany ? editingCompany.asset_count : 0)
             };
 
             // Manual State Update for Immediate Feedback
@@ -222,29 +224,52 @@ const GroupManagementScreen = ({ navigation }) => {
     };
 
     const handleSaveEmployee = async (data) => {
+        setDetailsLoading(true);
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            const payload = { ...data, company_id: selectedCompany.id };
+            const payload = { ...data, company_id: selectedCompany?.id };
 
+            if (!payload.company_id) {
+                throw new Error('No company context found. Please select a company.');
+            }
+
+            console.log('[handleSaveEmployee] Starting API call...');
+            let res;
             if (editingEmployee) {
-                await axios.put(`${API_URL}/employees/${editingEmployee.id}`, payload, config);
+                res = await axios.put(`${API_URL}/employees/${editingEmployee.id}`, payload, config);
+                console.log('[handleSaveEmployee] PUT success');
                 showAlert('Success', 'Employee updated successfully.', 'success');
             } else {
-                await axios.post(`${API_URL}/employees`, payload, config);
+                res = await axios.post(`${API_URL}/employees`, payload, config);
+                console.log('[handleSaveEmployee] POST success');
                 showAlert('Success', 'Employee added successfully.', 'success');
             }
 
-            // Refresh both the company list (for counts) and the employee list
-            await fetchData(true);
+            // DO NOT AWAIT background refreshes
+            // This allows the modal to close immediately
+            (async () => {
+                try {
+                    await Promise.all([
+                        fetchData(true),
+                        axios.get(`${API_URL}/employees?company_id=${payload.company_id}`, config)
+                    ]).then(([_, empRes]) => {
+                        if (empRes.data.success) {
+                            setEmployees(empRes.data.data);
+                        }
+                    });
+                } catch (bgError) {
+                    console.error('Background refresh failed:', bgError);
+                }
+            })();
 
-            // Re-fetch employees specifically for the active company
-            if (selectedCompany) {
-                const config2 = { headers: { Authorization: `Bearer ${token}` } };
-                const empRes = await axios.get(`${API_URL}/employees?company_id=${selectedCompany.id}`, config2);
-                setEmployees(empRes.data.data);
-            }
+            return res.data;
         } catch (error) {
-            showAlert('Error', error.response?.data?.message || error.message, 'error');
+            console.error('[handleSaveEmployee] Error:', error);
+            const msg = error.response?.data?.message || error.response?.data?.detail || error.message;
+            showAlert('Error', msg, 'error');
+            throw error; // Re-throw to keep modal loading state if it failed
+        } finally {
+            setDetailsLoading(false);
         }
     };
 
@@ -319,9 +344,9 @@ const GroupManagementScreen = ({ navigation }) => {
                         {loading ? (
                             <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 40 }} />
                         ) : (
-                            companies.map(comp => (
+                            companies.map((comp, idx) => (
                                 <TouchableOpacity
-                                    key={comp.id}
+                                    key={`comp-${comp.id}-${idx}`}
                                     style={[styles.itemCard, selectedCompany?.id === comp.id && styles.activeCard]}
                                     onPress={() => handleSelectCompany(comp)}
                                 >
@@ -394,8 +419,8 @@ const GroupManagementScreen = ({ navigation }) => {
                                     <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 40 }} />
                                 ) : (
                                     <View style={styles.empList}>
-                                        {employees.map(emp => (
-                                            <View key={emp.id} style={styles.empRow}>
+                                        {employees.map((emp, idx) => (
+                                            <View key={`emp-${emp.id}-${idx}`} style={styles.empRow}>
                                                 <View style={styles.empAvatar}>
                                                     <Text style={styles.empAvatarText}>{emp.name?.[0]}</Text>
                                                 </View>

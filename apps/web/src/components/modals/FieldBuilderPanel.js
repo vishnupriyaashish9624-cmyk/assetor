@@ -69,6 +69,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
     const [fileConfigTarget, setFileConfigTarget] = useState({ mode: 'none', index: -1 }); // mode: 'edit' or 'draft'
     const [currentFileConfig, setCurrentFileConfig] = useState({});
     const [previewDates, setPreviewDates] = useState({});
+    const [wizardStep, setWizardStep] = useState(1); // 1: Configuration, 2: Preview
 
     const parseFileConfig = (str) => {
         if (str && str.startsWith("JSON:")) {
@@ -544,10 +545,39 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
 
             <Divider style={{ marginVertical: 20, backgroundColor: '#e2e8f0' }} />
 
+            {/* Wizard Step Indicator */}
+            {!readOnly && (
+                <View style={styles.wizardIndicator}>
+                    {[
+                        { id: 1, title: 'Field Configuration', icon: 'playlist-edit' },
+                        { id: 2, title: 'Field Preview', icon: 'eye-outline' }
+                    ].map((step, idx) => (
+                        <React.Fragment key={step.id}>
+                            <TouchableOpacity
+                                style={[styles.stepItem, wizardStep === step.id && styles.stepItemActive]}
+                                onPress={() => setWizardStep(step.id)}
+                            >
+                                <View style={[styles.stepIcon, wizardStep === step.id && styles.stepIconActive]}>
+                                    <MaterialCommunityIcons
+                                        name={step.icon}
+                                        size={20}
+                                        color={wizardStep === step.id ? '#fff' : '#64748b'}
+                                    />
+                                </View>
+                                <Text style={[styles.stepTitle, wizardStep === step.id && styles.stepTitleActive]}>
+                                    {step.title}
+                                </Text>
+                            </TouchableOpacity>
+                            {idx === 0 && <View style={styles.stepConnector} />}
+                        </React.Fragment>
+                    ))}
+                </View>
+            )}
+
             <View style={[styles.contentRow, !selectedSection && { opacity: 0.5 }]}>
-                {/* LEFT COLUMN: Add New Field Form - HIDE IF READ ONLY */}
-                {!readOnly && (
-                    <View style={styles.leftCol} pointerEvents={!selectedSection ? 'none' : 'auto'}>
+                {/* Step 1: Configuration Form */}
+                {(!readOnly && wizardStep === 1) && (
+                    <View style={styles.wizardStepContent} pointerEvents={!selectedSection ? 'none' : 'auto'}>
 
                         {/* --- MODE SWITCH: EDIT vs MULTI-DRAFT --- */}
                         {editingFieldId ? (
@@ -1024,315 +1054,345 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                 )}
                             </View>
                         )}
+
+                        {!readOnly && (
+                            <View style={styles.wizardNav}>
+                                <Text style={styles.wizardHint}>Setup your fields, then click Next to preview them.</Text>
+                                <Button
+                                    mode="contained"
+                                    icon="arrow-right"
+                                    contentStyle={{ flexDirection: 'row-reverse' }}
+                                    onPress={() => setWizardStep(2)}
+                                    style={{ backgroundColor: '#1e293b' }}
+                                >
+                                    Next: Preview
+                                </Button>
+                            </View>
+                        )}
                     </View>
                 )}
 
-                {/* RIGHT COLUMN: Preview */}
-                <View style={[styles.rightCol, !selectedSection && { opacity: 0.8 }, readOnly ? { flex: 1 } : null]}>
-                    <Text style={styles.columnTitle}>
-                        {readOnly ? 'Section Structure' : 'Section Fields Preview'}
-                    </Text>
-                    <View style={styles.previewBox}><ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 100 }}>
-                        {/* Live Preview Card - Shows current single-edit form state */}
-                        {!!(selectedSection && fieldLabel && editingFieldId) && (
-                            <View style={styles.livePreviewCard}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <View style={{ flex: 1 }}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                            <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                                <Text style={{ fontSize: 10, color: '#3b82f6', fontWeight: 'bold' }}>
-                                                    EDITING
-                                                </Text>
-                                            </View>
-                                            <MaterialCommunityIcons
-                                                name={currentType.icon}
-                                                size={16}
-                                                color="#3b82f6"
-                                            />
-                                        </View>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                            <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>
-                                                {fieldLabel || 'Untitled Field'}
-                                            </Text>
-                                            {!!isRequired && (
-                                                <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
-                                                    <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                        <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                            {currentType.label}
-                                        </Text>
-                                        {['file', 'image', 'signature'].includes(currentType.value) ? (
-                                            (() => {
-                                                const config = (placeholder && placeholder.startsWith("JSON:")) ? parseFileConfig(placeholder) : {};
-                                                return (
-                                                    <View style={{ marginTop: 8 }}>
-                                                        <View style={{ padding: 8, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                            <MaterialCommunityIcons name={currentType.icon} size={20} color="#94a3b8" />
-                                                            <Text style={{ color: '#64748b', fontSize: 12 }}>Upload File Area</Text>
-                                                        </View>
-                                                        {(config.expiry || config.startDate || config.endDate) && (
-                                                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                                                                {config.startDate && (
-                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
-                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                                {config.endDate && (
-                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
-                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                                {config.expiry && (
-                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
-                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                            </View>
-                                                        )}
-                                                    </View>
-                                                );
-                                            })()
-                                        ) : (
-                                            !!placeholder && (
-                                                <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
-                                                    Placeholder: "{placeholder}"
-                                                </Text>
-                                            )
-                                        )}
-                                    </View>
-                                </View>
-                                {/* Live Preview Options for Edit Mode */}
-                                {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(currentType.value) &&
-                                    fieldOptions.filter(o => o.label && o.value).length > 0 && (
-                                        <View style={{ marginTop: 12, backgroundColor: '#eff6ff', padding: 8, borderRadius: 6 }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#3b82f6', marginBottom: 6, letterSpacing: 0.5 }}>
-                                                OPTIONS:
-                                            </Text>
-                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                                {fieldOptions.filter(o => o.label && o.value).map((opt, idx) => (
-                                                    <View key={idx} style={styles.liveOptionChip}>
-                                                        <Text style={{ fontSize: 11, color: '#1e40af' }}>
-                                                            {opt.label}
-                                                        </Text>
-                                                    </View>
-                                                ))}
-                                            </View>
-                                        </View>
-                                    )}
-                            </View>
-                        )}
-
-                        {/* --- DRAFT FIELDS PREVIEW (Multi-Row Mode) --- */}
-                        {!!draftFields.length && (
-                            <View style={{ marginBottom: 16 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#f59e0b', textTransform: 'uppercase' }}>
-                                        New Drafts ({draftFields.length})
-                                    </Text>
-                                    <View style={{ height: 1, flex: 1, backgroundColor: '#fcd34d' }} />
-                                </View>
-
-                                {draftFields.map((draft, idx) => {
-                                    const dType = FIELD_TYPES.find(t => t.value === draft.field_type) || FIELD_TYPES[0];
-                                    return (
-                                        <View key={draft._tempId || idx} style={[styles.previewCard, { borderColor: '#fcd34d', backgroundColor: '#fffbeb' }]}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <View style={{ flex: 1 }}>
-                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>{draft.label || '(No Label)'}</Text>
-                                                        {!!draft.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
-                                                        <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
-                                                            <Text style={{ fontSize: 10, color: '#d97706', fontWeight: 'bold' }}>NEW</Text>
-                                                        </View>
-                                                    </View>
-                                                    <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                        {dType.label}
-                                                    </Text>
-                                                    {['file', 'image', 'signature'].includes(draft.field_type) && (() => {
-                                                        const config = (draft.placeholder && draft.placeholder.startsWith("JSON:")) ? parseFileConfig(draft.placeholder) : {};
-                                                        return (
-                                                            <View style={{ marginTop: 6 }}>
-                                                                <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                                    <MaterialCommunityIcons name={dType.icon} size={16} color="#94a3b8" />
-                                                                    <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
-                                                                </View>
-                                                                {(config.expiry || config.startDate || config.endDate) && (
-                                                                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                                                                        {config.startDate && (
-                                                                            <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
-                                                                                <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                    <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                                </View>
-                                                                            </View>
-                                                                        )}
-                                                                        {config.endDate && (
-                                                                            <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
-                                                                                <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                    <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                                </View>
-                                                                            </View>
-                                                                        )}
-                                                                        {config.expiry && (
-                                                                            <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
-                                                                                <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                    <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                                </View>
-                                                                            </View>
-                                                                        )}
-                                                                    </View>
-                                                                )}
-                                                            </View>
-                                                        );
-                                                    })()}
-                                                </View>
-                                            </View>
-                                            {/* Draft Options Preview */}
-                                            {(['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(draft.field_type) && draft.options && draft.options.length > 0) && (
-                                                <View style={{ marginTop: 12, backgroundColor: '#fff7ed', padding: 8, borderRadius: 6 }}>
-                                                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#d97706', marginBottom: 6, letterSpacing: 0.5 }}>OPTIONS:</Text>
-                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                                        {draft.options.map((opt, oIdx) => (
-                                                            <View key={oIdx} style={[styles.optionChip, { backgroundColor: 'white', borderColor: '#fdba74' }]}>
-                                                                <Text style={{ fontSize: 11, color: '#9a3412' }}>
-                                                                    {opt.label || '...'}
-                                                                </Text>
-                                                            </View>
-                                                        ))}
-                                                    </View>
-                                                </View>
-                                            )}
-                                        </View>
-                                    );
-                                })}
-                            </View>
-                        )}
-
-                        {/* Saved Fields Divider */}
-                        {!!fields.length && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, marginTop: 8 }}>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
-                                    Saved Fields
-                                </Text>
-                                <View style={{ height: 1, flex: 1, backgroundColor: '#e2e8f0' }} />
-                            </View>
-                        )}
-
-                        {/* Saved Fields */}
-                        {fields.length === 0 && draftFields.length === 0 ? (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyText}>
-                                    {!selectedSection ? 'Select a section to view fields.' : 'No fields yet.'}
-                                </Text>
-                            </View>
-                        ) : (
-                            fields.map(field => (
-                                <View key={field.id} style={styles.previewCard}>
+                {/* Step 2: Preview Area (Always show if readOnly, otherwise only in Step 2) */}
+                {(readOnly || wizardStep === 2) && (
+                    <View style={[styles.wizardStepContent, !selectedSection && { opacity: 0.8 }]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <Text style={[styles.columnTitle, { marginBottom: 0 }]}>
+                                {readOnly ? 'Section Structure' : 'Section Fields Preview'}
+                            </Text>
+                            {!readOnly && (
+                                <Button
+                                    mode="outlined"
+                                    onPress={() => setWizardStep(1)}
+                                    icon="arrow-left"
+                                    compact
+                                    labelStyle={{ fontSize: 12 }}
+                                >
+                                    Back to Config
+                                </Button>
+                            )}
+                        </View>
+                        <View style={styles.previewBox}><ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 100 }}>
+                            {/* Live Preview Card - Shows current single-edit form state */}
+                            {!!(selectedSection && fieldLabel && editingFieldId) && (
+                                <View style={styles.livePreviewCard}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <View style={{ flex: 1 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                                    <Text style={{ fontSize: 10, color: '#3b82f6', fontWeight: 'bold' }}>
+                                                        EDITING
+                                                    </Text>
+                                                </View>
+                                                <MaterialCommunityIcons
+                                                    name={currentType.icon}
+                                                    size={16}
+                                                    color="#3b82f6"
+                                                />
+                                            </View>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>{field.label}</Text>
-                                                {!!field.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
+                                                <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>
+                                                    {fieldLabel || 'Untitled Field'}
+                                                </Text>
+                                                {!!isRequired && (
+                                                    <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
+                                                        <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text>
+                                                    </View>
+                                                )}
                                             </View>
                                             <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                {field.field_type}
+                                                {currentType.label}
                                             </Text>
-                                            {['file', 'image', 'signature'].includes(field.field_type) && (() => {
-                                                const config = (field.placeholder && field.placeholder.startsWith("JSON:")) ? parseFileConfig(field.placeholder) : {};
-                                                return (
-                                                    <View style={{ marginTop: 6 }}>
-                                                        <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                            <MaterialCommunityIcons name={field.field_type === 'image' ? 'image-outline' : field.field_type === 'signature' ? 'draw' : 'file-upload-outline'} size={16} color="#94a3b8" />
-                                                            <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
-                                                        </View>
-                                                        {(config.expiry || config.startDate || config.endDate) && (
-                                                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                                                                {config.startDate && (
-                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
-                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                                {config.endDate && (
-                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
-                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                                {config.expiry && (
-                                                                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
-                                                                        <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                            <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
+                                            {['file', 'image', 'signature'].includes(currentType.value) ? (
+                                                (() => {
+                                                    const config = (placeholder && placeholder.startsWith("JSON:")) ? parseFileConfig(placeholder) : {};
+                                                    return (
+                                                        <View style={{ marginTop: 8 }}>
+                                                            <View style={{ padding: 8, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                                <MaterialCommunityIcons name={currentType.icon} size={20} color="#94a3b8" />
+                                                                <Text style={{ color: '#64748b', fontSize: 12 }}>Upload File Area</Text>
                                                             </View>
-                                                        )}
+                                                            {(config.expiry || config.startDate || config.endDate) && (
+                                                                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                                    {config.startDate && (
+                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                    {config.endDate && (
+                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                    {config.expiry && (
+                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })()
+                                            ) : (
+                                                !!placeholder && (
+                                                    <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
+                                                        Placeholder: "{placeholder}"
+                                                    </Text>
+                                                )
+                                            )}
+                                        </View>
+                                    </View>
+                                    {/* Live Preview Options for Edit Mode */}
+                                    {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(currentType.value) &&
+                                        fieldOptions.filter(o => o.label && o.value).length > 0 && (
+                                            <View style={{ marginTop: 12, backgroundColor: '#eff6ff', padding: 8, borderRadius: 6 }}>
+                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#3b82f6', marginBottom: 6, letterSpacing: 0.5 }}>
+                                                    OPTIONS:
+                                                </Text>
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                    {fieldOptions.filter(o => o.label && o.value).map((opt, idx) => (
+                                                        <View key={idx} style={styles.liveOptionChip}>
+                                                            <Text style={{ fontSize: 11, color: '#1e40af' }}>
+                                                                {opt.label}
+                                                            </Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        )}
+                                </View>
+                            )}
+
+                            {/* --- DRAFT FIELDS PREVIEW (Multi-Row Mode) --- */}
+                            {!!draftFields.length && (
+                                <View style={{ marginBottom: 16 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#f59e0b', textTransform: 'uppercase' }}>
+                                            New Drafts ({draftFields.length})
+                                        </Text>
+                                        <View style={{ height: 1, flex: 1, backgroundColor: '#fcd34d' }} />
+                                    </View>
+
+                                    {draftFields.map((draft, idx) => {
+                                        const dType = FIELD_TYPES.find(t => t.value === draft.field_type) || FIELD_TYPES[0];
+                                        return (
+                                            <View key={draft._tempId || idx} style={[styles.previewCard, { borderColor: '#fcd34d', backgroundColor: '#fffbeb' }]}>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                    <View style={{ flex: 1 }}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                            <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>{draft.label || '(No Label)'}</Text>
+                                                            {!!draft.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
+                                                            <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
+                                                                <Text style={{ fontSize: 10, color: '#d97706', fontWeight: 'bold' }}>NEW</Text>
+                                                            </View>
+                                                        </View>
+                                                        <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                                                            {dType.label}
+                                                        </Text>
+                                                        {['file', 'image', 'signature'].includes(draft.field_type) && (() => {
+                                                            const config = (draft.placeholder && draft.placeholder.startsWith("JSON:")) ? parseFileConfig(draft.placeholder) : {};
+                                                            return (
+                                                                <View style={{ marginTop: 6 }}>
+                                                                    <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                                        <MaterialCommunityIcons name={dType.icon} size={16} color="#94a3b8" />
+                                                                        <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
+                                                                    </View>
+                                                                    {(config.expiry || config.startDate || config.endDate) && (
+                                                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                                            {config.startDate && (
+                                                                                <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                                    <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                                    </View>
+                                                                                </View>
+                                                                            )}
+                                                                            {config.endDate && (
+                                                                                <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                                    <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                                    </View>
+                                                                                </View>
+                                                                            )}
+                                                                            {config.expiry && (
+                                                                                <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                                    <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                                    </View>
+                                                                                </View>
+                                                                            )}
+                                                                        </View>
+                                                                    )}
+                                                                </View>
+                                                            );
+                                                        })()}
                                                     </View>
-                                                );
-                                            })()}
+                                                </View>
+                                                {/* Draft Options Preview */}
+                                                {(['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(draft.field_type) && draft.options && draft.options.length > 0) && (
+                                                    <View style={{ marginTop: 12, backgroundColor: '#fff7ed', padding: 8, borderRadius: 6 }}>
+                                                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#d97706', marginBottom: 6, letterSpacing: 0.5 }}>OPTIONS:</Text>
+                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                            {draft.options.map((opt, oIdx) => (
+                                                                <View key={oIdx} style={[styles.optionChip, { backgroundColor: 'white', borderColor: '#fdba74' }]}>
+                                                                    <Text style={{ fontSize: 11, color: '#9a3412' }}>
+                                                                        {opt.label || '...'}
+                                                                    </Text>
+                                                                </View>
+                                                            ))}
+                                                        </View>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            )}
+
+                            {/* Saved Fields Divider */}
+                            {!!fields.length && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, marginTop: 8 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+                                        Saved Fields
+                                    </Text>
+                                    <View style={{ height: 1, flex: 1, backgroundColor: '#e2e8f0' }} />
+                                </View>
+                            )}
+
+                            {/* Saved Fields */}
+                            {fields.length === 0 && draftFields.length === 0 ? (
+                                <View style={styles.emptyState}>
+                                    <Text style={styles.emptyText}>
+                                        {!selectedSection ? 'Select a section to view fields.' : 'No fields yet.'}
+                                    </Text>
+                                </View>
+                            ) : (
+                                fields.map(field => (
+                                    <View key={field.id} style={styles.previewCard}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <View style={{ flex: 1 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>{field.label}</Text>
+                                                    {!!field.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
+                                                </View>
+                                                <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                                                    {field.field_type}
+                                                </Text>
+                                                {['file', 'image', 'signature'].includes(field.field_type) && (() => {
+                                                    const config = (field.placeholder && field.placeholder.startsWith("JSON:")) ? parseFileConfig(field.placeholder) : {};
+                                                    return (
+                                                        <View style={{ marginTop: 6 }}>
+                                                            <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                                <MaterialCommunityIcons name={field.field_type === 'image' ? 'image-outline' : field.field_type === 'signature' ? 'draw' : 'file-upload-outline'} size={16} color="#94a3b8" />
+                                                                <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
+                                                            </View>
+                                                            {(config.expiry || config.startDate || config.endDate) && (
+                                                                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                                                                    {config.startDate && (
+                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
+                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                    {config.endDate && (
+                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
+                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                    {config.expiry && (
+                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
+                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
+                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
+                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })()}
+                                            </View>
+
+                                            {/* Action Buttons - HIDE IF READ ONLY */}
+                                            {!readOnly && (
+                                                <View style={{ flexDirection: 'row', gap: 0 }}>
+                                                    <IconButton
+                                                        icon="pencil-outline"
+                                                        size={18}
+                                                        iconColor="#64748b"
+                                                        style={{ margin: 0, width: 32, height: 32 }}
+                                                        onPress={() => handleEdit(field)}
+                                                    />
+                                                    <IconButton
+                                                        icon="trash-can-outline"
+                                                        size={18}
+                                                        iconColor="#ef4444"
+                                                        style={{ margin: 0, width: 32, height: 32 }}
+                                                        onPress={() => handleDeleteField(field)}
+                                                    />
+                                                </View>
+                                            )}
                                         </View>
 
-                                        {/* Action Buttons - HIDE IF READ ONLY */}
-                                        {!readOnly && (
-                                            <View style={{ flexDirection: 'row', gap: 0 }}>
-                                                <IconButton
-                                                    icon="pencil-outline"
-                                                    size={18}
-                                                    iconColor="#64748b"
-                                                    style={{ margin: 0, width: 32, height: 32 }}
-                                                    onPress={() => handleEdit(field)}
-                                                />
-                                                <IconButton
-                                                    icon="trash-can-outline"
-                                                    size={18}
-                                                    iconColor="#ef4444"
-                                                    style={{ margin: 0, width: 32, height: 32 }}
-                                                    onPress={() => handleDeleteField(field)}
-                                                />
+                                        {/* Render Options Preview if applicable */}
+                                        {!!(['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(field.field_type) && field.options && field.options.length > 0) && (
+                                            <View style={{ marginTop: 12, backgroundColor: '#f8fafc', padding: 8, borderRadius: 6 }}>
+                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', marginBottom: 6, letterSpacing: 0.5 }}>OPTIONS:</Text>
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                    {field.options.map((opt, idx) => (
+                                                        <View key={idx} style={styles.optionChip}>
+                                                            <Text style={{ fontSize: 11, color: '#475569' }}>
+                                                                {opt.option_label || opt.label}
+                                                            </Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
                                             </View>
                                         )}
                                     </View>
-
-                                    {/* Render Options Preview if applicable */}
-                                    {!!(['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(field.field_type) && field.options && field.options.length > 0) && (
-                                        <View style={{ marginTop: 12, backgroundColor: '#f8fafc', padding: 8, borderRadius: 6 }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', marginBottom: 6, letterSpacing: 0.5 }}>OPTIONS:</Text>
-                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                                {field.options.map((opt, idx) => (
-                                                    <View key={idx} style={styles.optionChip}>
-                                                        <Text style={{ fontSize: 11, color: '#475569' }}>
-                                                            {opt.option_label || opt.label}
-                                                        </Text>
-                                                    </View>
-                                                ))}
-                                            </View>
-                                        </View>
-                                    )}
-                                </View>
-                            ))
-                        )}
-                    </ScrollView>
+                                ))
+                            )}
+                        </ScrollView>
+                        </View>
                     </View>
-                </View>
+                )}
             </View>
             <AlertDialog
                 visible={alertConfig.visible}
@@ -1405,15 +1465,77 @@ const styles = StyleSheet.create({
 
     // Content Columns
     contentRow: {
-        flexDirection: 'row',
-        gap: 24,
         flex: 1,
-        paddingTop: 24,
+        paddingTop: 8,
         paddingHorizontal: 32,
         paddingBottom: 24,
     },
+    wizardStepContent: {
+        flex: 1,
+        height: '100%',
+        overflow: 'hidden',
+    },
+    wizardIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 32,
+        marginBottom: 20,
+        gap: 12,
+    },
+    stepItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 24,
+        backgroundColor: '#f1f5f9',
+    },
+    stepItemActive: {
+        backgroundColor: '#eff6ff',
+        borderWidth: 1,
+        borderColor: '#bfdbfe',
+    },
+    stepIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#e2e8f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    stepIconActive: {
+        backgroundColor: '#3b82f6',
+    },
+    stepTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    stepTitleActive: {
+        color: '#1e40af',
+    },
+    stepConnector: {
+        width: 40,
+        height: 2,
+        backgroundColor: '#e2e8f0',
+    },
+    wizardNav: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+        marginTop: 16,
+    },
+    wizardHint: {
+        fontSize: 13,
+        color: '#64748b',
+        fontStyle: 'italic',
+    },
     leftCol: {
-        flex: 1.4,
+        flex: 1,
         height: '100%',
         overflow: 'hidden',
     },

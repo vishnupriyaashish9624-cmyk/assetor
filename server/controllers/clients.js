@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { sendWelcomeTempPassword } = require('../services/mailer/mailer');
 
 // List all clients
 exports.getClients = async (req, res) => {
@@ -21,7 +22,7 @@ exports.getClientDetails = async (req, res) => {
     const { id } = req.params;
 
     // Permission check: COMPANY_ADMIN can only view their own client
-    if (req.user.role === 'COMPANY_ADMIN' && req.user.client_id != id) {
+    if (req.user?.role === 'COMPANY_ADMIN' && req.user?.client_id != id) {
         return res.status(403).json({ success: false, message: 'Access denied: You can only view your own group details' });
     }
 
@@ -31,7 +32,14 @@ exports.getClientDetails = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Client not found' });
         }
 
-        const [companyRows] = await db.execute('SELECT * FROM companies WHERE client_id = ?', [id]);
+        const [companyRows] = await db.execute(`
+            SELECT c.*, 
+                   u.name as linked_admin_name, 
+                   u.email as linked_admin_email
+            FROM companies c
+            LEFT JOIN users u ON u.company_id = c.id AND u.role = 'COMPANY_ADMIN'
+            WHERE c.client_id = ?
+        `, [id]);
 
         // Enhance company data with employee and asset counts
         const enhancedCompanies = await Promise.all(companyRows.map(async (company) => {
@@ -47,6 +55,18 @@ exports.getClientDetails = async (req, res) => {
         // Fetch the Admin User for this client (for the edit form)
         const [adminRows] = await db.execute('SELECT name, email FROM users WHERE client_id = ? AND role = ? LIMIT 1', [id, 'COMPANY_ADMIN']);
         const adminUser = adminRows.length > 0 ? adminRows[0] : {};
+
+        console.log('---------------- CLIENT DETAILS ----------------');
+        console.log(`[getClientDetails] Company count: ${enhancedCompanies.length}`);
+        if (enhancedCompanies.length > 0) {
+            console.log('[getClientDetails] First Enhanced Comp:', {
+                id: enhancedCompanies[0].id,
+                name: enhancedCompanies[0].name,
+                admin_name: enhancedCompanies[0].admin_name,
+                admin_email: enhancedCompanies[0].admin_email
+            });
+        }
+        console.log('------------------------------------------------');
 
         res.json({
             success: true,
@@ -72,7 +92,8 @@ exports.createClient = async (req, res) => {
         country, state, city, area, address, po_box, makani_number,
         telephone, email, website, support_email,
         max_companies, max_employees, max_assets, enabled_modules,
-        admin_name, admin_email, admin_password
+        admin_name, admin_email, admin_password,
+        send_email
     } = req.body;
 
     // Clean numeric fields to handle empty strings for PostgreSQL
@@ -111,10 +132,24 @@ exports.createClient = async (req, res) => {
         if (admin_email && admin_password) {
             const hashedPassword = await bcrypt.hash(admin_password, 10);
             await db.execute(
-                'INSERT INTO users (name, email, password, role, company_id, client_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [admin_name || 'Admin', admin_email, hashedPassword, 'COMPANY_ADMIN', companyId, clientId, 'ACTIVE']
+                'INSERT INTO users (name, email, password, role, company_id, client_id, status, force_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [admin_name || 'Admin', admin_email, hashedPassword, 'COMPANY_ADMIN', companyId, clientId, 'ACTIVE', true]
             );
+
+            // Send Welcome Email in background
+            if (send_email !== false) {
+                sendWelcomeTempPassword({
+                    name: admin_name || 'Admin',
+                    email: admin_email,
+                    tempPassword: admin_password,
+                    companyName: name
+                }).catch(mailError => {
+                    console.error(`[Client Created] Failed to send email in background to ${admin_email}:`, mailError.message);
+                });
+                console.log(`[Client Created] Welcome email triggered for ${admin_email}`);
+            }
         }
+
 
         res.status(201).json({ success: true, data: { id: clientId, name } });
     } catch (error) {
@@ -128,7 +163,7 @@ exports.updateClientLimits = async (req, res) => {
     const { id } = req.params;
 
     // Permission check: COMPANY_ADMIN can only update their own client
-    if (req.user.role === 'COMPANY_ADMIN' && req.user.client_id != id) {
+    if (req.user?.role === 'COMPANY_ADMIN' && req.user?.client_id != id) {
         return res.status(403).json({ success: false, message: 'Access denied: You can only update your own group details' });
     }
 
@@ -146,7 +181,7 @@ exports.updateClientLimits = async (req, res) => {
     max_employees = cleanNum(max_employees);
     max_assets = cleanNum(max_assets);
 
-    console.log('[DEBUG] updateClientLimits payload:', { id, admin_email, admin_name, hasPassword: !!admin_password });
+    // console.log('[DEBUG] updateClientLimits payload:', { id, admin_email, admin_name, hasPassword: !!admin_password });
 
     try {
         await db.execute(
@@ -193,8 +228,27 @@ exports.updateClientLimits = async (req, res) => {
                 if (comps.length > 0) {
                     const hashedPassword = await bcrypt.hash(admin_password, 10);
                     await db.execute(
-                        'INSERT INTO users (name, email, password, role, company_id, client_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                        [admin_name || 'Admin', admin_email, hashedPassword, 'COMPANY_ADMIN', comps[0].id, id, 'ACTIVE']
+                        'INSERT INTO users (name, email, password, role, company_id, client_id, status, force_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        [admin_name || 'Admin', admin_email, hashedPassword, 'COMPANY_ADMIN', comps[0].id, id, 'ACTIVE', true]
+                    );
+
+                    // Send Email for newly created admin via update
+                    await sendEmail(
+                        admin_email,
+                        'Your Trakio Admin Access',
+                        `Hello ${admin_name},\n\nYour administrator account has been created/reset.\nEmail: ${admin_email}\nTemporary Password: ${admin_password}\n\nPlease log in and change your password immediately.`,
+                        `
+                        <div style="font-family: Arial, sans-serif; color: #333;">
+                            <h2>Admin Access Granted</h2>
+                            <p>Hello <strong>${admin_name}</strong>,</p>
+                            <p>Your administrator account has been created.</p>
+                            <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <p style="margin: 5px 0;"><strong>Email:</strong> ${admin_email}</p>
+                                <p style="margin: 5px 0;"><strong>Temporary Password:</strong> ${admin_password}</p>
+                            </div>
+                            <p>Please log in and change your password immediately.</p>
+                        </div>
+                        `
                     );
                 }
             }

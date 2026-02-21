@@ -21,6 +21,8 @@ import ModuleTemplatesScreen from '../screens/modules/ModuleTemplatesScreen';
 import ModuleSectionsScreen from '../screens/modules/ModuleSectionsScreen';
 import SubModulesScreen from '../screens/modules/SubModulesScreen';
 import EmployeesScreen from '../screens/EmployeesScreen';
+import RolesScreen from '../screens/RolesScreen';
+import SMTPSettingsScreen from '../screens/SMTPSettingsScreen';
 
 
 // Screen Wrappers
@@ -56,6 +58,7 @@ const MainNavigator = () => {
             <Drawer.Screen name="SuperadminDashboard" component={SuperadminDashboardScreen} />
             <Drawer.Screen name="Companies" component={CompaniesScreen} />
             <Drawer.Screen name="Settings" component={SettingsScreen} />
+            <Drawer.Screen name="SMTPSettings" component={SMTPSettingsScreen} />
 
             <Drawer.Screen name="OfficeOwned" component={OfficeOwnedScreen} />
             <Drawer.Screen name="OfficeRental" component={OfficeRentalScreen} />
@@ -76,6 +79,7 @@ const MainNavigator = () => {
             <Drawer.Screen name="ModuleTemplates" component={ModuleTemplatesScreen} />
             <Drawer.Screen name="ModuleSections" component={ModuleSectionsScreen} />
             <Drawer.Screen name="SubModules" component={SubModulesScreen} />
+            <Drawer.Screen name="Roles" component={RolesScreen} />
 
         </Drawer.Navigator>
     );

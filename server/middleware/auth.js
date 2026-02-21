@@ -21,6 +21,10 @@ const authMiddleware = (req, res, next) => {
 
 const requireRole = (roles) => {
     return (req, res, next) => {
+        if (!req.user) {
+            console.error('[RequireRole] 401 Unauthorized. No user object.');
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
         console.log(`[RequireRole] User Role: ${req.user.role}, Required: ${JSON.stringify(roles)}`);
         if (!roles.includes(req.user.role)) {
             console.error(`[RequireRole] 403 Forbidden. User role ${req.user.role} not in ${JSON.stringify(roles)}`);

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, useWindowDimensions, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 
@@ -9,7 +7,6 @@ const LoginScreen = () => {
     const { width } = useWindowDimensions();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-
     const [rememberMe, setRememberMe] = useState(false);
     const { login, loading, error } = useAuthStore();
 
@@ -20,145 +17,88 @@ const LoginScreen = () => {
 
     return (
         <View style={styles.container}>
-            {/* Background Gradient */}
-            <LinearGradient
-                colors={['#7E30E1', '#49108B']}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            />
-
-            {/* Background Patterns (Waves & Dots) */}
-            <View style={StyleSheet.absoluteFill}>
-                <Svg
-                    height="100%"
-                    width="100%"
-                    style={StyleSheet.absoluteFill}
-                    viewBox="0 0 1600 900"
-                    preserveAspectRatio="none"
-                >
-                    {/* Large Smooth Wave Bottom Right - Scaled to Fill */}
-                    <Path
-                        d="M0,400 Q400,600 800,400 T1600,500 V1200 H0 Z"
-                        fill="#5D15A8"
-                        fillOpacity="0.5"
-                    />
-
-                    {/* Dots Pattern Top Right */}
-                    <Circle cx={width - 40} cy="40" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 60} cy="40" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 80} cy="40" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 100} cy="40" r="2" fill="white" opacity="0.3" />
-
-                    <Circle cx={width - 40} cy="60" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 60} cy="60" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 80} cy="60" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 100} cy="60" r="2" fill="white" opacity="0.3" />
-
-                    <Circle cx={width - 40} cy="80" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 60} cy="80" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 80} cy="80" r="2" fill="white" opacity="0.3" />
-                    <Circle cx={width - 100} cy="80" r="2" fill="white" opacity="0.3" />
-
-                    {/* Geometric Shapes */}
-                    {/* Cross */}
-                    <Rect x="100" y="150" width="10" height="2" fill="white" opacity="0.2" />
-                    <Rect x="104" y="146" width="2" height="10" fill="white" opacity="0.2" />
-
-                    {/* Circle Outline */}
-                    <Circle cx="200" cy="500" r="5" stroke="white" strokeWidth="1" fill="none" opacity="0.2" />
-                </Svg>
-            </View>
+            {/* Background Shape/Gradient - Simplified for Clean Look */}
+            <View style={styles.bgHeader} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.centerContent}
             >
-                <View style={[styles.contentWrapper, width > 900 && styles.contentWrapperDesktop]}>
-                    {/* Left Side Illustration */}
-                    {width > 900 && (
-                        <View style={styles.illustrationContainer}>
-                            <Image
-                                source={{ uri: 'https://cdni.iconscout.com/illustration/premium/thumb/login-3305943-2757111.png' }}
-                                style={styles.illustration}
-                                resizeMode="contain"
+                <View style={styles.card}>
+                    {/* Header Section */}
+                    <View style={styles.cardHeader}>
+                        <View style={styles.logoRow}>
+                            <MaterialCommunityIcons name="cube-outline" size={32} color="white" />
+                            <Text style={styles.logoText}>Trakio</Text>
+                        </View>
+                    </View>
+
+                    {/* Body Section */}
+                    <View style={styles.cardBody}>
+                        <Text style={styles.title}>Welcome to Trakio</Text>
+
+                        {/* Info Banner */}
+                        <View style={styles.infoBanner}>
+                            <MaterialCommunityIcons name="information" size={20} color="#3b82f6" />
+                            <Text style={styles.infoText}>
+                                Login password has been sent to your email
+                            </Text>
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Email</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="john.smith@email.com"
+                                placeholderTextColor="#9ca3af"
+                                value={email}
+                                onChangeText={setEmail}
                             />
                         </View>
-                    )}
 
-                    {/* Main Card */}
-                    <View style={styles.card}>
-
-                        {/* Top Half: Purple Brand/Welcome Section */}
-                        <View style={styles.cardTop}>
-
-
-                            {/* Welcome Text */}
-                            <View style={styles.welcomeContainer}>
-                                <Text style={styles.loremText}>
-                                    Manage your assets with TRakio.{"\n"}Secure, fast, and reliable.
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Bottom Half: White Form Section */}
-                        <View style={styles.cardBottom}>
-                            <View style={styles.inputContainer}>
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Password</Text>
+                            <View style={styles.passwordContainer}>
                                 <TextInput
-                                    style={styles.input}
-                                    placeholder="Email"
-                                    placeholderTextColor="#9E9E9E"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Password"
-                                    placeholderTextColor="#9E9E9E"
+                                    style={styles.passwordInput}
+                                    placeholder="••••••••"
+                                    placeholderTextColor="#9ca3af"
                                     secureTextEntry
                                     value={password}
                                     onChangeText={setPassword}
                                 />
+                                <MaterialCommunityIcons name="eye-off-outline" size={20} color="#9ca3af" />
                             </View>
+                        </View>
 
-                            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-                            {/* Sign In Button */}
-                            <TouchableOpacity onPress={handleLogin} disabled={loading} style={styles.buttonWrapper}>
-                                <LinearGradient
-                                    colors={['#9D4EDD', '#7B2CBF']}
-                                    style={styles.signInButton}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator color="white" />
-                                    ) : (
-                                        <Text style={styles.signInButtonText}>SIGN IN</Text>
-                                    )}
-                                </LinearGradient>
-                            </TouchableOpacity>
-
-                            {/* Footer Options */}
-                            <View style={styles.footerRow}>
-                                <TouchableOpacity
-                                    style={styles.rememberMe}
-                                    onPress={() => setRememberMe(!rememberMe)}
-                                >
-                                    <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                                        {rememberMe && <MaterialCommunityIcons name="check" size={10} color="white" />}
-                                    </View>
-                                    <Text style={styles.footerText}>Remember me</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity>
-                                    <Text style={[styles.footerText, styles.forgotText]}>Forgot password?</Text>
-                                </TouchableOpacity>
+                        {error ? (
+                            <View style={styles.errorBox}>
+                                <Text style={styles.errorText}>{error}</Text>
                             </View>
+                        ) : null}
 
+                        <TouchableOpacity
+                            style={[styles.button, loading && styles.buttonDisabled]}
+                            onPress={handleLogin}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="white" />
+                            ) : (
+                                <Text style={styles.buttonText}>Sign In</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.forgotButton}>
+                            <Text style={styles.forgotText}>Forgot password?</Text>
+                        </TouchableOpacity>
+
+                        {/* Footer Info Box */}
+                        <View style={styles.footerInfoBox}>
+                            <MaterialCommunityIcons name="information-outline" size={20} color="#6366f1" style={{ marginTop: 2 }} />
+                            <Text style={styles.footerInfoText}>
+                                Temporary password has been sent to your email. Log in with this temporary password and follow the instructions.
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -170,160 +110,173 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#49108B',
-        justifyContent: 'center',
+        backgroundColor: '#f3f4f6', // Light gray background
         alignItems: 'center',
+        justifyContent: 'center',
+    },
+    bgHeader: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '40%',
+        backgroundColor: '#eff6ff', // Very light blue top half
     },
     centerContent: {
         width: '100%',
         alignItems: 'center',
-        justifyContent: 'center',
         padding: 20,
-    },
-    contentWrapper: {
-        width: '100%',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    contentWrapperDesktop: {
-        flexDirection: 'row',
-        gap: 60,
-        maxWidth: 1200,
-    },
-    illustrationContainer: {
-        flex: 1,
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        maxWidth: 500,
-    },
-    illustration: {
-        width: 400,
-        height: 400,
     },
     card: {
         width: '100%',
-        maxWidth: 360,
-        borderRadius: 20,
-        overflow: 'hidden',
-        // Glassmorphism
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        borderWidth: 1,
-        ...Platform.select({
-            web: {
-                backdropFilter: 'blur(20px)',
-                boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
-            },
-            default: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 10 },
-                shadowOpacity: 0.3,
-                shadowRadius: 20,
-            }
-        })
-    },
-    cardTop: {
-        backgroundColor: 'rgba(126, 48, 225, 0.6)', // Semi-transparent purple
-        paddingBottom: 40,
-        paddingTop: 40, // Added padding since tabs are gone
-        alignItems: 'center',
-    },
-    welcomeContainer: {
-        alignItems: 'center',
-        paddingHorizontal: 30,
-    },
-
-    loremText: {
-        color: 'rgba(255,255,255,0.9)',
-        fontSize: 16,
-        textAlign: 'center',
-        lineHeight: 24,
-        fontWeight: '500',
-    },
-    cardBottom: {
+        maxWidth: 420,
         backgroundColor: 'white',
-        paddingVertical: 40,
-        paddingHorizontal: 30,
-        alignItems: 'center',
+        borderRadius: 16,
+        overflow: 'hidden',
+        // Shadow
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
     },
-    inputContainer: {
-        width: '100%',
+    cardHeader: {
+        backgroundColor: '#3b82f6', // Brand Blue
+        paddingVertical: 20,
+        paddingHorizontal: 32,
+    },
+    logoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    logoText: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: 'white',
+        letterSpacing: 0.5,
+    },
+    cardBody: {
+        padding: 32,
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#1f2937', // Gray 800
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    infoBanner: {
+        flexDirection: 'row',
+        backgroundColor: '#eff6ff', // Blue 50
+        padding: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 24,
+    },
+    infoText: {
+        fontSize: 13,
+        color: '#6b7280', // Gray 500
+        flex: 1,
+    },
+    formGroup: {
         marginBottom: 20,
     },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#374151', // Gray 700
+        marginBottom: 8,
+    },
     input: {
-        width: '100%',
         height: 44,
         borderWidth: 1,
-        borderColor: '#E0E0E0',
-        borderRadius: 8,
-        paddingHorizontal: 15,
+        borderColor: '#d1d5db', // Gray 300
+        borderRadius: 6,
+        paddingHorizontal: 12,
         fontSize: 14,
-        color: '#333',
-        backgroundColor: '#FAFAFA',
-        ...Platform.select({
-            web: { outlineStyle: 'none' }
-        })
+        color: '#111827',
+        backgroundColor: '#fff',
     },
-    buttonWrapper: {
-        width: '100%',
-        marginTop: 10,
-        marginBottom: 25,
-        borderRadius: 22,
-        shadowColor: '#9D4EDD',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    signInButton: {
-        width: '100%',
-        height: 44,
-        borderRadius: 22,
-        justifyContent: 'center',
+    passwordContainer: {
+        flexDirection: 'row',
         alignItems: 'center',
+        height: 44,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        backgroundColor: '#fff',
     },
-    signInButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
+    passwordInput: {
+        flex: 1,
         fontSize: 14,
-        letterSpacing: 1,
+        color: '#111827',
+        marginRight: 8,
+        height: '100%',
+    },
+    errorBox: {
+        padding: 10,
+        backgroundColor: '#fef2f2',
+        borderRadius: 6,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#fecaca',
     },
     errorText: {
-        color: '#E91E63',
-        fontSize: 12,
-        marginBottom: 10,
+        color: '#ef4444',
+        fontSize: 13,
+        textAlign: 'center',
     },
-    footerRow: {
-        flexDirection: 'row',
-        width: '100%',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    rememberMe: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    checkbox: {
-        width: 14,
-        height: 14,
-        borderWidth: 1,
-        borderColor: '#9D4EDD',
-        borderRadius: 2,
-        marginRight: 8,
+    button: {
+        height: 48,
+        backgroundColor: '#3b82f6',
+        borderRadius: 6,
         justifyContent: 'center',
         alignItems: 'center',
+        marginTop: 8,
+        shadowColor: '#3b82f6',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 2,
     },
-    checkboxChecked: {
-        backgroundColor: '#9D4EDD',
+    buttonDisabled: {
+        backgroundColor: '#93c5fd',
     },
-    footerText: {
-        fontSize: 12,
-        color: '#757575',
+    buttonText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    forgotButton: {
+        marginTop: 16,
+        alignItems: 'center',
     },
     forgotText: {
-        color: '#7E30E1',
-        fontWeight: 'bold',
+        color: '#3b82f6',
+        fontSize: 14,
+        fontWeight: '500',
     },
+    footerInfoBox: {
+        marginTop: 32,
+        backgroundColor: '#f8fafc', // Slate 50
+        borderWidth: 1,
+        borderColor: '#e2e8f0', // Slate 200
+        padding: 16,
+        borderRadius: 8,
+        flexDirection: 'row',
+        gap: 12,
+    },
+    footerInfoText: {
+        fontSize: 13,
+        color: '#64748b', // Slate 500
+        lineHeight: 20,
+        flex: 1,
+    }
 });
 
 export default LoginScreen;

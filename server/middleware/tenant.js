@@ -1,45 +1,72 @@
 const db = require('../config/db');
 
+/**
+ * TenantScope middleware
+ * Ensures every request has a company context (req.companyId)
+ */
 const tenantScope = async (req, res, next) => {
-    // Super admins can access any company data if they provide a company_id in query or body
-    // Otherwise, they default to no company_id (platform level) or specific context
-
-    if (!req.user) {
-        return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-
-    if (req.user.role === 'SUPER_ADMIN') {
-        req.companyId = req.query.company_id || req.body.company_id || null;
-        return next();
-    }
-
-    // For COMPANY_ADMIN and EMPLOYEE, enforce their own company_id
-    if (!req.user.company_id) {
-        // Robustness: Try to fetch from DB if missing in token
-        console.warn(`[TenantScope] company_id missing in token for user ${req.user.id}. Fetching from DB...`);
-        try {
-            const [u] = await db.execute('SELECT company_id FROM users WHERE id = ?', [req.user.id]);
-            if (u.length > 0 && u[0].company_id) {
-                req.user.company_id = u[0].company_id; // Update req.user for subsequent middlewares/controllers
-                console.log(`[TenantScope] Recovered company_id ${req.user.company_id} from DB.`);
-            } else {
-                console.error('[TenantScope] 403. User has no company_id in DB.');
-                return res.status(403).json({ success: false, message: 'Company context missing for user.' });
-            }
-        } catch (error) {
-            console.error('[TenantScope] DB Error:', error);
-            return res.status(500).json({ success: false, message: 'Internal Server Error during tenant check' });
+    try {
+        // 1. Basic security check
+        if (!req.user) {
+            console.warn('[TenantScope] 401: No user on request object');
+            return res.status(401).json({ success: false, message: 'Authentication required' });
         }
-    }
 
-    if (!req.user.company_id) {
-        console.error('[TenantScope] 403. Still no company_id.');
-        return res.status(403).json({ success: false, message: 'Company context missing for user.' });
-    }
+        const user = req.user;
+        console.log(`[TenantScope] User keys: ${Object.keys(user || {})}`);
+        if (user) console.log(`[TenantScope] User structure: ${JSON.stringify(user)}`);
 
-    console.log(`[TenantScope] Access Granted. Company: ${req.user.company_id}`);
-    req.companyId = req.user.company_id;
-    next();
+        const role = String(user?.role || '').toUpperCase();
+
+        console.log(`[TenantScope] Process: ${req.method} ${req.url} | User: ${user?.email} | Role: ${role}`);
+
+        let resolvedCompanyId = null;
+
+        // 2. Super Admin handling
+        if (role === 'SUPER_ADMIN') {
+            // Check implicit/explicit identifiers
+            // We check query, then body, then user-level default
+            resolvedCompanyId = (req.query?.company_id) || (req.body?.company_id) || (user?.company_id);
+
+            if (!resolvedCompanyId) {
+                // Fallback for Super Admin: Default to Company 1 to allow platform access
+                console.log('[TenantScope] SuperAdmin: No explicit company provided, defaulting to 1');
+                resolvedCompanyId = 1;
+            }
+        }
+        // 3. Regular User handling
+        else {
+            resolvedCompanyId = user.company_id;
+
+            // Recovery: If token is missing company_id, check database
+            if (!resolvedCompanyId && user.id) {
+                console.log(`[TenantScope] Token missing company_id for user ${user.id}. Querying DB...`);
+                const [rows] = await db.execute('SELECT company_id FROM users WHERE id = ?', [user.id]);
+                if (rows && rows.length > 0) {
+                    resolvedCompanyId = rows[0].company_id;
+                    // Update user object for current request lifecycle
+                    req.user.company_id = resolvedCompanyId;
+                }
+            }
+        }
+
+        // 4. Final check
+        if (!resolvedCompanyId) {
+            console.error('[TenantScope] 403: Failed to resolve company context');
+            return res.status(403).json({ success: false, message: 'Forbidden: missing company context' });
+        }
+
+        // 5. Success
+        req.companyId = parseInt(resolvedCompanyId);
+        console.log(`[TenantScope] Success: companyId=${req.companyId}`);
+        next();
+
+    } catch (error) {
+        const fs = require('fs');
+        fs.appendFileSync('tenant_error.log', `[TenantScope] Error: ${error.message}\nStack: ${error.stack}\n`);
+        console.error('[TenantScope] Error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error in tenant middleware' });
+    }
 };
 
 module.exports = tenantScope;
