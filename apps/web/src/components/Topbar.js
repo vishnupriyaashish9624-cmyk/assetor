@@ -1,19 +1,13 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image, Platform, Pressable } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import useAuthStore from '../store/authStore';
 
 const Topbar = ({ onMenuPress, isMobile }) => {
     const user = useAuthStore((state) => state.user);
 
     return (
-        <LinearGradient
-            colors={['#f1f1f1ff', 'rgb(219, 219, 219)']}
-            start={{ x: 1, y: 1 }}
-            end={{ x: 0, y: 0 }}
-            style={styles.container}
-        >
+        <View style={styles.container}>
             {isMobile && (
                 <TouchableOpacity onPress={onMenuPress} style={{ marginRight: 16 }}>
                     <MaterialCommunityIcons name="menu" size={28} color="#64748b" />
@@ -58,7 +52,7 @@ const Topbar = ({ onMenuPress, isMobile }) => {
                     </View>
                 </View>
             </View>
-        </LinearGradient>
+        </View>
     );
 };
 
@@ -66,9 +60,9 @@ const styles = StyleSheet.create({
     container: {
         width: '100%',
         height: 70,
-        // backgroundColor: 'rgba(255,255,255,0.9)', // Replaced by LinearGradient
-        // borderBottomWidth: 1,
-        // borderBottomColor: 'rgba(0,0,0,0.06)',
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.06)',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',

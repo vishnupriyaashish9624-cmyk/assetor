@@ -198,19 +198,18 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                 onDismiss={onClose}
                 contentContainerStyle={styles.container}
             >
-                <View style={styles.header}>
+                <View style={[styles.header, { alignItems: 'flex-start' }]}>
                     <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <Text style={styles.title}>
-                                {viewOnly ? 'Module Details' : (module ? 'Edit Module Mapping' : 'Add Module')}
-                            </Text>
-                            {/* Section pills removed from here as they are now in the Detail Modal */}
-                        </View>
+                        <Text style={styles.title}>
+                            {viewOnly ? 'Module Details' : (module ? 'Edit Module Mapping' : 'Add Module')}
+                        </Text>
                         <Text style={styles.subtitle}>
                             {viewOnly ? 'Detailed configuration of this module' : 'Select a module and configure its fields'}
                         </Text>
                     </View>
-                    <IconButton icon="close" size={24} onPress={onClose} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <IconButton icon="close" size={26} onPress={onClose} iconColor="#64748b" style={{ margin: 0 }} />
+                    </View>
                 </View>
 
                 {/* Main Body */}
@@ -230,10 +229,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 value={selectedMaster ? selectedMaster.module_name : ''}
                                                 placeholder="Select..."
                                                 editable={false}
-                                                style={{ backgroundColor: 'white' }}
+                                                style={{ backgroundColor: 'white', borderRadius: 12 }}
                                                 outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setMenuVisible(true)} />}
+                                                activeOutlineColor="#673ab7"
+                                                outlineStyle={{ borderRadius: 12 }}
+                                                right={<TextInput.Icon icon="chevron-down" iconColor="#64748b" onPress={() => !viewOnly && setMenuVisible(true)} />}
                                                 pointerEvents="none"
                                             />
                                         </TouchableOpacity>
@@ -280,10 +280,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 value={selectedCountry ? (selectedCountry.name || selectedCountry.country_name) : ''}
                                                 placeholder="Select Country"
                                                 editable={false}
-                                                style={{ backgroundColor: 'white' }}
+                                                style={{ backgroundColor: 'white', borderRadius: 12 }}
                                                 outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setCountryMenu(true)} />}
+                                                activeOutlineColor="#673ab7"
+                                                outlineStyle={{ borderRadius: 12 }}
+                                                right={<TextInput.Icon icon="chevron-down" iconColor="#64748b" onPress={() => !viewOnly && setCountryMenu(true)} />}
                                                 pointerEvents="none"
                                             />
                                         </TouchableOpacity>
@@ -318,10 +319,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 value={selectedRegion ? selectedRegion.name : ''}
                                                 placeholder="Select Region"
                                                 editable={false}
-                                                style={{ backgroundColor: 'white' }}
+                                                style={{ backgroundColor: 'white', borderRadius: 12 }}
                                                 outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setRegionMenu(true)} />}
+                                                activeOutlineColor="#673ab7"
+                                                outlineStyle={{ borderRadius: 12 }}
+                                                right={<TextInput.Icon icon="chevron-down" iconColor="#64748b" onPress={() => !viewOnly && setRegionMenu(true)} />}
                                                 pointerEvents="none"
                                             />
                                         </TouchableOpacity>
@@ -360,10 +362,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 value={selectedPropertyType ? selectedPropertyType.name : ''}
                                                 placeholder="Select Property Type"
                                                 editable={false}
-                                                style={{ backgroundColor: 'white' }}
+                                                style={{ backgroundColor: 'white', borderRadius: 12 }}
                                                 outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setOwnershipMenu(true)} />}
+                                                activeOutlineColor="#673ab7"
+                                                outlineStyle={{ borderRadius: 12 }}
+                                                right={<TextInput.Icon icon="chevron-down" iconColor="#64748b" onPress={() => !viewOnly && setOwnershipMenu(true)} />}
                                                 pointerEvents="none"
                                             />
                                         </TouchableOpacity>
@@ -400,10 +403,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 value={selectedType ? selectedType.type_name : ''}
                                                 placeholder="Select Premises Type"
                                                 editable={false}
-                                                style={{ backgroundColor: 'white' }}
+                                                style={{ backgroundColor: 'white', borderRadius: 12 }}
                                                 outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setTypeMenu(true)} />}
+                                                activeOutlineColor="#673ab7"
+                                                outlineStyle={{ borderRadius: 12 }}
+                                                right={<TextInput.Icon icon="chevron-down" iconColor="#64748b" onPress={() => !viewOnly && setTypeMenu(true)} />}
                                                 pointerEvents="none"
                                             />
                                         </TouchableOpacity>
@@ -438,10 +442,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                                 value={selectedArea ? selectedArea.name : ''}
                                                 placeholder="Select Area"
                                                 editable={false}
-                                                style={{ backgroundColor: 'white' }}
+                                                style={{ backgroundColor: 'white', borderRadius: 12 }}
                                                 outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                right={<TextInput.Icon icon="chevron-down" onPress={() => !viewOnly && setAreaMenu(true)} />}
+                                                activeOutlineColor="#673ab7"
+                                                outlineStyle={{ borderRadius: 12 }}
+                                                right={<TextInput.Icon icon="chevron-down" iconColor="#64748b" onPress={() => !viewOnly && setAreaMenu(true)} />}
                                                 pointerEvents="none"
                                             />
                                         </TouchableOpacity>
@@ -469,7 +474,7 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                     <Switch
                                         value={status === 'ACTIVE'}
                                         onValueChange={(val) => !viewOnly && setStatus(val ? 'ACTIVE' : 'INACTIVE')}
-                                        color="#3b82f6"
+                                        color="#10b981"
                                         disabled={viewOnly}
                                     />
                                 </View>
@@ -482,11 +487,11 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
 
                 <View style={styles.footer}>
                     <Button
-                        mode="text"
+                        mode="outlined"
                         onPress={onClose}
-                        textColor="#64748b"
-                        style={styles.footerBtn}
-                        labelStyle={{ fontWeight: '600' }}
+                        textColor="#3b82f6"
+                        style={styles.modalCancelBtn}
+                        labelStyle={{ fontWeight: '700', fontSize: 15 }}
                     >
                         Close
                     </Button>
@@ -508,32 +513,36 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
 const styles = StyleSheet.create({
     container: {
         backgroundColor: 'white',
-        margin: 20,
-        borderRadius: 16,
+        borderRadius: 24,
         width: '95%',
         maxWidth: 1100,
-        height: '90%',
+        height: '92%',
         alignSelf: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.1,
+        shadowRadius: 30,
+        elevation: 10,
         overflow: 'hidden',
-        flex: 1,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
         paddingHorizontal: 32,
-        paddingVertical: 20,
+        paddingTop: 32,
+        paddingBottom: 24,
         borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        borderBottomColor: '#f1f5f9',
     },
     title: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: '700',
-        color: '#0f172a',
+        color: '#1e293b',
+        letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: 14,
-        color: '#64748b',
+        color: '#94a3b8',
         marginTop: 4,
     },
     sectionPill: {
@@ -599,6 +608,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         width: 400,
         marginTop: 48,
+        borderRadius: 12,
+        elevation: 8,
     },
     searchBar: {
         margin: 8,
@@ -636,11 +647,18 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'flex-end',
         alignItems: 'center',
-        padding: 20,
+        paddingHorizontal: 32,
+        paddingVertical: 24,
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
-        backgroundColor: '#f8fafc',
-        gap: 12,
+        backgroundColor: 'white',
+    },
+    modalCancelBtn: {
+        borderRadius: 100,
+        paddingHorizontal: 24,
+        borderColor: '#e2e8f0',
+        height: 48,
+        justifyContent: 'center',
     },
     footerBtn: {
         marginRight: 8,

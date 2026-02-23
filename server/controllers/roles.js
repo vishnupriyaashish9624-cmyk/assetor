@@ -37,11 +37,20 @@ exports.getRoleById = async (req, res) => {
 
         const [permissions] = await db.execute('SELECT * FROM role_permissions WHERE role_id = ?', [id]);
 
+        // Fetch users assigned to this role
+        const [users] = await db.execute(`
+            SELECT id, name, email, role, status, created_at
+            FROM users 
+            WHERE role_id = ? AND company_id = ?
+            ORDER BY name ASC
+        `, [id, companyId]);
+
         res.json({
             success: true,
             data: {
                 ...roles[0],
-                permissions
+                permissions,
+                users
             }
         });
     } catch (error) {

@@ -17,7 +17,7 @@ const MODULES = [
     { name: 'Module Configuration', key: 'moduleshome' }
 ];
 
-const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
+const RoleFormModal = ({ visible, onClose, onSave, role = null, readOnly = false }) => {
     const [formData, setFormData] = useState({
         role_name: '',
         description: '',
@@ -34,6 +34,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
 
     const [loading, setLoading] = useState(false);
     const [fetchingDetails, setFetchingDetails] = useState(false);
+    const [assignedUsers, setAssignedUsers] = useState([]);
     const [error, setError] = useState(null);
 
     useEffect(() => {
@@ -53,6 +54,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
                     can_approve: false
                 }))
             });
+            setAssignedUsers([]);
         }
     }, [role, visible]);
 
@@ -85,6 +87,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
                     is_active: data.is_active,
                     permissions: mergedPermissions
                 });
+                setAssignedUsers(data.users || []);
             }
         } catch (err) {
             console.error('Error fetching role details:', err);
@@ -95,6 +98,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
     };
 
     const handlePermissionChange = (moduleKey, field, value) => {
+        if (readOnly) return;
         const newPermissions = formData.permissions.map(p => {
             if (p.module_name === moduleKey) {
                 return { ...p, [field]: value };
@@ -105,6 +109,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
     };
 
     const handleSelectAll = (moduleKey, value) => {
+        if (readOnly) return;
         const newPermissions = formData.permissions.map(p => {
             if (p.module_name === moduleKey) {
                 return {
@@ -178,14 +183,16 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
 
                 {/* 3. Action Column */}
                 <View style={styles.colAction}>
-                    <TouchableOpacity
-                        onPress={() => handleSelectAll(module.key, !isAllSelected)}
-                        style={styles.selectAllBtn}
-                    >
-                        <Text style={[styles.selectAllText, isAllSelected && styles.selectAllActive]}>
-                            {isAllSelected ? 'Deselect All' : 'Select All'}
-                        </Text>
-                    </TouchableOpacity>
+                    {!readOnly && (
+                        <TouchableOpacity
+                            onPress={() => handleSelectAll(module.key, !isAllSelected)}
+                            style={styles.selectAllBtn}
+                        >
+                            <Text style={[styles.selectAllText, isAllSelected && styles.selectAllActive]}>
+                                {isAllSelected ? 'Deselect All' : 'Select All'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         );
@@ -195,7 +202,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
         <BaseModal
             visible={visible}
             onClose={onClose}
-            title={role ? 'Edit Role' : 'Add New Role'}
+            title={readOnly ? 'View Role Details' : (role ? 'Edit Role' : 'Add New Role')}
             width={1000}
         >
             <View style={styles.container}>
@@ -224,31 +231,32 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
                                 <View style={[styles.inputGroup, { flex: 1.5 }]}>
                                     <Text style={styles.label}>Role Name *</Text>
                                     <TextInput
-                                        style={styles.input}
+                                        style={[styles.input, readOnly && styles.readOnlyInput]}
                                         value={formData.role_name}
                                         onChangeText={(val) => setFormData({ ...formData, role_name: val })}
                                         placeholder="e.g. Finance Manager"
+                                        editable={!readOnly}
                                     />
                                 </View>
                                 <View style={[styles.inputGroup, { flex: 2 }]}>
                                     <Text style={styles.label}>Description</Text>
                                     <TextInput
-                                        style={styles.input}
+                                        style={[styles.input, readOnly && styles.readOnlyInput]}
                                         value={formData.description}
                                         onChangeText={(val) => setFormData({ ...formData, description: val })}
                                         placeholder="What can this role do?"
+                                        editable={!readOnly}
                                     />
                                 </View>
                                 <View style={[styles.inputGroup, { flex: 1 }]}>
                                     <Text style={styles.label}>Active Status</Text>
-                                    <View style={styles.statusToggle}>
-                                        <Text style={styles.statusLabel}>{formData.is_active ? 'Active' : 'Deactivated'}</Text>
+                                    <View style={[styles.statusToggle, readOnly && styles.readOnlyInput]}>
                                         <Switch
                                             value={formData.is_active}
                                             onValueChange={(val) => setFormData({ ...formData, is_active: val })}
-                                            trackColor={{ false: "#e2e8f0", true: "#bfdbfe" }}
-                                            thumbColor={formData.is_active ? "#3b82f6" : "#f1f5f9"}
-                                            style={{ transform: [{ scale: 0.8 }] }}
+                                            trackColor={{ false: "#e2e8f0", true: "#d1fae5" }}
+                                            thumbColor={formData.is_active ? "#10b981" : "#f4f3f4"}
+                                            disabled={readOnly}
                                         />
                                     </View>
                                 </View>
@@ -264,20 +272,52 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null }) => {
                                 {MODULES.map(renderPermissionRow)}
                             </ScrollView>
                         </View>
+
+                        {/* Assigned Users Section - Only in View Mode */}
+                        {readOnly && (
+                            <View style={[styles.section, { marginTop: 12 }]}>
+                                <Text style={styles.sectionTitle}>Assigned Personnel ({assignedUsers.length})</Text>
+                                <ScrollView style={styles.usersScroll} showsVerticalScrollIndicator={false}>
+                                    {assignedUsers.length === 0 ? (
+                                        <View style={styles.emptyUsersBox}>
+                                            <Text style={styles.emptyUsersText}>No users currently assigned to this role.</Text>
+                                        </View>
+                                    ) : (
+                                        assignedUsers.map((u, idx) => (
+                                            <View key={u.id || idx} style={styles.userItem}>
+                                                <View style={styles.userAvatarSmall}>
+                                                    <Text style={styles.userAvatarText}>{u.name.charAt(0).toUpperCase()}</Text>
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.userItemName}>{u.name}</Text>
+                                                    <Text style={styles.userItemEmail}>{u.email}</Text>
+                                                </View>
+                                                <View style={styles.userStatusBadge}>
+                                                    <View style={[styles.dot, { backgroundColor: u.status === 'ACTIVE' ? '#10b981' : '#ef4444' }]} />
+                                                    <Text style={styles.userStatusText}>{u.status}</Text>
+                                                </View>
+                                            </View>
+                                        ))
+                                    )}
+                                </ScrollView>
+                            </View>
+                        )}
                     </View>
                 )}
 
                 <View style={styles.footer}>
                     <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-                        <Text style={styles.cancelLabel}>Cancel</Text>
+                        <Text style={styles.cancelLabel}>{readOnly ? 'Close' : 'Cancel'}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.saveBtn, loading && styles.disabledBtn]}
-                        onPress={handleSave}
-                        disabled={loading}
-                    >
-                        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.saveLabel}>{role ? 'Update Role' : 'Save Role'}</Text>}
-                    </TouchableOpacity>
+                    {!readOnly && (
+                        <TouchableOpacity
+                            style={[styles.saveBtn, loading && styles.disabledBtn]}
+                            onPress={handleSave}
+                            disabled={loading}
+                        >
+                            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.saveLabel}>{role ? 'Update Role' : 'Save Role'}</Text>}
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </BaseModal>
@@ -349,9 +389,14 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#1e293b',
     },
+    readOnlyInput: {
+        backgroundColor: '#f1f5f9',
+        borderColor: '#e2e8f0',
+        color: '#64748b',
+    },
     statusToggle: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 12,
         height: 44, // Match input height
@@ -362,8 +407,7 @@ const styles = StyleSheet.create({
     },
     statusLabel: {
         fontSize: 13,
-        color: '#64748b',
-        fontWeight: '500',
+        fontWeight: '700',
     },
     permScroll: {
         maxHeight: 280,
@@ -490,6 +534,79 @@ const styles = StyleSheet.create({
         marginTop: 16,
         fontSize: 14,
         color: '#64748b',
+    },
+    usersScroll: {
+        maxHeight: 200,
+        marginTop: 8,
+    },
+    userItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        backgroundColor: '#f8fafc',
+        borderRadius: 8,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
+    },
+    userAvatarSmall: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#3b82f6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    userAvatarText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    userItemName: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#1e293b',
+    },
+    userItemEmail: {
+        fontSize: 11,
+        color: '#64748b',
+    },
+    userStatusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: 'white',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    userStatusText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#475569',
+        textTransform: 'uppercase',
+    },
+    emptyUsersBox: {
+        padding: 20,
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+        borderRadius: 8,
+        borderStyle: 'dashed',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    emptyUsersText: {
+        fontSize: 13,
+        color: '#94a3b8',
     },
 });
 

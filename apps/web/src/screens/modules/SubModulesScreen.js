@@ -57,6 +57,7 @@ const SubModulesScreen = ({ navigation }) => {
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'info' });
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [wizardStep, setWizardStep] = useState(1);
 
     const handleOpenModal = () => {
         setEditingId(null);
@@ -71,6 +72,7 @@ const SubModulesScreen = ({ navigation }) => {
         setSectionFields({});
         setExpandedSectionId(null);
         setSelectedFields({});
+        setWizardStep(1);
         setModalVisible(true);
     };
 
@@ -109,7 +111,7 @@ const SubModulesScreen = ({ navigation }) => {
         // alert(`Debug Edit:\nLoaded Count: ${Object.keys(fieldsState).length}\nIDs: ${JSON.stringify(Object.keys(fieldsState))}`);
 
         setSelectedFields(fieldsState);
-
+        setWizardStep(1);
         setModalVisible(true);
     };
 
@@ -838,17 +840,16 @@ const SubModulesScreen = ({ navigation }) => {
                                 <Title style={styles.modalTitle}>{editingId ? 'Submodule Details' : 'Add Submodule'}</Title>
                                 <Text style={styles.modalSubtitle}>{editingId ? 'View selected submodule details' : 'Configure new submodule'}</Text>
                             </View>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                                 <TouchableOpacity
                                     onPress={() => {
                                         if (selectedModule) fetchSections(selectedModule.module_id || selectedModule.id);
                                     }}
-                                    style={{ marginRight: 16 }}
                                 >
-                                    <MaterialCommunityIcons name="refresh" size={24} color="#673ab7" />
+                                    <MaterialCommunityIcons name="refresh" size={26} color="#673ab7" />
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                    <MaterialCommunityIcons name="close" size={24} color="#64748b" />
+                                    <MaterialCommunityIcons name="close" size={26} color="#64748b" />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -857,24 +858,29 @@ const SubModulesScreen = ({ navigation }) => {
                         {loadingData ? (
                             <ActivityIndicator size="large" color="#673ab7" style={{ marginVertical: 40 }} />
                         ) : isMobile ? (
-                            <ScrollView style={{ maxHeight: '70vh' }} showsVerticalScrollIndicator={false}>
-                                <View style={{ flexDirection: 'column', gap: 12, paddingBottom: 20 }}>
-                                    {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name')}
-                                    {renderStructure()}
-                                    {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name')}
-                                    {renderDropdown("Region", "Select Region...", selectedRegion, regions, setSelectedRegion, 'region', 'name')}
-                                    {renderDropdown("Property Type", "Select...", selectedPropertyType, propertyTypes, setSelectedPropertyType, 'property', 'name')}
-                                    {renderDropdown("Premise Type", "Select...", selectedType, types, setSelectedType, 'type', 'type_name')}
-                                    {renderDropdown("Area", "Select Area...", selectedArea, areas, setSelectedArea, 'area', 'name')}
-                                    <View style={{ marginTop: 4 }}>
-                                        <Text style={styles.inputLabel}>Status</Text>
-                                        <Switch value={status} onValueChange={setStatus} />
+                            wizardStep === 1 ? (
+                                <ScrollView style={{ maxHeight: '70vh' }} showsVerticalScrollIndicator={false}>
+                                    <View style={{ flexDirection: 'column', gap: 12, paddingBottom: 20 }}>
+                                        {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name')}
+                                        {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name')}
+                                        {renderDropdown("Region", "Select Region...", selectedRegion, regions, setSelectedRegion, 'region', 'name')}
+                                        {renderDropdown("Property Type", "Select...", selectedPropertyType, propertyTypes, setSelectedPropertyType, 'property', 'name')}
+                                        {renderDropdown("Premise Type", "Select...", selectedType, types, setSelectedType, 'type', 'type_name')}
+                                        {renderDropdown("Area", "Select Area...", selectedArea, areas, setSelectedArea, 'area', 'name')}
+                                        <View style={{ marginTop: 4 }}>
+                                            <Text style={styles.inputLabel}>Status</Text>
+                                            <Switch value={status} onValueChange={setStatus} />
+                                        </View>
                                     </View>
+                                </ScrollView>
+                            ) : (
+                                <View style={{ height: '70vh' }}>
+                                    {renderStructure()}
                                 </View>
-                            </ScrollView>
+                            )
                         ) : (
-                            <>
-                                <View style={[styles.formRow, { zIndex: dropdownOpen ? 1000 : 1 }]}>
+                            wizardStep === 1 ? (
+                                <View style={[styles.formRow, { zIndex: dropdownOpen ? 1000 : 1, paddingBottom: 20 }]}>
                                     {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name', { flex: 1.5, marginRight: 8 })}
                                     {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name', { flex: 1.2, marginRight: 8 })}
                                     {renderDropdown("Region", "Select...", selectedRegion, regions, setSelectedRegion, 'region', 'name', { flex: 1.2, marginRight: 8 })}
@@ -886,12 +892,51 @@ const SubModulesScreen = ({ navigation }) => {
                                         <Switch value={status} onValueChange={setStatus} />
                                     </View>
                                 </View>
-                                {renderStructure()}
-                            </>
+                            ) : (
+                                renderStructure()
+                            )
                         )}
                         <View style={styles.modalFooter}>
-                            <Button mode="outlined" onPress={() => setModalVisible(false)} style={{ marginRight: 12 }}>Cancel</Button>
-                            <Button mode="contained" onPress={handleSave} buttonColor="#673ab7">Save</Button>
+                            <Button
+                                mode="outlined"
+                                onPress={() => setModalVisible(false)}
+                                style={styles.modalCancelBtn}
+                                labelStyle={styles.modalCancelBtnText}
+                            >
+                                Cancel
+                            </Button>
+                            {wizardStep === 1 ? (
+                                <Button
+                                    mode="contained"
+                                    onPress={() => setWizardStep(2)}
+                                    buttonColor={selectedModule ? "#673ab7" : "#e2e8f0"}
+                                    style={[styles.modalNextBtn, !selectedModule && styles.modalNextBtnDisabled]}
+                                    labelStyle={{ color: selectedModule ? 'white' : '#94a3b8', fontWeight: '700' }}
+                                    disabled={!selectedModule}
+                                >
+                                    Next
+                                </Button>
+                            ) : (
+                                <>
+                                    <Button
+                                        mode="outlined"
+                                        onPress={() => setWizardStep(1)}
+                                        style={styles.modalCancelBtn}
+                                        labelStyle={styles.modalCancelBtnText}
+                                    >
+                                        Back
+                                    </Button>
+                                    <Button
+                                        mode="contained"
+                                        onPress={handleSave}
+                                        buttonColor="#673ab7"
+                                        style={styles.modalNextBtn}
+                                        labelStyle={{ color: 'white', fontWeight: '700' }}
+                                    >
+                                        Save
+                                    </Button>
+                                </>
+                            )}
                         </View>
                     </Modal>
 
@@ -1107,16 +1152,69 @@ const styles = StyleSheet.create({
     badgeText: { fontSize: 11, fontWeight: '700' },
     badgeTextActive: { color: '#166534' },
     badgeTextInactive: { color: '#64748b' },
-    modalContent: { backgroundColor: 'white', padding: 32, borderRadius: 12, width: '90%', maxWidth: 1000, alignSelf: 'center' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-    modalTitle: { fontSize: 20, fontWeight: 'bold' },
-    modalSubtitle: { fontSize: 13, color: '#64748b' },
-    divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 20 },
-    formRow: { flexDirection: 'row', alignItems: 'center' },
-    inputContainer: { flex: 1 },
-    inputLabel: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
-    dropdownTrigger: { flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8 },
-    dropdownTriggerActive: { borderColor: '#673ab7' },
+    modalContent: {
+        backgroundColor: 'white',
+        padding: 32,
+        borderRadius: 24,
+        width: '90%',
+        maxWidth: 1100,
+        alignSelf: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.1,
+        shadowRadius: 30,
+        elevation: 10,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 10,
+    },
+    modalTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#1e293b',
+        letterSpacing: -0.5,
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: '#94a3b8',
+        marginTop: 2,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#f1f5f9',
+        marginVertical: 24,
+    },
+    formRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 12,
+    },
+    inputContainer: {
+        flex: 1,
+    },
+    inputLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1e293b',
+        marginBottom: 8,
+    },
+    dropdownTrigger: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        height: 48,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+    },
+    dropdownTriggerActive: {
+        borderColor: '#673ab7',
+        borderWidth: 2,
+    },
     dropdownText: { fontSize: 14 },
     placeholderText: { color: '#94a3b8' },
     dropdownList: {
@@ -1135,20 +1233,53 @@ const styles = StyleSheet.create({
     },
     dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
     dropdownItemText: { fontSize: 14, color: '#1e293b' },
-    statusContainer: { marginLeft: 16 },
-    structureSection: { marginTop: 20 },
-    sectionLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', marginBottom: 10 },
-    structureBox: { padding: 16, backgroundColor: '#f8fafc', borderRadius: 8 },
-    structureTextPlaceholder: { color: '#94a3b8', fontSize: 14 },
-    structureListContainer: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8 },
-    structureHeader: { flexDirection: 'row', padding: 12, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-    structureHeaderText: { fontWeight: '700', fontSize: 14, color: '#334155' },
+    statusContainer: {
+        marginLeft: 12,
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingBottom: 4,
+    },
+    modalFooter: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginTop: 40,
+        gap: 16,
+    },
+    modalCancelBtn: {
+        borderRadius: 100,
+        paddingHorizontal: 24,
+        borderColor: '#e2e8f0',
+        height: 48,
+        justifyContent: 'center',
+    },
+    modalCancelBtnText: {
+        color: '#3b82f6',
+        fontWeight: '600',
+        fontSize: 15,
+    },
+    modalNextBtn: {
+        borderRadius: 100,
+        paddingHorizontal: 32,
+        height: 48,
+        justifyContent: 'center',
+        elevation: 0,
+    },
+    modalNextBtnDisabled: {
+        backgroundColor: '#e2e8f0',
+        opacity: 0.8,
+    },
+    structureSection: { marginTop: 24 },
+    sectionLabel: { fontSize: 12, fontWeight: '700', color: '#94a3b8', marginBottom: 12, textTransform: 'uppercase' },
+    structureBox: { padding: 20, backgroundColor: '#f8fafc', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1' },
+    structureTextPlaceholder: { color: '#94a3b8', fontSize: 14, textAlign: 'center' },
+    structureListContainer: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, overflow: 'hidden' },
+    structureHeader: { flexDirection: 'row', padding: 16, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+    structureHeaderText: { fontWeight: '700', fontSize: 14, color: '#1e293b' },
     accordionContainer: { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-    accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 12 },
-    accordionTitle: { fontWeight: '600' },
-    accordionContent: { paddingLeft: 20, paddingBottom: 10 },
-    fieldItem: { flexDirection: 'row', alignItems: 'center' },
-    modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20 },
+    accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, alignItems: 'center' },
+    accordionTitle: { fontWeight: '700', color: '#334155' },
+    accordionContent: { paddingLeft: 16, paddingBottom: 16, paddingRight: 16 },
+    fieldItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
     paginationFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',

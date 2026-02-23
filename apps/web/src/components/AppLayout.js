@@ -2,8 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform, useWindowDimensions, Pressable } from 'react-native';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import { useRoute } from '@react-navigation/native';
 
 const AppLayout = ({ children, navigation }) => {
+    const route = useRoute();
     const { width } = useWindowDimensions();
     const isMobile = width < 768;
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -13,7 +15,7 @@ const AppLayout = ({ children, navigation }) => {
             {/* Fixed Sidebar for Desktop */}
             {!isMobile && (
                 <View style={styles.sidebarWrapper}>
-                    <Sidebar navigation={navigation} />
+                    <Sidebar navigation={navigation} activeRoute={route.name} />
                 </View>
             )}
 
@@ -25,7 +27,7 @@ const AppLayout = ({ children, navigation }) => {
 
                     {/* Drawer Content */}
                     <View style={{ width: 280, backgroundColor: 'white', height: '100%', position: 'absolute', left: 0, top: 0, bottom: 0, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 10, elevation: 10 }}>
-                        <Sidebar navigation={navigation} onClose={() => setMobileMenuOpen(false)} />
+                        <Sidebar navigation={navigation} onClose={() => setMobileMenuOpen(false)} activeRoute={route.name} />
                     </View>
                 </View>
             )}

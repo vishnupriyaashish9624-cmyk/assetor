@@ -128,13 +128,13 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null, init
                                     activeOpacity={0.7}
                                 >
                                     <View style={styles.dropdownLeft}>
-                                        <MaterialCommunityIcons name="layers-outline" size={18} color="#3b82f6" style={{ marginRight: 10 }} />
+                                        <MaterialCommunityIcons name="layers-outline" size={18} color="#673ab7" style={{ marginRight: 10 }} />
                                         <Text style={[styles.dropdownValue, !moduleId && styles.placeholder]}>
                                             {moduleName || 'Select a module...'}
                                         </Text>
                                     </View>
                                     {catalogLoading ? (
-                                        <ActivityIndicator size="small" color="#3b82f6" />
+                                        <ActivityIndicator size="small" color="#673ab7" />
                                     ) : (
                                         <MaterialCommunityIcons name="chevron-down" size={20} color="#94a3b8" />
                                     )}
@@ -180,7 +180,7 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null, init
                             onChangeText={setName}
                             placeholder="e.g. Basic Information"
                             outlineColor="#e2e8f0"
-                            activeOutlineColor="#3b82f6"
+                            activeOutlineColor="#673ab7"
                             style={styles.input}
                             contentStyle={styles.inputContent}
                             placeholderTextColor="#94a3b8"
@@ -199,7 +199,7 @@ const ModuleSectionFormModal = ({ visible, onClose, onSave, section = null, init
                             keyboardType="numeric"
                             placeholder="0"
                             outlineColor="#e2e8f0"
-                            activeOutlineColor="#3b82f6"
+                            activeOutlineColor="#673ab7"
                             style={styles.input}
                             contentStyle={styles.inputContent}
                             placeholderTextColor="#94a3b8"
@@ -260,8 +260,8 @@ const styles = StyleSheet.create({
     iconCircle: {
         width: 56,
         height: 56,
-        borderRadius: 16,
-        backgroundColor: '#eef2ff',
+        borderRadius: 20,
+        backgroundColor: '#ede9fe',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -319,8 +319,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         borderWidth: 1,
         borderColor: '#e2e8f0',
-        borderRadius: 10,
-        height: 40,
+        borderRadius: 12,
+        height: 48,
         paddingHorizontal: 16,
         backgroundColor: 'white',
     },
@@ -380,8 +380,8 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     saveBtn: {
-        backgroundColor: '#5e35a1', // Matched Purple
-        borderRadius: 12,
+        backgroundColor: '#673ab7',
+        borderRadius: 100,
         elevation: 0,
     },
 });

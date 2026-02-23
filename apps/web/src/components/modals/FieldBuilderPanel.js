@@ -1028,11 +1028,11 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                 <View style={styles.toggleRow}>
                                                     <View style={styles.toggleItem}>
                                                         <Text style={styles.toggleLabel}>Required</Text>
-                                                        <Switch value={draft.is_required} onValueChange={(v) => updateDraftRow(idx, 'is_required', v)} color="#3b82f6" />
+                                                        <Switch value={draft.is_required} onValueChange={(v) => updateDraftRow(idx, 'is_required', v)} color="#10b981" />
                                                     </View>
                                                     <View style={styles.toggleItem}>
                                                         <Text style={styles.toggleLabel}>Active</Text>
-                                                        <Switch value={draft.is_active} onValueChange={(v) => updateDraftRow(idx, 'is_active', v)} color="#3b82f6" />
+                                                        <Switch value={draft.is_active} onValueChange={(v) => updateDraftRow(idx, 'is_active', v)} color="#10b981" />
                                                     </View>
                                                 </View>
                                             </View>
@@ -1063,7 +1063,9 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                     icon="arrow-right"
                                     contentStyle={{ flexDirection: 'row-reverse' }}
                                     onPress={() => setWizardStep(2)}
-                                    style={{ backgroundColor: '#1e293b' }}
+                                    buttonColor="#1e293b"
+                                    style={{ borderRadius: 100, elevation: 0, height: 48, justifyContent: 'center' }}
+                                    labelStyle={{ fontWeight: '700' }}
                                 >
                                     Next: Preview
                                 </Button>
@@ -1084,8 +1086,8 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                     mode="outlined"
                                     onPress={() => setWizardStep(1)}
                                     icon="arrow-left"
-                                    compact
-                                    labelStyle={{ fontSize: 12 }}
+                                    style={{ borderRadius: 100, borderColor: '#e2e8f0' }}
+                                    labelStyle={{ fontSize: 13, fontWeight: '700', color: '#673ab7' }}
                                 >
                                     Back to Config
                                 </Button>
@@ -1444,16 +1446,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         borderWidth: 1,
-        borderColor: '#cbd5e1',
-        borderRadius: 8,
-        height: 48,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        height: 52,
         paddingHorizontal: 16,
         backgroundColor: '#f8fafc',
     },
     dropdownText: {
         fontSize: 15,
-        color: '#334155',
-        fontWeight: '500',
+        color: '#1e293b',
+        fontWeight: '600',
     },
     searchBar: {
         elevation: 0,
@@ -1486,37 +1488,37 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 24,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 100,
         backgroundColor: '#f1f5f9',
     },
     stepItemActive: {
-        backgroundColor: '#eff6ff',
+        backgroundColor: '#ede9fe',
         borderWidth: 1,
-        borderColor: '#bfdbfe',
+        borderColor: '#ddd6fe',
     },
     stepIcon: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#e2e8f0',
+        backgroundColor: '#cbd5e1',
         justifyContent: 'center',
         alignItems: 'center',
     },
     stepIconActive: {
-        backgroundColor: '#3b82f6',
+        backgroundColor: '#673ab7',
     },
     stepTitle: {
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#64748b',
     },
     stepTitleActive: {
-        color: '#1e40af',
+        color: '#673ab7',
     },
     stepConnector: {
-        width: 40,
+        width: 30,
         height: 2,
         backgroundColor: '#e2e8f0',
     },
@@ -1572,15 +1574,15 @@ const styles = StyleSheet.create({
     },
     input: {
         backgroundColor: 'white',
-        height: 44, // Compact but accessible
+        height: 48,
         fontSize: 14,
     },
     typeDropdown: {
-        height: 44,
+        height: 48,
         borderWidth: 1,
         borderColor: '#e2e8f0',
-        borderRadius: 4,
-        paddingHorizontal: 12,
+        borderRadius: 12,
+        paddingHorizontal: 16,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -1606,11 +1608,11 @@ const styles = StyleSheet.create({
         color: '#475569',
     },
     saveButton: {
-        backgroundColor: '#3b82f6',
-        borderRadius: 8,
+        backgroundColor: '#673ab7',
+        borderRadius: 100,
         width: '100%',
         elevation: 0,
-        height: 44,
+        height: 48,
         justifyContent: 'center',
     },
 
@@ -1691,16 +1693,16 @@ const styles = StyleSheet.create({
     draftRowCard: {
         backgroundColor: 'white',
         borderWidth: 1,
-        borderColor: '#cbd5e1',
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 16,
+        borderColor: '#e2e8f0',
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20,
         position: 'relative',
-        shadowColor: '#64748b',
-        shadowOffset: { width: 0, height: 1 },
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        shadowRadius: 10,
+        elevation: 2,
     },
     removeRowBtn: {
         position: 'absolute',

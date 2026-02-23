@@ -23,6 +23,7 @@ import SubModulesScreen from '../screens/modules/SubModulesScreen';
 import EmployeesScreen from '../screens/EmployeesScreen';
 import RolesScreen from '../screens/RolesScreen';
 import SMTPSettingsScreen from '../screens/SMTPSettingsScreen';
+import ClientsScreen from '../screens/ClientsScreen';
 
 
 // Screen Wrappers
@@ -59,6 +60,7 @@ const MainNavigator = () => {
             <Drawer.Screen name="Companies" component={CompaniesScreen} />
             <Drawer.Screen name="Settings" component={SettingsScreen} />
             <Drawer.Screen name="SMTPSettings" component={SMTPSettingsScreen} />
+            <Drawer.Screen name="Clients" component={ClientsScreen} />
 
             <Drawer.Screen name="OfficeOwned" component={OfficeOwnedScreen} />
             <Drawer.Screen name="OfficeRental" component={OfficeRentalScreen} />

@@ -420,7 +420,7 @@ const ModulesHomeScreen = ({ navigation }) => {
                                             {moduleStructure.map((sec, idx) => (
                                                 <TouchableOpacity
                                                     key={idx}
-                                                    style={styles.sectionGridItem}
+                                                    style={[styles.sectionGridItem, { width: isMobile ? '100%' : 'calc(50% - 6px)' }]}
                                                     onPress={() => handleEditSectionFromDetails(sec.name)}
                                                     activeOpacity={0.7}
                                                 >
@@ -502,16 +502,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: 'white',
-        borderRadius: 8,
+        borderRadius: 100,
         borderWidth: 1,
-        borderColor: 'rgb(255, 255, 255)',
-        paddingHorizontal: 16,
+        borderColor: '#e2e8f0',
+        paddingHorizontal: 20,
         height: 48,
-        shadowColor: 'rgba(99, 99, 99, 0.2)',
-        shadowOffset: { width: -5, height: 3 },
-        shadowOpacity: 1,
-        shadowRadius: 18,
-        elevation: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
     },
     searchIcon: {
         marginRight: 10,
@@ -527,15 +527,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#673ab7',
-        paddingHorizontal: 20,
+        paddingHorizontal: 24,
         height: 48,
-        borderRadius: 8,
+        borderRadius: 100,
         justifyContent: 'center',
         shadowColor: '#673ab7',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
     },
     addButtonText: {
         color: 'white',
@@ -737,7 +737,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: '#f1f5f9',
-        width: 'calc(50% - 6px)',
     },
     sectionText: {
         fontSize: 14,
@@ -774,9 +773,9 @@ const styles = StyleSheet.create({
         paddingTop: 0,
     },
     detailCloseBtn: {
-        borderRadius: 12,
+        borderRadius: 100,
         paddingVertical: 4,
-        backgroundColor: '#5e35a1',
+        backgroundColor: '#673ab7',
     },
     detailCloseBtnText: {
         fontSize: 15,

@@ -15,6 +15,7 @@ const RolesScreen = ({ navigation }) => {
     const [loading, setLoading] = useState(true);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingRole, setEditingRole] = useState(null);
+    const [isViewOnly, setIsViewOnly] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -113,6 +114,17 @@ const RolesScreen = ({ navigation }) => {
                     style={styles.actionButton}
                     onPress={() => {
                         setEditingRole(item);
+                        setIsViewOnly(true);
+                        setModalVisible(true);
+                    }}
+                >
+                    <MaterialCommunityIcons name="eye-outline" size={18} color="#64748b" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                        setEditingRole(item);
+                        setIsViewOnly(false);
                         setModalVisible(true);
                     }}
                 >
@@ -139,6 +151,7 @@ const RolesScreen = ({ navigation }) => {
                     style={styles.addBtn}
                     onPress={() => {
                         setEditingRole(null);
+                        setIsViewOnly(false);
                         setModalVisible(true);
                     }}
                 >
@@ -220,6 +233,7 @@ const RolesScreen = ({ navigation }) => {
                     setEditingRole(null);
                 }}
                 role={editingRole}
+                readOnly={isViewOnly}
             />
         </AppLayout>
     );
