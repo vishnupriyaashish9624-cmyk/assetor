@@ -62,8 +62,8 @@ exports.getClientDetails = async (req, res) => {
             console.log('[getClientDetails] First Enhanced Comp:', {
                 id: enhancedCompanies[0].id,
                 name: enhancedCompanies[0].name,
-                admin_name: enhancedCompanies[0].admin_name,
-                admin_email: enhancedCompanies[0].admin_email
+                linked_admin_name: enhancedCompanies[0].linked_admin_name,
+                linked_admin_email: enhancedCompanies[0].linked_admin_email
             });
         }
         console.log('------------------------------------------------');
@@ -74,7 +74,8 @@ exports.getClientDetails = async (req, res) => {
                 ...clientRows[0],
                 companies: enhancedCompanies,
                 admin_name: adminUser.name || '',
-                admin_email: adminUser.email || ''
+                admin_email: adminUser.email || '',
+                admin_role: clientRows[0].admin_role || 'COMPANY_ADMIN'
             }
         });
     } catch (error) {
@@ -92,9 +93,13 @@ exports.createClient = async (req, res) => {
         country, state, city, area, address, po_box, makani_number,
         telephone, email, website, support_email,
         max_companies, max_employees, max_assets, enabled_modules,
-        admin_name, admin_email, admin_password,
+        admin_name, admin_email, admin_password, admin_role,
+        smtp_host, smtp_port, smtp_user, smtp_pass, smtp_encryption, smtp_from_email, smtp_from_name,
         send_email
     } = req.body;
+
+    // Clean inputs
+    if (admin_email) admin_email = admin_email.trim();
 
     // Clean numeric fields to handle empty strings for PostgreSQL
     max_companies = cleanNum(max_companies);
@@ -109,31 +114,35 @@ exports.createClient = async (req, res) => {
                 tenancy_type, landlord_name, contract_start_date, contract_end_date, registration_no, ownership_doc_ref,
                 country, state, city, area, address, po_box, makani_number,
                 telephone, email, website, support_email,
-                max_companies, max_employees, max_assets, enabled_modules
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+                max_companies, max_employees, max_assets, enabled_modules,
+                smtp_host, smtp_port, smtp_user, smtp_pass, smtp_encryption, smtp_from_email, smtp_from_name,
+                admin_role
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
             [
                 name, company_code, trade_license, tax_no, industry, logo,
                 tenancy_type || 'OWNED', landlord_name, contract_start_date || null, contract_end_date || null, registration_no, ownership_doc_ref,
                 country, state, city, area, address, po_box, makani_number,
                 telephone, email, website, support_email,
-                max_companies ?? 5, max_employees ?? 100, max_assets ?? 500, JSON.stringify(enabled_modules || [])
+                max_companies ?? 5, max_employees ?? 100, max_assets ?? 500, JSON.stringify(enabled_modules || []),
+                smtp_host, smtp_port, smtp_user, smtp_pass, smtp_encryption, smtp_from_email, smtp_from_name,
+                admin_role || 'COMPANY_ADMIN'
             ]
         );
-        const clientId = result[0].id;
+        const clientId = result.insertId;
 
         // 2. Create the HQ Company (Automatically)
         const [companyResult] = await db.execute(
             'INSERT INTO companies (name, client_id, status, max_employees, max_assets) VALUES (?, ?, ?, ?, ?) RETURNING id',
             [name + ' (HQ)', clientId, 'ACTIVE', max_employees || 10, max_assets || 20]
         );
-        const companyId = companyResult[0].id;
+        const companyId = companyResult.insertId;
 
         // 3. Create Admin User (if provided)
         if (admin_email && admin_password) {
             const hashedPassword = await bcrypt.hash(admin_password, 10);
             await db.execute(
                 'INSERT INTO users (name, email, password, role, company_id, client_id, status, force_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [admin_name || 'Admin', admin_email, hashedPassword, 'COMPANY_ADMIN', companyId, clientId, 'ACTIVE', true]
+                [admin_name || 'Admin', admin_email, hashedPassword, admin_role || 'COMPANY_ADMIN', companyId, clientId, 'ACTIVE', true]
             );
 
             // Send Welcome Email in background
@@ -142,9 +151,10 @@ exports.createClient = async (req, res) => {
                     name: admin_name || 'Admin',
                     email: admin_email,
                     tempPassword: admin_password,
-                    companyName: name
+                    companyName: name,
+                    clientId: clientId
                 }).catch(mailError => {
-                    console.error(`[Client Created] Failed to send email in background to ${admin_email}:`, mailError.message);
+                    console.error(`[Client Created] Failed to send email in background to ${admin_email}: `, mailError.message);
                 });
                 console.log(`[Client Created] Welcome email triggered for ${admin_email}`);
             }
@@ -173,8 +183,11 @@ exports.updateClientLimits = async (req, res) => {
         country, state, city, area, address, po_box, makani_number,
         telephone, email, website, support_email,
         max_companies, max_employees, max_assets, enabled_modules, status,
-        admin_name, admin_email, admin_password // Catch admin updates
+        admin_name, admin_email, admin_password, admin_role,
+        smtp_host, smtp_port, smtp_user, smtp_pass, smtp_encryption, smtp_from_email, smtp_from_name
     } = req.body;
+
+    if (admin_email) admin_email = admin_email.trim();
 
     // Clean numeric fields to handle empty strings for PostgreSQL
     max_companies = cleanNum(max_companies);
@@ -185,19 +198,23 @@ exports.updateClientLimits = async (req, res) => {
 
     try {
         await db.execute(
-            `UPDATE clients SET 
-                name = ?, company_code = ?, trade_license = ?, tax_no = ?, industry = ?, logo = ?,
-                tenancy_type = ?, landlord_name = ?, contract_start_date = ?, contract_end_date = ?, registration_no = ?, ownership_doc_ref = ?,
-                country = ?, state = ?, city = ?, area = ?, address = ?, po_box = ?, makani_number = ?,
-                telephone = ?, email = ?, website = ?, support_email = ?,
-                max_companies = ?, max_employees = ?, max_assets = ?, enabled_modules = ?, status = ?
-            WHERE id = ?`,
+            `UPDATE clients SET
+        name = ?, company_code = ?, trade_license = ?, tax_no = ?, industry = ?, logo = ?,
+            tenancy_type = ?, landlord_name = ?, contract_start_date = ?, contract_end_date = ?, registration_no = ?, ownership_doc_ref = ?,
+            country = ?, state = ?, city = ?, area = ?, address = ?, po_box = ?, makani_number = ?,
+            telephone = ?, email = ?, website = ?, support_email = ?,
+            max_companies = ?, max_employees = ?, max_assets = ?, enabled_modules = ?, status = ?,
+            smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_encryption = ?, smtp_from_email = ?, smtp_from_name = ?,
+            admin_role = ?
+                WHERE id = ? `,
             [
                 name, company_code, trade_license, tax_no, industry, logo,
                 tenancy_type, landlord_name, contract_start_date || null, contract_end_date || null, registration_no, ownership_doc_ref,
                 country, state, city, area, address, po_box, makani_number,
                 telephone, email, website, support_email,
-                max_companies, max_employees, max_assets, JSON.stringify(enabled_modules), status, id
+                max_companies, max_employees, max_assets, JSON.stringify(enabled_modules), status,
+                smtp_host, smtp_port, smtp_user, smtp_pass, smtp_encryption, smtp_from_email, smtp_from_name,
+                admin_role, id
             ]
         );
 
@@ -208,8 +225,8 @@ exports.updateClientLimits = async (req, res) => {
 
             if (users.length > 0) {
                 const userId = users[0].id;
-                let updateQuery = 'UPDATE users SET name = ?, email = ?';
-                let updateParams = [admin_name || users[0].name, admin_email];
+                let updateQuery = 'UPDATE users SET name = ?, email = ?, role = ?';
+                let updateParams = [admin_name || users[0].name, admin_email, admin_role || users[0].role];
 
                 if (admin_password) {
                     const hashedPassword = await bcrypt.hash(admin_password, 10);
@@ -236,7 +253,7 @@ exports.updateClientLimits = async (req, res) => {
                     await sendEmail(
                         admin_email,
                         'Your Trakio Admin Access',
-                        `Hello ${admin_name},\n\nYour administrator account has been created/reset.\nEmail: ${admin_email}\nTemporary Password: ${admin_password}\n\nPlease log in and change your password immediately.`,
+                        `Hello ${admin_name}, \n\nYour administrator account has been created / reset.\nEmail: ${admin_email} \nTemporary Password: ${admin_password} \n\nPlease log in and change your password immediately.`,
                         `
                         <div style="font-family: Arial, sans-serif; color: #333;">
                             <h2>Admin Access Granted</h2>

@@ -97,9 +97,10 @@ exports.createCompany = async (req, res) => {
         enabled_modules, send_email
     } = req.body;
 
-    // Enforce client isolation: COMPANY_ADMIN can only create companies for their own client
     const target_client_id = req.user?.role === 'COMPANY_ADMIN' ? req.user?.client_id : client_id;
     console.log('[createCompany] target_client_id:', target_client_id, 'name:', name);
+
+    let cleanAdminEmail = admin_email ? admin_email.trim() : null;
 
     let connection;
     try {
@@ -168,16 +169,16 @@ exports.createCompany = async (req, res) => {
                 JSON.stringify(enabled_modules || [])           // $28
             ]
         );
-        const companyId = rows[0].id;
+        const companyId = rows.insertId;
         console.log('[createCompany] Company inserted, id:', companyId);
 
         // Create Admin User for the company if provided
-        if (admin_email && admin_password) {
-            console.log('[createCompany] Inserting admin user:', admin_email);
+        if (cleanAdminEmail && admin_password) {
+            console.log('[createCompany] Inserting admin user:', cleanAdminEmail);
             const hashedPassword = await bcrypt.hash(admin_password, 10);
             await connection.execute(
                 'INSERT INTO users (name, email, password, role, company_id, client_id, status, force_reset) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-                [admin_name || 'Admin', admin_email, hashedPassword, 'COMPANY_ADMIN', companyId, target_client_id || null, 'ACTIVE', true]
+                [admin_name || 'Admin', cleanAdminEmail, hashedPassword, 'COMPANY_ADMIN', companyId, target_client_id || null, 'ACTIVE', true]
             );
             console.log('[createCompany] Admin user inserted');
 
@@ -256,6 +257,7 @@ exports.updateCompany = async (req, res) => {
         }
 
         const { admin_name, admin_email, admin_password } = req.body;
+        const cleanAdminEmail = admin_email ? admin_email.trim() : null;
         await db.execute(
             `UPDATE companies SET 
                 name = $1, subdomain = $2, status = $3, can_add_employee = $4, max_employees = $5, max_assets = $6,
@@ -289,7 +291,7 @@ exports.updateCompany = async (req, res) => {
                 let userParams = [];
 
                 if (admin_name) { userUpdates.push('name = ?'); userParams.push(admin_name); }
-                if (admin_email) { userUpdates.push('email = ?'); userParams.push(admin_email); }
+                if (cleanAdminEmail) { userUpdates.push('email = ?'); userParams.push(cleanAdminEmail); }
                 if (admin_password) {
                     const hashedPassword = await bcrypt.hash(admin_password, 10);
                     userUpdates.push('password = ?');
@@ -347,7 +349,7 @@ exports.deleteCompany = async (req, res) => {
 
 exports.addCompanyDocument = async (req, res) => {
     const { id } = req.params;
-    const { name, content, file_type } = req.body;
+    const { name, content, file_type, document_type } = req.body;
     const fs = require('fs');
     const path = require('path');
 
@@ -364,21 +366,35 @@ exports.addCompanyDocument = async (req, res) => {
             }
         }
 
+        let finalFileName = name;
+        const isPremiseDoc = (document_type === 'Premise document' || name === 'Premise document');
+
+        if (isPremiseDoc) {
+            const now = new Date();
+            const yy = String(now.getFullYear()).slice(-2);
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const ext = name.includes('.') ? name.split('.').pop() : 'pdf';
+            finalFileName = `premise-${yy}-${mm}-${dd}.${ext}`;
+            console.log(`[addCompanyDocument] Renaming Premise document to: ${finalFileName}`);
+        }
+
         const base64Data = content.replace(/^data:([A-Za-z-+\/]+);base64,/, '');
         const uploadDir = path.join(__dirname, '../uploads/companies');
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-        const uniqueName = `${Date.now()}_${name.replace(/\s+/g, '_')}`;
+        // Ensure uniqueness while keeping the requested name as base
+        const uniqueName = isPremiseDoc ? `${Date.now()}_${finalFileName}` : `${Date.now()}_${name.replace(/\s+/g, '_')}`;
         const filePath = path.join(uploadDir, uniqueName);
         fs.writeFileSync(filePath, base64Data, 'base64');
         const relativePath = `/uploads/companies/${uniqueName}`;
 
         await db.execute(
             'INSERT INTO company_documents (company_id, name, file_path, file_type) VALUES (?, ?, ?, ?)',
-            [id, name, relativePath, file_type || 'application/octet-stream']
+            [id, isPremiseDoc ? finalFileName : name, relativePath, file_type || 'application/octet-stream']
         );
 
-        res.json({ success: true, message: 'Document added', path: relativePath });
+        res.json({ success: true, message: 'Document added', path: relativePath, name: isPremiseDoc ? finalFileName : name });
     } catch (error) {
         console.error('Add company document error:', error);
         res.status(500).json({ success: false, message: error.message });

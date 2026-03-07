@@ -45,7 +45,8 @@ exports.getEmployees = async (req, res) => {
  * Create a new employee and their user account
  */
 exports.createEmployee = async (req, res) => {
-    const { name, email, role, role_id, company_id, department_id, employee_id_card, position, phone, password, auto_generate_password } = req.body;
+    let { name, email, role, role_id, company_id, department_id, employee_id_card, position, phone, password, auto_generate_password } = req.body;
+    if (email) email = email.trim();
 
     let connection;
     try {
@@ -106,7 +107,7 @@ exports.createEmployee = async (req, res) => {
             'INSERT INTO employees (company_id, name, email, department_id, employee_id_card, position, phone) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
             [company_id, name, email, department_id, employee_id_card, position, phone]
         );
-        const employeeId = empRows[0].id;
+        const employeeId = empRows.insertId;
         console.log(`[createEmployee] Employee row inserted, id: ${employeeId}`);
 
         // 5. Create User Account with Login Credentials
@@ -164,7 +165,8 @@ exports.createEmployee = async (req, res) => {
  */
 exports.updateEmployee = async (req, res) => {
     const { id } = req.params;
-    const { name, email, department_id, employee_id_card, position, phone, role_id } = req.body;
+    let { name, email, department_id, employee_id_card, position, phone, role_id } = req.body;
+    if (email) email = email.trim();
 
     let connection;
     const fs = require('fs');

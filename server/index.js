@@ -85,9 +85,12 @@ app.use((req, res, next) => {
     });
 });
 
-// Error handling middleware
+// Error handling// Global error handler
 app.use((err, req, res, next) => {
     console.error(`[ERROR] ${req.method} ${req.url}:`, err.stack);
+    try {
+        require('fs').appendFileSync('global_error.log', `[${new Date().toISOString()}] ERROR ${req.method} ${req.url}: ${err.message}\nStack: ${err.stack}\n`);
+    } catch (e) { }
     res.status(500).json({
         success: false,
         message: 'Internal Server Error',

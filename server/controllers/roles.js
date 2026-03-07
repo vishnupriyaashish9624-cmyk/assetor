@@ -83,7 +83,7 @@ exports.createRole = async (req, res) => {
             RETURNING id
         `, [companyId, role_name, description, is_active]);
 
-        const roleId = result[0].id;
+        const roleId = result.insertId;
 
         // 3. Insert permissions
         if (permissions && Array.isArray(permissions)) {

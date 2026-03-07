@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BaseModal from './BaseModal';
 import axios from 'axios';
+import { MENU_GROUPS, MODULE_MAPPING } from '../Sidebar';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5021/api';
 
@@ -113,11 +114,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
     const steps = [
         { id: 1, title: 'Admin', icon: 'account-plus' },
         { id: 2, title: 'Identity', icon: 'domain' },
-        { id: 3, title: 'Tenancy', icon: 'home-city' },
-        { id: 4, title: 'Location', icon: 'map-marker' },
-        { id: 5, title: 'Contact', icon: 'phone' },
-        { id: 6, title: 'Documents', icon: 'file-document-outline' },
-        { id: 7, title: 'Limits', icon: 'shield-check' },
+        { id: 3, title: 'Limits', icon: 'shield-check' },
     ];
 
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
@@ -138,7 +135,8 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                 content: content,
                 file_type: file.type,
                 size: (file.size / 1024).toFixed(2) + ' KB',
-                context: uploadContext
+                context: uploadContext,
+                document_type: uploadContext === 'premise_document' ? 'Premise document' : null
             };
             setDocuments(prev => [...prev, newDoc]);
             if (uploadContext) {
@@ -158,7 +156,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
     const handleSave = async () => {
         if (!formData.name) {
             setError('Company name is required');
-            setCurrentStep(1);
+            setCurrentStep(2); // Redirect to Identity step where name is
             return;
         }
 
@@ -348,97 +346,13 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                             <View style={{ flex: 1, marginLeft: 12 }}>{renderInput('Industry', 'industry', 'Technology')}</View>
                         </View>
                         {renderInputWithFile('Trade License', 'trade_license', 'TL-12345')}
+                        {renderInputWithFile('Premise document', 'premise_document', 'e.g. Title Deed')}
                         {renderInput('Tax / VAT No.', 'tax_no', 'VAT-98765')}
                         {renderInput('Subdomain', 'subdomain', 'e.g. acme-services (optional)')}
                     </View>
                 );
 
-            case 3: // Tenancy
-                return (
-                    <View style={styles.stepContent}>
-                        <Text style={styles.inputLabel}>Tenancy Type</Text>
-                        <View style={styles.typeSelector}>
-                            {['LEASED', 'OWNED'].map(t => (
-                                <TouchableOpacity
-                                    key={t}
-                                    style={[styles.typeButton, formData.tenancy_type === t && styles.typeButtonActive]}
-                                    onPress={() => setFormData({ ...formData, tenancy_type: t })}
-                                >
-                                    <Text style={[styles.typeButtonText, formData.tenancy_type === t && styles.typeButtonTextActive]}>{t}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        {renderInput('Landlord Name', 'landlord_name', 'e.g. Dubai Properties')}
-                        <View style={styles.row}>
-                            <View style={{ flex: 1 }}>{renderInput('Lease Start', 'lease_start_date', 'YYYY-MM-DD')}</View>
-                            <View style={{ flex: 1, marginLeft: 12 }}>{renderInput('Lease End', 'lease_end_date', 'YYYY-MM-DD')}</View>
-                        </View>
-                    </View>
-                );
-
-            case 4: // Location
-                return (
-                    <View style={styles.stepContent}>
-                        {renderInput('Country', 'country', 'e.g. United Arab Emirates')}
-                        <View style={styles.row}>
-                            <View style={{ flex: 1 }}>{renderInput('City', 'city', 'Dubai')}</View>
-                            <View style={{ flex: 1, marginLeft: 12 }}>{renderInput('Area', 'area', 'e.g. Business Bay')}</View>
-                        </View>
-                        {renderInput('Address', 'address', 'e.g. 123 Sky Tower', true)}
-                        {renderInput('Makani Number', 'makani_no', '12345 67890')}
-                    </View>
-                );
-
-            case 5: // Contact
-                return (
-                    <View style={styles.stepContent}>
-                        {renderInput('Telephone', 'telephone', '+971 4 123 4567', 'phone-pad')}
-                        {renderInput('Company Email', 'email', 'info@acme.com', 'email-address')}
-                        {renderInput('Website', 'website', 'https://acme.com', 'url')}
-                    </View>
-                );
-
-            case 6: // Documents
-                return (
-                    <View style={styles.stepContent}>
-                        <Text style={styles.sectionTitle}>Company Documents</Text>
-                        <Text style={styles.infoBoxText}>Upload Trade License, Title Deeds, or Tenancy Contracts.</Text>
-
-                        <TouchableOpacity
-                            style={styles.uploadButton}
-                            onPress={() => {
-                                setUploadContext(null);
-                                fileInputRef.current?.click();
-                            }}
-                        >
-                            <MaterialCommunityIcons name="cloud-upload" size={24} color="#3b82f6" />
-                            <Text style={styles.uploadButtonText}>Select Document</Text>
-                        </TouchableOpacity>
-
-                        <View style={styles.docList}>
-                            {existingDocs.map((doc, idx) => (
-                                <View key={`existing-${idx}`} style={styles.docItem}>
-                                    <MaterialCommunityIcons name="file-check" size={20} color="#10b981" />
-                                    <Text style={styles.docName} numberOfLines={1}>{doc.name}</Text>
-                                    <Text style={styles.existingTag}>Saved</Text>
-                                </View>
-                            ))}
-                            {documents.map((doc, idx) => (
-                                <View key={`new-${idx}`} style={styles.docItem}>
-                                    <MaterialCommunityIcons name="file-plus" size={20} color="#3b82f6" />
-                                    <View style={{ flex: 1, marginLeft: 10 }}>
-                                        <Text style={styles.docName} numberOfLines={1}>{doc.name}</Text>
-                                        <Text style={styles.docSize}>{doc.size}</Text>
-                                    </View>
-                                    <TouchableOpacity onPress={() => removeDocument(idx)}>
-                                        <MaterialCommunityIcons name="close-circle" size={20} color="#ef4444" />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                );
-            case 7: // Limits & Privileges
+            case 3: // Limits & Privileges
                 return (
                     <View style={styles.stepContent}>
                         <View style={styles.row}>
@@ -461,31 +375,51 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
 
                         <Text style={[styles.inputLabel, { marginTop: 12 }]}>Enabled Modules*</Text>
                         <View style={styles.moduleGrid}>
-                            {[
-                                { key: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
-                                { key: 'assets', label: 'Assets', icon: 'cube' },
-                                { key: 'vehicles', label: 'Vehicles', icon: 'car' },
-                                { key: 'premises', label: 'Premises', icon: 'office-building' },
-                                { key: 'premises_display', label: 'Premises Display', icon: 'monitor-dashboard' },
-                                { key: 'employees', label: 'Staff Members', icon: 'account-group' },
-                                { key: 'maintenance', label: 'Maintenance', icon: 'wrench' },
-                                { key: 'reports', label: 'Reports', icon: 'file-chart' },
-                            ].map(mod => (
-                                <TouchableOpacity
-                                    key={mod.key}
-                                    style={[styles.moduleChip, formData.enabled_modules.includes(mod.key) && styles.moduleChipActive]}
-                                    onPress={() => {
-                                        const current = [...formData.enabled_modules];
-                                        const idx = current.indexOf(mod.key);
-                                        if (idx > -1) current.splice(idx, 1);
-                                        else current.push(mod.key);
-                                        setFormData({ ...formData, enabled_modules: current });
-                                    }}
-                                >
-                                    <MaterialCommunityIcons name={mod.icon} size={16} color={formData.enabled_modules.includes(mod.key) ? 'white' : '#64748b'} />
-                                    <Text style={[styles.moduleChipText, formData.enabled_modules.includes(mod.key) && styles.moduleChipTextActive]}>{mod.label}</Text>
-                                </TouchableOpacity>
-                            ))}
+                            {(() => {
+                                const baseModules = [
+                                    { key: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
+                                    { key: 'assets', label: 'Assets', icon: 'cube' },
+                                    { key: 'vehicles', label: 'Vehicles', icon: 'car' },
+                                    { key: 'premises', label: 'Premises', icon: 'office-building' },
+                                    { key: 'premises_display', label: 'Premises Display', icon: 'monitor-dashboard' },
+                                    { key: 'employees', label: 'Staff Members', icon: 'account-group' },
+                                    { key: 'maintenance', label: 'Maintenance', icon: 'wrench' },
+                                    { key: 'reports', label: 'Reports', icon: 'file-chart' },
+                                ];
+
+                                const excludedKeys = ['SuperadminDashboard', 'Settings', 'SMTPSettings', 'Roles'];
+                                const sidebarModules = MENU_GROUPS.flatMap(g => g.items || [])
+                                    .filter(item => !excludedKeys.includes(item.key))
+                                    .map(item => ({
+                                        key: MODULE_MAPPING[item.key] || item.key.toLowerCase(),
+                                        label: item.label,
+                                        icon: item.icon ? item.icon.replace('-outline', '') : 'cube',
+                                    }));
+
+                                const modulesToRender = [...baseModules];
+                                sidebarModules.forEach(sm => {
+                                    if (!modulesToRender.some(m => m.key === sm.key)) {
+                                        modulesToRender.push(sm);
+                                    }
+                                });
+
+                                return modulesToRender.map(mod => (
+                                    <TouchableOpacity
+                                        key={mod.key}
+                                        style={[styles.moduleChip, formData.enabled_modules.includes(mod.key) && styles.moduleChipActive]}
+                                        onPress={() => {
+                                            const current = [...formData.enabled_modules];
+                                            const idx = current.indexOf(mod.key);
+                                            if (idx > -1) current.splice(idx, 1);
+                                            else current.push(mod.key);
+                                            setFormData({ ...formData, enabled_modules: current });
+                                        }}
+                                    >
+                                        <MaterialCommunityIcons name={mod.icon} size={16} color={formData.enabled_modules.includes(mod.key) ? 'white' : '#64748b'} />
+                                        <Text style={[styles.moduleChipText, formData.enabled_modules.includes(mod.key) && styles.moduleChipTextActive]}>{mod.label}</Text>
+                                    </TouchableOpacity>
+                                ));
+                            })()}
                         </View>
 
                         {company && (

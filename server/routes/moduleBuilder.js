@@ -11,6 +11,7 @@ router.get('/test-ping', (req, res) => res.json({ success: true, message: 'Route
 
 // 1.1 Fetch Unique Section Names (Templates) - PUBLIC for Debug
 router.get('/section-templates', controller.getSectionTemplates);
+router.get('/preview-id', authMiddleware, controller.previewAutoID);
 
 router.use(authMiddleware);
 router.use(requireRole(['COMPANY_ADMIN', 'SUPER_ADMIN']));

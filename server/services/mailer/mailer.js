@@ -2,8 +2,8 @@ const env = require('../../config/env');
 const { getTransporter } = require('./transporter');
 const templates = require('./templates');
 
-async function sendMail({ to, subject, html, text }) {
-    const transporter = await getTransporter();
+async function sendMail({ to, subject, html, text, clientId = null }) {
+    const transporter = await getTransporter(clientId);
     const config = transporter._config || {};
 
     const fromName = config.from_name || env.MAIL_FROM_NAME || 'Trakio';
@@ -22,12 +22,12 @@ async function sendMail({ to, subject, html, text }) {
     return info;
 }
 
-async function sendWelcomeTempPassword({ name, email, tempPassword, companyName }) {
+async function sendWelcomeTempPassword({ name, email, tempPassword, companyName, clientId = null }) {
     const subject = `🚀 Welcome to ${env.APP_NAME} - Your Account is Ready!`;
     const html = templates.welcomeWithTempPassword({ name, email, tempPassword, companyName });
     const text = `Welcome to ${env.APP_NAME}. Your account is ready. Email: ${email}, Temp Password: ${tempPassword}. Login at ${env.APP_BASE_URL}`;
 
-    return sendMail({ to: email, subject, html, text });
+    return sendMail({ to: email, subject, html, text, clientId });
 }
 
 async function sendResetLink({ name, email, resetLink }) {

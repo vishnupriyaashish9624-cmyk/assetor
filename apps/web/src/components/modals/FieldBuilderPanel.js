@@ -26,6 +26,7 @@ const FIELD_TYPES = [
     { label: 'File Upload', value: 'file', icon: 'file-upload-outline' },
     { label: 'Image Upload', value: 'image', icon: 'image-outline' },
     { label: 'Signature', value: 'signature', icon: 'pen' },
+    { label: 'Auto-generated ID', value: 'auto_generated', icon: 'identifier' },
     { label: 'Rich Text Editor', value: 'richtext', icon: 'format-text' },
     { label: 'Section Break', value: 'section_break', icon: 'minus' },
     { label: 'Hidden Field', value: 'hidden', icon: 'eye-off-outline' },
@@ -59,6 +60,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
     const [submitting, setSubmitting] = useState(false);
     const [showTypeMenu, setShowTypeMenu] = useState(false);
     const [editingFieldId, setEditingFieldId] = useState(null);
+    const [idPrefix, setIdPrefix] = useState('');
 
     // Dialog States
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'info' });
@@ -125,7 +127,8 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
             placeholder: '',
             is_required: false,
             is_active: true,
-            options: []
+            options: [],
+            meta_json: null
         }]);
     };
 
@@ -217,7 +220,8 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                     is_required: f.is_required,
                     is_active: f.is_active,
                     sort_order: parseInt(f.sort_order) || 0,
-                    options: f.options ? f.options.filter(o => o.label && o.value) : []
+                    options: f.options ? f.options.filter(o => o.label && o.value) : [],
+                    meta_json: f.meta_json
                 };
                 return api.post('module-builder/fields', payload);
             });
@@ -317,6 +321,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
         setIsActive(true);
         setSortOrder((fields.length + 1).toString());
         setFieldOptions([{ label: '', value: '' }]); // Reset options
+        setIdPrefix('');
         setEditingFieldId(null);
     };
 
@@ -336,6 +341,17 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
             })));
         } else {
             setFieldOptions([{ label: '', value: '' }]);
+        }
+
+        if (field.meta_json) {
+            try {
+                const meta = typeof field.meta_json === 'string' ? JSON.parse(field.meta_json) : field.meta_json;
+                setIdPrefix(meta.id_code || '');
+            } catch (e) {
+                console.error('Error parsing meta_json:', e);
+            }
+        } else {
+            setIdPrefix('');
         }
 
         setEditingFieldId(field.id);
@@ -373,6 +389,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                 is_active: isActive,
                 sort_order: parseInt(sortOrder) || 0,
                 options: fieldOptions.filter(o => o.label && o.value), // Send valid options
+                meta_json: fieldType === 'auto_generated' ? { id_code: idPrefix } : null
             };
 
             console.log('[FieldBuilder] Saving field with payload:', payload);
@@ -445,7 +462,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
 
     return (
         <View style={styles.container}>
-            {/* Top Section: Module Head / Section Name */}
+            {/* 1. Header: Module & Section Selection */}
             <View style={styles.sectionHeader}>
                 <View>
                     <Text style={styles.sectionLabel}>MODULE STRUCTURE</Text>
@@ -461,9 +478,8 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                         <TouchableOpacity
                             style={[styles.sectionDropdown, (!moduleId || readOnly) && { opacity: 0.8, backgroundColor: '#f8fafc' }]}
                             onPress={() => {
-                                if (readOnly) return;
-                                if (!moduleId) {
-                                    Alert.alert('Attention', 'Please select a Module Name first.');
+                                if (readOnly || !moduleId) {
+                                    if (!moduleId) Alert.alert('Attention', 'Please select a Module Name first.');
                                     return;
                                 }
                                 setShowSectionMenu(true);
@@ -481,7 +497,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                     {selectedSection ? selectedSection.name : (moduleId ? 'Select a section...' : 'Select a module above first')}
                                 </Text>
                             </View>
-                            {!!(!readOnly) && <MaterialCommunityIcons name="chevron-down" size={20} color="#64748b" />}
+                            {!readOnly && <MaterialCommunityIcons name="chevron-down" size={20} color="#64748b" />}
                         </TouchableOpacity>
                     }
                     contentStyle={{ backgroundColor: 'white', width: '100%' }}
@@ -496,7 +512,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                     />
                     <Divider />
                     <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
-                        {!!(!readOnly) && (
+                        {!readOnly && (
                             <>
                                 <Menu.Item
                                     icon="plus"
@@ -510,27 +526,20 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                 <Divider />
                             </>
                         )}
-                        {(() => {
-                            const visibleSections = sections.filter(s =>
-                                s.name.toLowerCase().includes(sectionSearchQuery.toLowerCase())
-                            );
-
-                            if (visibleSections.length === 0 && sectionSearchQuery) {
-                                return <Menu.Item title="No matching sections" disabled />;
-                            }
-
-                            return visibleSections.map(s => (
+                        {sections
+                            .filter(s => s.name.toLowerCase().includes(sectionSearchQuery.toLowerCase()))
+                            .map(s => (
                                 <Menu.Item
                                     key={s.id}
                                     onPress={() => {
                                         setSelectedSection(s);
                                         setShowSectionMenu(false);
-                                        setSectionSearchQuery('');
+                                        setSectionSearchQuery(s.name);
                                     }}
                                     title={s.name}
                                 />
-                            ));
-                        })()}
+                            ))
+                        }
                     </ScrollView>
                 </Menu>
 
@@ -543,14 +552,14 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                 />
             </View>
 
-            <Divider style={{ marginVertical: 20, backgroundColor: '#e2e8f0' }} />
+            <Divider style={{ marginVertical: 12, backgroundColor: '#e2e8f0' }} />
 
-            {/* Wizard Step Indicator */}
+            {/* 2. Wizard Indicator */}
             {!readOnly && (
                 <View style={styles.wizardIndicator}>
                     {[
-                        { id: 1, title: 'Field Configuration', icon: 'playlist-edit' },
-                        { id: 2, title: 'Field Preview', icon: 'eye-outline' }
+                        { id: 1, title: 'Configuration', icon: 'playlist-edit' },
+                        { id: 2, title: 'Preview & Manage', icon: 'eye-outline' }
                     ].map((step, idx) => (
                         <React.Fragment key={step.id}>
                             <TouchableOpacity
@@ -560,7 +569,7 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                 <View style={[styles.stepIcon, wizardStep === step.id && styles.stepIconActive]}>
                                     <MaterialCommunityIcons
                                         name={step.icon}
-                                        size={20}
+                                        size={18}
                                         color={wizardStep === step.id ? '#fff' : '#64748b'}
                                     />
                                 </View>
@@ -574,44 +583,26 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                 </View>
             )}
 
-            <View style={[styles.contentRow, !selectedSection && { opacity: 0.5 }]}>
-                {/* Step 1: Configuration Form */}
-                {(!readOnly && wizardStep === 1) && (
+            {/* 3. Main Content Area */}
+            <View style={[styles.contentRow, (!selectedSection || loadingSections) && { opacity: 0.5 }]}>
+
+                {(!readOnly && wizardStep === 1) ? (
+                    /* --- STEP 1: CONFIGURATION --- */
                     <View style={styles.wizardStepContent} pointerEvents={!selectedSection ? 'none' : 'auto'}>
-
-                        {/* --- MODE SWITCH: EDIT vs MULTI-DRAFT --- */}
                         {editingFieldId ? (
-                            <View style={{ flex: 1, flexDirection: 'column' }}>
-                                <Text style={styles.columnTitle}>Edit Field</Text>
-
-                                {/* Scrollable Form Content */}
-                                <ScrollView
-                                    style={{ flex: 1 }}
-                                    showsVerticalScrollIndicator={true}
-                                    nestedScrollEnabled={true}
-                                    contentContainerStyle={{ paddingBottom: 16 }}
-                                >
-                                    {/* Row 1: Label & Key */}
+                            /* EDIT MODE */
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                                    <IconButton icon="arrow-left" size={20} onPress={resetForm} />
+                                    <Text style={styles.columnTitle}>Edit Field: {fieldLabel}</Text>
+                                </View>
+                                <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingBottom: 100 }}>
                                     <View style={styles.inputRow}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.fieldLabel}>Field Label</Text>
-                                            <TextInput
-                                                mode="outlined"
-                                                value={fieldLabel}
-                                                onChangeText={handleLabelChange}
-                                                style={styles.input}
-                                                outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                dense
-                                                disabled={!selectedSection}
-                                                placeholder="e.g. Client Name"
-                                                placeholderTextColor="#94a3b8"
-                                            />
+                                            <TextInput mode="outlined" value={fieldLabel} onChangeText={handleLabelChange} style={styles.input} outlineStyle={{ borderRadius: 12 }} />
                                         </View>
-
                                     </View>
-
-                                    {/* Row 2: Type & Sort Order */}
                                     <View style={styles.inputRow}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.fieldLabel}>Field Type</Text>
@@ -619,685 +610,220 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                 visible={showTypeMenu}
                                                 onDismiss={() => setShowTypeMenu(false)}
                                                 anchor={
-                                                    <TouchableOpacity
-                                                        style={styles.typeDropdown}
-                                                        onPress={() => selectedSection && setShowTypeMenu(true)}
-                                                        disabled={!selectedSection}
-                                                    >
+                                                    <TouchableOpacity style={styles.typeDropdown} onPress={() => setShowTypeMenu(true)}>
                                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                            <MaterialCommunityIcons
-                                                                name={currentType.icon}
-                                                                size={18}
-                                                                color={!selectedSection ? '#94a3b8' : '#475569'}
-                                                                style={{ marginRight: 8 }}
-                                                            />
-                                                            <Text style={{ fontSize: 14, color: !selectedSection ? '#94a3b8' : '#0f172a' }}>
-                                                                {currentType.label}
-                                                            </Text>
+                                                            <MaterialCommunityIcons name={currentType.icon} size={18} color="#475569" style={{ marginRight: 8 }} />
+                                                            <Text>{currentType.label}</Text>
                                                         </View>
                                                         <MaterialCommunityIcons name="chevron-down" size={18} color="#64748b" />
                                                     </TouchableOpacity>
                                                 }
-                                                contentStyle={{ backgroundColor: 'white', maxHeight: 300 }}
                                             >
-                                                <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={true}>
+                                                <ScrollView style={{ maxHeight: 300 }}>
                                                     {FIELD_TYPES.map(t => (
-                                                        <Menu.Item
-                                                            key={t.value}
-                                                            onPress={() => {
-                                                                setFieldType(t.value);
-                                                                setShowTypeMenu(false);
-                                                            }}
-                                                            title={t.label}
-                                                            leadingIcon={t.icon}
-                                                        />
+                                                        <Menu.Item key={t.value} title={t.label} leadingIcon={t.icon} onPress={() => { setFieldType(t.value); setShowTypeMenu(false); }} />
                                                     ))}
                                                 </ScrollView>
                                             </Menu>
                                         </View>
-                                        <View style={{ flex: 1 }}>
+                                        <View style={{ flex: 0.5 }}>
                                             <Text style={styles.fieldLabel}>Sort Order</Text>
-                                            <TextInput
-                                                mode="outlined"
-                                                value={sortOrder}
-                                                onChangeText={setSortOrder}
-                                                keyboardType="numeric"
-                                                style={styles.input}
-                                                outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                dense
-                                                disabled={!selectedSection}
-                                            />
+                                            <TextInput mode="outlined" value={sortOrder} onChangeText={setSortOrder} keyboardType="numeric" style={styles.input} outlineStyle={{ borderRadius: 12 }} />
                                         </View>
+                                    </View>
 
-                                        {/* Inline File Options Button */}
-                                        {['file', 'image', 'signature'].includes(currentType.value) && (
-                                            <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 2 }}>
-                                                <TouchableOpacity
-                                                    onPress={() => {
-                                                        openFileConfigDialog('edit', -1, placeholder);
-                                                    }}
-                                                    style={{ height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 4, borderStyle: 'dashed' }}
-                                                >
-                                                    <MaterialCommunityIcons name="cog" size={16} color="#3b82f6" />
-                                                    <Text style={{ color: '#3b82f6', fontSize: 12, fontWeight: '600' }}>
-                                                        {placeholder && placeholder.startsWith("JSON:") ? "Edit Options" : "Add Options"}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                    {currentType.value === 'auto_generated' ? (
+                                        <View style={{ marginBottom: 20 }}>
+                                            <Text style={styles.fieldLabel}>ID Prefix / Code (e.g. VH, INV)</Text>
+                                            <TextInput mode="outlined" value={idPrefix} onChangeText={setIdPrefix} style={styles.input} outlineStyle={{ borderRadius: 12 }} placeholder="e.g. VH" />
+                                            <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>This will be used as the prefix for auto-generated IDs.</Text>
+                                        </View>
+                                    ) : (
+                                        ['file', 'image', 'signature'].includes(currentType.value) ? (
+                                            <TouchableOpacity onPress={() => openFileConfigDialog('edit', -1, placeholder)} style={{ marginBottom: 20, padding: 16, backgroundColor: '#eff6ff', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#bfdbfe', flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                                                <MaterialCommunityIcons name="cog-outline" size={24} color="#3b82f6" />
+                                                <View>
+                                                    <Text style={{ color: '#1e40af', fontWeight: 'bold' }}>Configuration Options</Text>
+                                                    <Text style={{ color: '#3b82f6', fontSize: 12 }}>Set dates, expiry, and visibility for this field</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <View style={{ marginBottom: 20 }}>
+                                                <Text style={styles.fieldLabel}>Placeholder</Text>
+                                                <TextInput mode="outlined" value={placeholder} onChangeText={setPlaceholder} style={styles.input} outlineStyle={{ borderRadius: 12 }} />
                                             </View>
-                                        )}
-                                    </View>
+                                        )
+                                    )}
 
-                                    {/* Row 3: Placeholder */}
-                                    <View style={{ marginBottom: 16 }}>
-                                        <Text style={styles.fieldLabel}>Placeholder / Helper Text</Text>
-                                        {/* File options moved inline above */}
-                                        {!['file', 'image', 'signature'].includes(currentType.value) && (
-                                            <TextInput
-                                                mode="outlined"
-                                                value={placeholder}
-                                                onChangeText={setPlaceholder}
-                                                style={styles.input}
-                                                outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                dense
-                                                disabled={!selectedSection}
-                                                placeholder="e.g. Enter client name"
-                                                placeholderTextColor="#94a3b8"
-                                            />
-                                        )}
-                                        {/* Enabled Fields Preview Removed */}
-                                    </View>
-
-                                    {/* Row 4: Options Configuration (Conditional) */}
                                     {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(currentType.value) && (
-                                        <View style={{ marginBottom: 24, backgroundColor: '#f1f5f9', padding: 16, borderRadius: 8 }}>
+                                        <View style={{ marginBottom: 24, padding: 16, borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0' }}>
                                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                                <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Field Options</Text>
-                                                <Button mode="text" padding={0} onPress={() => setFieldOptions([...fieldOptions, { label: '', value: '' }])}>
-                                                    + Add Option
-                                                </Button>
+                                                <Text style={styles.fieldLabel}>OPTIONS</Text>
+                                                <Button mode="text" labelStyle={{ fontWeight: '700' }} onPress={() => setFieldOptions([...fieldOptions, { label: '', value: '' }])}>+ Add Option</Button>
                                             </View>
-
-                                            {fieldOptions.map((opt, index) => (
-                                                <View key={index} style={{ flexDirection: 'row', gap: 12, marginBottom: 8, alignItems: 'center' }}>
-                                                    <TextInput
-                                                        mode="outlined"
-                                                        placeholder="Label (e.g. High)"
-                                                        value={opt.label}
-                                                        onChangeText={(txt) => {
-                                                            const prevOption = fieldOptions[index];
-                                                            const newOpts = [...fieldOptions];
-                                                            // Clone the item
-                                                            newOpts[index] = { ...prevOption, label: txt };
-
-                                                            // Check if we should auto-update the value
-                                                            const oldSlugLower = (prevOption.label || '').toLowerCase().replace(/\s+/g, '_');
-                                                            const oldSlugUpper = (prevOption.label || '').toUpperCase().replace(/\s+/g, '_');
-                                                            const currentVal = prevOption.value || '';
-
-                                                            if (!currentVal || currentVal === oldSlugLower || currentVal === oldSlugUpper) {
-                                                                newOpts[index].value = txt.toLowerCase().replace(/\s+/g, '_');
-                                                            }
-
-                                                            setFieldOptions(newOpts);
-                                                        }}
-                                                        style={[styles.input, { flex: 1, height: 40 }]}
-                                                        dense
-                                                        outlineColor="#cbd5e1"
-                                                    />
-                                                    <TextInput
-                                                        mode="outlined"
-                                                        placeholder="Value (e.g. HIGH)"
-                                                        value={opt.value}
-                                                        onChangeText={(txt) => {
-                                                            const newOpts = [...fieldOptions];
-                                                            newOpts[index].value = txt;
-                                                            setFieldOptions(newOpts);
-                                                        }}
-                                                        style={[styles.input, { flex: 1, height: 40 }]}
-                                                        dense
-                                                        outlineColor="#cbd5e1"
-                                                    />
-                                                    <View style={{ flexDirection: 'row' }}>
-                                                        <IconButton
-                                                            icon="plus"
-                                                            size={20}
-                                                            iconColor="#3b82f6"
-                                                            onPress={() => {
-                                                                const newOpts = [...fieldOptions];
-                                                                newOpts.splice(index + 1, 0, { label: '', value: '' });
-                                                                setFieldOptions(newOpts);
-                                                            }}
-                                                        />
-                                                        <IconButton
-                                                            icon="close-circle-outline"
-                                                            size={20}
-                                                            iconColor="#ef4444"
-                                                            onPress={() => {
-                                                                const newOpts = fieldOptions.filter((_, i) => i !== index);
-                                                                setFieldOptions(newOpts);
-                                                            }}
-                                                        />
-                                                    </View>
+                                            {fieldOptions.map((opt, idx) => (
+                                                <View key={idx} style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                                                    <TextInput placeholder="Label" value={opt.label} onChangeText={(t) => {
+                                                        const newOpts = [...fieldOptions];
+                                                        newOpts[idx].label = t;
+                                                        if (!newOpts[idx].value || newOpts[idx].value === (opt.prevValue || '').toLowerCase().replace(/\s+/g, '_')) {
+                                                            newOpts[idx].value = t.toLowerCase().replace(/\s+/g, '_');
+                                                        }
+                                                        newOpts[idx].prevValue = t.toLowerCase().replace(/\s+/g, '_');
+                                                        setFieldOptions(newOpts);
+                                                    }} style={{ flex: 1, height: 40 }} dense mode="outlined" />
+                                                    <TextInput placeholder="Value" value={opt.value} onChangeText={(t) => {
+                                                        const newOpts = [...fieldOptions];
+                                                        newOpts[idx].value = t;
+                                                        setFieldOptions(newOpts);
+                                                    }} style={{ flex: 1, height: 40 }} dense mode="outlined" />
+                                                    <IconButton icon="close-circle" iconColor="#ef4444" size={20} onPress={() => setFieldOptions(fieldOptions.filter((_, i) => i !== idx))} />
                                                 </View>
                                             ))}
-                                            {fieldOptions.length === 0 && (
-                                                <Text style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>No options defined yet.</Text>
-                                            )}
                                         </View>
                                     )}
 
-                                    {/* Row 5: Toggles */}
                                     <View style={styles.toggleRow}>
                                         <View style={styles.toggleItem}>
                                             <Text style={styles.toggleLabel}>Required</Text>
-                                            <Switch
-                                                value={isRequired}
-                                                onValueChange={setIsRequired}
-                                                color="#3b82f6"
-                                                disabled={!selectedSection}
-                                            />
+                                            <Switch value={isRequired} onValueChange={setIsRequired} color="#673ab7" />
                                         </View>
                                         <View style={styles.toggleItem}>
                                             <Text style={styles.toggleLabel}>Active</Text>
-                                            <Switch
-                                                value={isActive}
-                                                onValueChange={setIsActive}
-                                                color="#3b82f6"
-                                                disabled={!selectedSection}
-                                            />
+                                            <Switch value={isActive} onValueChange={setIsActive} color="#673ab7" />
                                         </View>
                                     </View>
                                 </ScrollView>
-
-                                {/* Fixed Button Bar at Bottom */}
-                                <View style={{
-                                    flexDirection: 'row',
-                                    gap: 12,
-                                    paddingTop: 16,
-                                    paddingBottom: 8,
-                                    borderTopWidth: 1,
-                                    borderTopColor: '#e2e8f0',
-                                    backgroundColor: '#ffffff'
-                                }}>
-                                    <Button
-                                        mode="outlined"
-                                        onPress={resetForm}
-                                        style={{ flex: 1, borderColor: '#cbd5e1' }}
-                                        textColor="#64748b"
-                                        disabled={submitting}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        mode="contained"
-                                        onPress={handleSaveField}
-                                        loading={submitting}
-                                        style={[styles.saveButton, { flex: 2 }]}
-                                        labelStyle={{ fontSize: 14, fontWeight: 'bold' }}
-                                        contentStyle={{ height: 44 }}
-                                        disabled={!selectedSection}
-                                    >
-                                        Update
-                                    </Button>
+                                <View style={{ paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#e2e8f0', flexDirection: 'row', gap: 12 }}>
+                                    <Button mode="outlined" style={{ flex: 1, borderRadius: 12 }} onPress={resetForm}>Cancel</Button>
+                                    <Button mode="contained" style={{ flex: 2, borderRadius: 12 }} buttonColor="#673ab7" loading={submitting} onPress={handleSaveField}>Save Changes</Button>
                                 </View>
                             </View>
                         ) : (
-                            /* --- NEW MULTI-DRAFT ADD MODE --- */
+                            /* MULTI-ADD MODE */
                             <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                                    <Text style={[styles.columnTitle, { marginBottom: 0 }]}>
-                                        {selectedSection ? `Add New Field to: ${selectedSection.name}` : 'Field Configuration'}
-                                    </Text>
-                                    {selectedSection && (
-                                        <TouchableOpacity onPress={addDraftRow} style={styles.addDraftBtn}>
-                                            <MaterialCommunityIcons name="plus" size={20} color="white" />
-                                        </TouchableOpacity>
-                                    )}
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                    <Text style={styles.columnTitle}>New Fields Queue</Text>
+                                    <Button mode="contained" icon="plus" buttonColor="#673ab7" style={{ borderRadius: 100 }} onPress={addDraftRow}>Add Field</Button>
                                 </View>
-
-                                <ScrollView
-                                    style={{ flex: 1 }}
-                                    showsVerticalScrollIndicator={true}
-                                    nestedScrollEnabled={true}
-                                    contentContainerStyle={{ paddingBottom: 100 }}
-                                >
-                                    {draftFields.map((draft, idx) => {
-                                        const dType = FIELD_TYPES.find(t => t.value === draft.field_type) || FIELD_TYPES[0];
-                                        return (
+                                <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingBottom: 150 }}>
+                                    {draftFields.length === 0 ? (
+                                        <View style={styles.emptyState}>
+                                            <MaterialCommunityIcons name="playlist-plus" size={48} color="#cbd5e1" />
+                                            <Text style={styles.emptyText}>Add fields to the queue to save them all at once.</Text>
+                                        </View>
+                                    ) : (
+                                        draftFields.map((draft, idx) => (
                                             <View key={draft._tempId || idx} style={styles.draftRowCard}>
-                                                <TouchableOpacity style={styles.removeRowBtn} onPress={() => removeDraftRow(idx)}>
-                                                    <MaterialCommunityIcons name="close" size={16} color="#ef4444" />
-                                                </TouchableOpacity>
-
-                                                {/* Row 1: Label & Key */}
+                                                <IconButton icon="close" size={18} iconColor="#ef4444" style={styles.removeRowBtn} onPress={() => removeDraftRow(idx)} />
                                                 <View style={styles.inputRow}>
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={styles.fieldLabel}>Field Label</Text>
-                                                        <TextInput
-                                                            mode="outlined"
-                                                            value={draft.label}
-                                                            onChangeText={(txt) => updateDraftRow(idx, 'label', txt)}
-                                                            style={styles.input}
-                                                            dense
-                                                            outlineColor="#cbd5e1"
-                                                            placeholder="e.g. Phone Number"
-                                                            placeholderTextColor="#94a3b8"
-                                                        />
+                                                        <TextInput mode="outlined" value={draft.label} onChangeText={(t) => updateDraftRow(idx, 'label', t)} style={{ height: 44, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} placeholder="e.g. Full Name" />
                                                     </View>
-
-                                                </View>
-
-                                                {/* Row 2: Type & Sort & Config */}
-                                                <View style={styles.inputRow}>
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={styles.fieldLabel}>Type</Text>
                                                         <Menu
                                                             visible={activeTypeMenuIndex === idx}
                                                             onDismiss={() => setActiveTypeMenuIndex(null)}
                                                             anchor={
-                                                                <TouchableOpacity
-                                                                    style={styles.typeDropdown}
-                                                                    onPress={() => setActiveTypeMenuIndex(idx)}
-                                                                >
-                                                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                                        <MaterialCommunityIcons name={dType.icon} size={18} color="#475569" style={{ marginRight: 8 }} />
-                                                                        <Text>{dType.label}</Text>
-                                                                    </View>
-                                                                    <MaterialCommunityIcons name="chevron-down" size={18} color="#64748b" />
+                                                                <TouchableOpacity style={[styles.typeDropdown, { height: 44, borderRadius: 8 }]} onPress={() => setActiveTypeMenuIndex(idx)}>
+                                                                    <MaterialCommunityIcons name={(FIELD_TYPES.find(t => t.value === draft.field_type) || FIELD_TYPES[0]).icon} size={16} color="#64748b" />
+                                                                    <Text style={{ fontSize: 13, flex: 1, marginLeft: 8 }}>{(FIELD_TYPES.find(t => t.value === draft.field_type) || FIELD_TYPES[0]).label}</Text>
+                                                                    <MaterialCommunityIcons name="chevron-down" size={16} color="#94a3b8" />
                                                                 </TouchableOpacity>
                                                             }
                                                         >
-                                                            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
+                                                            <ScrollView style={{ maxHeight: 200 }}>
                                                                 {FIELD_TYPES.map(t => (
-                                                                    <Menu.Item
-                                                                        key={t.value}
-                                                                        onPress={() => {
-                                                                            updateDraftRow(idx, 'field_type', t.value);
-                                                                            setActiveTypeMenuIndex(null);
-                                                                        }}
-                                                                        title={t.label}
-                                                                        leadingIcon={t.icon}
-                                                                    />
+                                                                    <Menu.Item key={t.value} title={t.label} leadingIcon={t.icon} onPress={() => { updateDraftRow(idx, 'field_type', t.value); setActiveTypeMenuIndex(null); }} />
                                                                 ))}
                                                             </ScrollView>
                                                         </Menu>
                                                     </View>
-                                                    <View style={{ flex: 0.6 }}>
-                                                        <Text style={styles.fieldLabel}>Sort</Text>
-                                                        <TextInput
-                                                            mode="outlined"
-                                                            value={String(draft.sort_order)}
-                                                            onChangeText={(txt) => updateDraftRow(idx, 'sort_order', txt)}
-                                                            keyboardType="numeric"
-                                                            style={styles.input}
-                                                            dense
-                                                            outlineColor="#cbd5e1"
-                                                        />
-                                                    </View>
-
-                                                    {/* File Fetching UI */}
-
-
-                                                    {/* File Config Button inline */}
-                                                    {['file', 'image', 'signature'].includes(draft.field_type) && (
-                                                        <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 2 }}>
-                                                            <TouchableOpacity
-                                                                onPress={() => {
-                                                                    openFileConfigDialog('draft', idx, draft.placeholder);
-                                                                }}
-                                                                style={{ height: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 4, borderStyle: 'dashed' }}
-                                                            >
-                                                                <MaterialCommunityIcons name="cog" size={16} color="#3b82f6" />
-                                                                <Text style={{ color: '#3b82f6', fontSize: 12, fontWeight: '600' }}>
-                                                                    File Configuration
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    )}
                                                 </View>
 
-                                                {/* Row 3: Placeholder (Hidden for file types) */}
-                                                {!['file', 'image', 'signature'].includes(draft.field_type) && (
+                                                {draft.field_type === 'auto_generated' && (
                                                     <View style={{ marginBottom: 12 }}>
-                                                        <Text style={styles.fieldLabel}>Placeholder</Text>
+                                                        <Text style={styles.fieldLabel}>ID Prefix (e.g. VH)</Text>
                                                         <TextInput
                                                             mode="outlined"
-                                                            value={draft.placeholder}
-                                                            onChangeText={(txt) => updateDraftRow(idx, 'placeholder', txt)}
-                                                            style={styles.input}
                                                             dense
-                                                            outlineColor="#cbd5e1"
-                                                            placeholder="e.g. 050-1234567"
-                                                            placeholderTextColor="#94a3b8"
+                                                            style={{ height: 36, backgroundColor: '#fff' }}
+                                                            value={draft.meta_json?.id_code || ''}
+                                                            onChangeText={(v) => {
+                                                                const newMeta = { ...(draft.meta_json || {}), id_code: v };
+                                                                updateDraftRow(idx, 'meta_json', newMeta);
+                                                            }}
+                                                            placeholder="VH"
                                                         />
                                                     </View>
                                                 )}
 
-                                                {/* File Configuration Preview */}
-                                                {/* Files Preview Removed */}
+                                                {['file', 'image', 'signature'].includes(draft.field_type) && (
+                                                    <TouchableOpacity onPress={() => openFileConfigDialog('draft', idx, draft.placeholder)} style={{ marginBottom: 12, padding: 10, backgroundColor: '#f0f9ff', borderRadius: 8, borderStyle: 'dashed', borderWidth: 1, borderColor: '#bae6fd', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                        <MaterialCommunityIcons name="cog" size={18} color="#0284c7" />
+                                                        <Text style={{ color: '#0369a1', fontSize: 12, fontWeight: '700' }}>Configure File Properties</Text>
+                                                    </TouchableOpacity>
+                                                )}
 
-
-                                                {/* Row 4: Options */}
                                                 {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(draft.field_type) && (
-                                                    <View style={{ backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
-                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                                                            <Text style={[styles.fieldLabel, { marginBottom: 0, fontSize: 11 }]}>OPTIONS</Text>
-                                                            <TouchableOpacity onPress={() => {
-                                                                const newOpts = [...(draft.options || []), { label: '', value: '' }];
-                                                                updateDraftRow(idx, 'options', newOpts);
-                                                            }}>
-                                                                <Text style={{ color: '#3b82f6', fontSize: 12, fontWeight: '600' }}>+ Add Option</Text>
+                                                    <View style={{ marginBottom: 12, padding: 12, backgroundColor: '#f8fafc', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#64748b' }}>OPTIONS</Text>
+                                                            <TouchableOpacity onPress={() => handleDraftOptionChange(idx, (draft.options?.length || 0), 'label', '')}>
+                                                                <Text style={{ color: '#673ab7', fontSize: 11, fontWeight: 'bold' }}>+ ADD</Text>
                                                             </TouchableOpacity>
                                                         </View>
-
                                                         {(draft.options || []).map((opt, oIdx) => (
-                                                            <View key={oIdx} style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                                                                <TextInput
-                                                                    placeholder="Label"
-                                                                    value={opt.label}
-                                                                    onChangeText={(t) => handleDraftOptionChange(idx, oIdx, 'label', t)}
-                                                                    style={[styles.input, { flex: 1, height: 36, fontSize: 13 }]}
-                                                                    dense
-                                                                    mode="outlined"
-                                                                    outlineColor="#cbd5e1"
-                                                                />
-                                                                <TextInput
-                                                                    placeholder="Value"
-                                                                    value={opt.value}
-                                                                    onChangeText={(t) => handleDraftOptionChange(idx, oIdx, 'value', t)}
-                                                                    style={[styles.input, { flex: 1, height: 36, fontSize: 13 }]}
-                                                                    dense
-                                                                    mode="outlined"
-                                                                    outlineColor="#cbd5e1"
-                                                                />
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const newOpts = [...draft.options];
+                                                            <View key={oIdx} style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                                                                <TextInput placeholder="Label" mode="outlined" dense style={{ flex: 1, height: 32 }} value={opt.label} onChangeText={(v) => handleDraftOptionChange(idx, oIdx, 'label', v)} />
+                                                                <TextInput placeholder="Value" mode="outlined" dense style={{ flex: 1, height: 32 }} value={opt.value} onChangeText={(v) => handleDraftOptionChange(idx, oIdx, 'value', v)} />
+                                                                <IconButton icon="close-circle" size={16} iconColor="#94a3b8" onPress={() => {
+                                                                    const newOpts = [...(draft.options || [])];
                                                                     newOpts.splice(oIdx, 1);
                                                                     updateDraftRow(idx, 'options', newOpts);
-                                                                }}>
-                                                                    <MaterialCommunityIcons name="close-circle" size={18} color="#94a3b8" />
-                                                                </TouchableOpacity>
+                                                                }} />
                                                             </View>
                                                         ))}
                                                     </View>
                                                 )}
 
-                                                {/* Row 5: Toggles */}
-                                                <View style={styles.toggleRow}>
-                                                    <View style={styles.toggleItem}>
-                                                        <Text style={styles.toggleLabel}>Required</Text>
-                                                        <Switch value={draft.is_required} onValueChange={(v) => updateDraftRow(idx, 'is_required', v)} color="#10b981" />
+                                                <View style={{ flexDirection: 'row', gap: 20, alignItems: 'center' }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                        <Text style={{ fontSize: 11 }}>Required</Text>
+                                                        <Switch value={draft.is_required} onValueChange={(v) => updateDraftRow(idx, 'is_required', v)} color="#673ab7" />
                                                     </View>
-                                                    <View style={styles.toggleItem}>
-                                                        <Text style={styles.toggleLabel}>Active</Text>
-                                                        <Switch value={draft.is_active} onValueChange={(v) => updateDraftRow(idx, 'is_active', v)} color="#10b981" />
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                        <Text style={{ fontSize: 11 }}>Active</Text>
+                                                        <Switch value={draft.is_active} onValueChange={(v) => updateDraftRow(idx, 'is_active', v)} color="#673ab7" />
+                                                    </View>
+                                                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                                                        <Text style={{ fontSize: 11 }}>Sort</Text>
+                                                        <NativeTextInput value={String(draft.sort_order)} onChangeText={(v) => updateDraftRow(idx, 'sort_order', v)} style={{ width: 40, height: 32, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, textAlign: 'center', fontSize: 12 }} keyboardType="numeric" />
                                                     </View>
                                                 </View>
                                             </View>
-                                        );
-                                    })}
+                                        ))
+                                    )}
                                 </ScrollView>
-
-                                {!readOnly && (
-                                    <Button
-                                        mode="contained"
-                                        onPress={handleSaveAllDrafts}
-                                        loading={submitting}
-                                        style={[styles.saveButton, { marginTop: 16 }]}
-                                        labelStyle={{ fontWeight: 'bold' }}
-                                        disabled={!selectedSection || draftFields.length === 0}
-                                    >
-                                        Save All Fields
-                                    </Button>
-                                )}
-                            </View>
-                        )}
-
-                        {!readOnly && (
-                            <View style={styles.wizardNav}>
-                                <Text style={styles.wizardHint}>Setup your fields, then click Next to preview them.</Text>
-                                <Button
-                                    mode="contained"
-                                    icon="arrow-right"
-                                    contentStyle={{ flexDirection: 'row-reverse' }}
-                                    onPress={() => setWizardStep(2)}
-                                    buttonColor="#1e293b"
-                                    style={{ borderRadius: 100, elevation: 0, height: 48, justifyContent: 'center' }}
-                                    labelStyle={{ fontWeight: '700' }}
-                                >
-                                    Next: Preview
-                                </Button>
                             </View>
                         )}
                     </View>
-                )}
-
-                {/* Step 2: Preview Area (Always show if readOnly, otherwise only in Step 2) */}
-                {(readOnly || wizardStep === 2) && (
-                    <View style={[styles.wizardStepContent, !selectedSection && { opacity: 0.8 }]}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                            <Text style={[styles.columnTitle, { marginBottom: 0 }]}>
-                                {readOnly ? 'Section Structure' : 'Section Fields Preview'}
-                            </Text>
+                ) : (
+                    /* --- STEP 2: PREVIEW & MANAGE --- */
+                    <View style={styles.wizardStepContent}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <Text style={styles.columnTitle}>{readOnly ? 'Section Fields' : 'Preview & Management'}</Text>
                             {!readOnly && (
-                                <Button
-                                    mode="outlined"
-                                    onPress={() => setWizardStep(1)}
-                                    icon="arrow-left"
-                                    style={{ borderRadius: 100, borderColor: '#e2e8f0' }}
-                                    labelStyle={{ fontSize: 13, fontWeight: '700', color: '#673ab7' }}
-                                >
-                                    Back to Config
-                                </Button>
+                                <Button mode="outlined" compact onPress={() => setWizardStep(1)} labelStyle={{ fontSize: 12 }}>Back to Config</Button>
                             )}
                         </View>
-                        <View style={styles.previewBox}><ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 100 }}>
-                            {/* Live Preview Card - Shows current single-edit form state */}
-                            {!!(selectedSection && fieldLabel && editingFieldId) && (
-                                <View style={styles.livePreviewCard}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <View style={{ flex: 1 }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                                <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                                    <Text style={{ fontSize: 10, color: '#3b82f6', fontWeight: 'bold' }}>
-                                                        EDITING
-                                                    </Text>
-                                                </View>
-                                                <MaterialCommunityIcons
-                                                    name={currentType.icon}
-                                                    size={16}
-                                                    color="#3b82f6"
-                                                />
-                                            </View>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>
-                                                    {fieldLabel || 'Untitled Field'}
-                                                </Text>
-                                                {!!isRequired && (
-                                                    <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
-                                                        <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text>
-                                                    </View>
-                                                )}
-                                            </View>
-                                            <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                {currentType.label}
-                                            </Text>
-                                            {['file', 'image', 'signature'].includes(currentType.value) ? (
-                                                (() => {
-                                                    const config = (placeholder && placeholder.startsWith("JSON:")) ? parseFileConfig(placeholder) : {};
-                                                    return (
-                                                        <View style={{ marginTop: 8 }}>
-                                                            <View style={{ padding: 8, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                                <MaterialCommunityIcons name={currentType.icon} size={20} color="#94a3b8" />
-                                                                <Text style={{ color: '#64748b', fontSize: 12 }}>Upload File Area</Text>
-                                                            </View>
-                                                            {(config.expiry || config.startDate || config.endDate) && (
-                                                                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                                                                    {config.startDate && (
-                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
-                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                            </View>
-                                                                        </View>
-                                                                    )}
-                                                                    {config.endDate && (
-                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
-                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                            </View>
-                                                                        </View>
-                                                                    )}
-                                                                    {config.expiry && (
-                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
-                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                            </View>
-                                                                        </View>
-                                                                    )}
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    );
-                                                })()
-                                            ) : (
-                                                !!placeholder && (
-                                                    <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
-                                                        Placeholder: "{placeholder}"
-                                                    </Text>
-                                                )
-                                            )}
-                                        </View>
-                                    </View>
-                                    {/* Live Preview Options for Edit Mode */}
-                                    {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(currentType.value) &&
-                                        fieldOptions.filter(o => o.label && o.value).length > 0 && (
-                                            <View style={{ marginTop: 12, backgroundColor: '#eff6ff', padding: 8, borderRadius: 6 }}>
-                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#3b82f6', marginBottom: 6, letterSpacing: 0.5 }}>
-                                                    OPTIONS:
-                                                </Text>
-                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                                    {fieldOptions.filter(o => o.label && o.value).map((opt, idx) => (
-                                                        <View key={idx} style={styles.liveOptionChip}>
-                                                            <Text style={{ fontSize: 11, color: '#1e40af' }}>
-                                                                {opt.label}
-                                                            </Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        )}
-                                </View>
-                            )}
-
-                            {/* --- DRAFT FIELDS PREVIEW (Multi-Row Mode) --- */}
-                            {!!draftFields.length && (
-                                <View style={{ marginBottom: 16 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#f59e0b', textTransform: 'uppercase' }}>
-                                            New Drafts ({draftFields.length})
-                                        </Text>
-                                        <View style={{ height: 1, flex: 1, backgroundColor: '#fcd34d' }} />
-                                    </View>
-
-                                    {draftFields.map((draft, idx) => {
-                                        const dType = FIELD_TYPES.find(t => t.value === draft.field_type) || FIELD_TYPES[0];
-                                        return (
-                                            <View key={draft._tempId || idx} style={[styles.previewCard, { borderColor: '#fcd34d', backgroundColor: '#fffbeb' }]}>
-                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                    <View style={{ flex: 1 }}>
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                            <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>{draft.label || '(No Label)'}</Text>
-                                                            {!!draft.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
-                                                            <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
-                                                                <Text style={{ fontSize: 10, color: '#d97706', fontWeight: 'bold' }}>NEW</Text>
-                                                            </View>
-                                                        </View>
-                                                        <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                            {dType.label}
-                                                        </Text>
-                                                        {['file', 'image', 'signature'].includes(draft.field_type) && (() => {
-                                                            const config = (draft.placeholder && draft.placeholder.startsWith("JSON:")) ? parseFileConfig(draft.placeholder) : {};
-                                                            return (
-                                                                <View style={{ marginTop: 6 }}>
-                                                                    <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                                        <MaterialCommunityIcons name={dType.icon} size={16} color="#94a3b8" />
-                                                                        <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
-                                                                    </View>
-                                                                    {(config.expiry || config.startDate || config.endDate) && (
-                                                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                                                                            {config.startDate && (
-                                                                                <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
-                                                                                    <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                                    </View>
-                                                                                </View>
-                                                                            )}
-                                                                            {config.endDate && (
-                                                                                <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
-                                                                                    <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                                    </View>
-                                                                                </View>
-                                                                            )}
-                                                                            {config.expiry && (
-                                                                                <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
-                                                                                    <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                                    </View>
-                                                                                </View>
-                                                                            )}
-                                                                        </View>
-                                                                    )}
-                                                                </View>
-                                                            );
-                                                        })()}
-                                                    </View>
-                                                </View>
-                                                {/* Draft Options Preview */}
-                                                {(['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(draft.field_type) && draft.options && draft.options.length > 0) && (
-                                                    <View style={{ marginTop: 12, backgroundColor: '#fff7ed', padding: 8, borderRadius: 6 }}>
-                                                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#d97706', marginBottom: 6, letterSpacing: 0.5 }}>OPTIONS:</Text>
-                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                                            {draft.options.map((opt, oIdx) => (
-                                                                <View key={oIdx} style={[styles.optionChip, { backgroundColor: 'white', borderColor: '#fdba74' }]}>
-                                                                    <Text style={{ fontSize: 11, color: '#9a3412' }}>
-                                                                        {opt.label || '...'}
-                                                                    </Text>
-                                                                </View>
-                                                            ))}
-                                                        </View>
-                                                    </View>
-                                                )}
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-                            )}
-
-                            {/* Saved Fields Divider */}
-                            {!!fields.length && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, marginTop: 8 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
-                                        Saved Fields
-                                    </Text>
-                                    <View style={{ height: 1, flex: 1, backgroundColor: '#e2e8f0' }} />
-                                </View>
-                            )}
-
-                            {/* Saved Fields */}
-                            {fields.length === 0 && draftFields.length === 0 ? (
+                        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingBottom: 100 }}>
+                            {fields.length === 0 ? (
                                 <View style={styles.emptyState}>
-                                    <Text style={styles.emptyText}>
-                                        {!selectedSection ? 'Select a section to view fields.' : 'No fields yet.'}
-                                    </Text>
+                                    <MaterialCommunityIcons name="form-select" size={40} color="#cbd5e1" />
+                                    <Text style={styles.emptyText}>No saved fields in this section.</Text>
                                 </View>
                             ) : (
                                 fields.map(field => (
@@ -1305,85 +831,28 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <View style={{ flex: 1 }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b' }}>{field.label}</Text>
-                                                    {!!field.is_required && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Text></View>}
+                                                    <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#1e293b' }}>{field.label}</Text>
+                                                    {field.is_required && <Chip style={{ height: 22, backgroundColor: '#fee2e2' }} textStyle={{ fontSize: 10, color: '#ef4444', fontWeight: 'bold' }}>REQ</Chip>}
                                                 </View>
-                                                <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                                                    {field.field_type}
-                                                </Text>
-                                                {['file', 'image', 'signature'].includes(field.field_type) && (() => {
-                                                    const config = (field.placeholder && field.placeholder.startsWith("JSON:")) ? parseFileConfig(field.placeholder) : {};
-                                                    return (
-                                                        <View style={{ marginTop: 6 }}>
-                                                            <View style={{ padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                                <MaterialCommunityIcons name={field.field_type === 'image' ? 'image-outline' : field.field_type === 'signature' ? 'draw' : 'file-upload-outline'} size={16} color="#94a3b8" />
-                                                                <Text style={{ color: '#64748b', fontSize: 11 }}>Upload Area</Text>
-                                                            </View>
-                                                            {(config.expiry || config.startDate || config.endDate) && (
-                                                                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                                                                    {config.startDate && (
-                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>START DATE</Text>
-                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                            </View>
-                                                                        </View>
-                                                                    )}
-                                                                    {config.endDate && (
-                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>END DATE</Text>
-                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                            </View>
-                                                                        </View>
-                                                                    )}
-                                                                    {config.expiry && (
-                                                                        <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>EXPIRY DATE</Text>
-                                                                            <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, paddingHorizontal: 12, height: 40, justifyContent: 'center', backgroundColor: '#fff' }}>
-                                                                                <Text style={{ color: '#cbd5e1', fontSize: 13 }}>YYYY-MM-DD</Text>
-                                                                            </View>
-                                                                        </View>
-                                                                    )}
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    );
-                                                })()}
+                                                <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                                                    <Chip icon={(FIELD_TYPES.find(t => t.value === field.field_type) || FIELD_TYPES[0]).icon} style={{ height: 24 }}>{field.field_type}</Chip>
+                                                    <Chip style={{ height: 24, backgroundColor: '#f1f5f9' }}>Sort: {field.sort_order}</Chip>
+                                                </View>
                                             </View>
-
-                                            {/* Action Buttons - HIDE IF READ ONLY */}
                                             {!readOnly && (
-                                                <View style={{ flexDirection: 'row', gap: 0 }}>
-                                                    <IconButton
-                                                        icon="pencil-outline"
-                                                        size={18}
-                                                        iconColor="#64748b"
-                                                        style={{ margin: 0, width: 32, height: 32 }}
-                                                        onPress={() => handleEdit(field)}
-                                                    />
-                                                    <IconButton
-                                                        icon="trash-can-outline"
-                                                        size={18}
-                                                        iconColor="#ef4444"
-                                                        style={{ margin: 0, width: 32, height: 32 }}
-                                                        onPress={() => handleDeleteField(field)}
-                                                    />
+                                                <View style={{ flexDirection: 'row' }}>
+                                                    <IconButton icon="pencil-outline" size={20} iconColor="#64748b" onPress={() => handleEdit(field)} />
+                                                    <IconButton icon="trash-can-outline" size={20} iconColor="#ef4444" onPress={() => handleDeleteField(field)} />
                                                 </View>
                                             )}
                                         </View>
 
-                                        {/* Render Options Preview if applicable */}
-                                        {!!(['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(field.field_type) && field.options && field.options.length > 0) && (
-                                            <View style={{ marginTop: 12, backgroundColor: '#f8fafc', padding: 8, borderRadius: 6 }}>
-                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', marginBottom: 6, letterSpacing: 0.5 }}>OPTIONS:</Text>
+                                        {['dropdown', 'radio', 'checkbox', 'select', 'multiselect'].includes(field.field_type) && field.options?.length > 0 && (
+                                            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+                                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8', marginBottom: 8 }}>OPTIONS ({field.options.length})</Text>
                                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                                                     {field.options.map((opt, idx) => (
-                                                        <View key={idx} style={styles.optionChip}>
-                                                            <Text style={{ fontSize: 11, color: '#475569' }}>
-                                                                {opt.option_label || opt.label}
-                                                            </Text>
-                                                        </View>
+                                                        <Chip key={idx} style={{ height: 26, backgroundColor: '#fff' }}>{opt.option_label || opt.label}</Chip>
                                                     ))}
                                                 </View>
                                             </View>
@@ -1392,10 +861,43 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                 ))
                             )}
                         </ScrollView>
-                        </View>
                     </View>
                 )}
             </View>
+
+            {/* 4. Global Fixed Footer */}
+            {!readOnly && (
+                <View style={styles.stableFooter}>
+                    <View style={styles.footerInner}>
+                        {wizardStep === 1 && !editingFieldId && (
+                            <Button
+                                mode="outlined"
+                                icon="content-save-all-outline"
+                                onPress={handleSaveAllDrafts}
+                                loading={submitting}
+                                style={{ borderRadius: 100, borderColor: '#673ab7', height: 48, minWidth: 160 }}
+                                textColor="#673ab7"
+                                labelStyle={{ fontWeight: '800' }}
+                                disabled={draftFields.length === 0}
+                            >
+                                Save All Queue
+                            </Button>
+                        )}
+                        <Button
+                            mode="contained"
+                            icon={wizardStep === 1 ? "eye-outline" : "check"}
+                            contentStyle={{ flexDirection: 'row-reverse', height: 48 }}
+                            onPress={() => wizardStep === 1 ? setWizardStep(2) : setShowSectionMenu(false)}
+                            buttonColor="#1e293b"
+                            style={{ borderRadius: 100, minWidth: 140 }}
+                            labelStyle={{ fontWeight: '800' }}
+                        >
+                            {wizardStep === 1 ? "Preview" : "Finish"}
+                        </Button>
+                    </View>
+                </View>
+            )}
+
             <AlertDialog
                 visible={alertConfig.visible}
                 onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
@@ -1425,13 +927,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
-        paddingTop: 40, // Increased top spacing
+        paddingTop: 24, // Moderate top padding
     },
     // Top Section
     sectionHeader: {
-        marginBottom: 0,
+        marginBottom: 24, // Added space below header
         paddingHorizontal: 32,
-        paddingTop: 16, // Added spacing from top
+        paddingTop: 16,
     },
     sectionLabel: {
         fontSize: 12,
@@ -1468,20 +970,40 @@ const styles = StyleSheet.create({
     // Content Columns
     contentRow: {
         flex: 1,
-        paddingTop: 8,
         paddingHorizontal: 32,
-        paddingBottom: 24,
+        paddingBottom: 80, // Space for footer
+    },
+    stableFooter: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        borderTopWidth: 1,
+        borderTopColor: '#e2e8f0',
+        backgroundColor: '#fff',
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 10,
+        zIndex: 100,
+    },
+    footerInner: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 16,
     },
     wizardStepContent: {
         flex: 1,
-        height: '100%',
-        overflow: 'hidden',
+        paddingTop: 12,
     },
     wizardIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 32,
-        marginBottom: 20,
+        marginBottom: 24,
         gap: 12,
     },
     stepItem: {
@@ -1525,11 +1047,12 @@ const styles = StyleSheet.create({
     wizardNav: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingTop: 16,
+        justifyContent: 'flex-end',
+        paddingTop: 24,
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
-        marginTop: 16,
+        marginTop: 40,
+        gap: 12,
     },
     wizardHint: {
         fontSize: 13,
@@ -1564,18 +1087,18 @@ const styles = StyleSheet.create({
     inputRow: {
         flexDirection: 'row',
         gap: 16,
-        marginBottom: 16,
+        marginBottom: 24, // More space between rows
     },
     fieldLabel: {
         fontSize: 12,
         fontWeight: '700', // Bold labels
         color: '#334155',
-        marginBottom: 6,
+        marginBottom: 8, // More space below label
     },
     input: {
         backgroundColor: 'white',
-        height: 48,
-        fontSize: 14,
+        height: 52, // Taller inputs
+        fontSize: 15,
     },
     typeDropdown: {
         height: 48,
@@ -1612,8 +1135,9 @@ const styles = StyleSheet.create({
         borderRadius: 100,
         width: '100%',
         elevation: 0,
-        height: 48,
+        height: 52,
         justifyContent: 'center',
+        // Removed large marginTop as it's now in a fixed container
     },
 
     // Right Col Preview
@@ -1694,15 +1218,17 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderWidth: 1,
         borderColor: '#e2e8f0',
+        borderLeftWidth: 4,
+        borderLeftColor: '#673ab7', // Primary accent
         borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
+        padding: 24,
+        marginBottom: 32,
         position: 'relative',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
+        shadowColor: '#64748b',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 4,
     },
     removeRowBtn: {
         position: 'absolute',

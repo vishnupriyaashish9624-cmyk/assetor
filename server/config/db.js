@@ -24,7 +24,7 @@ const db = {
             if (res.command === 'SELECT') return [res.rows, res.fields];
             return [{
                 affectedRows: res.rowCount,
-                insertId: res.rows?.[0]?.id || null
+                insertId: res.rows?.[0]?.id || (res.rows?.[0] ? Object.values(res.rows[0])[0] : null)
             }, res.fields];
         } finally {
             client.release();
@@ -38,7 +38,7 @@ const db = {
             if (res.command === 'SELECT') return [res.rows, res.fields];
             return [{
                 affectedRows: res.rowCount,
-                insertId: res.rows?.[0]?.id || null
+                insertId: res.rows?.[0]?.id || (res.rows?.[0] ? Object.values(res.rows[0])[0] : null)
             }, res.fields];
         };
         client.beginTransaction = () => client.query('BEGIN');

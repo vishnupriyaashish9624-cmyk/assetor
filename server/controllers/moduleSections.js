@@ -51,7 +51,7 @@ exports.createModuleSection = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Module section created successfully',
-            data: { id: rows[0].id }
+            data: { id: rows.insertId }
         });
     } catch (error) {
         console.error('[CreateModuleSection] Error:', error.message);

@@ -62,7 +62,7 @@ exports.createAsset = async (req, res) => {
             'INSERT INTO assets (company_id, category_id, asset_code, name, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
             [req.companyId, category_id, asset_code, name, brand, model, serial_number, purchase_date, purchase_cost, status || 'AVAILABLE', location, notes]
         );
-        res.status(201).json({ success: true, data: { id: rows[0].id, ...req.body } });
+        res.status(201).json({ success: true, data: { id: rows.insertId, ...req.body } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

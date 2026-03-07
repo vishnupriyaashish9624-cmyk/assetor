@@ -78,8 +78,12 @@ const ModulesHomeScreen = ({ navigation }) => {
             }
         } catch (error) {
             console.error('Save module error:', error);
-            const msg = error.response?.data?.message || 'Failed to save module mapping';
-            Alert.alert('Error', msg);
+            if (error.response?.status === 409) {
+                Alert.alert('Duplicate Configuration', 'This module configuration already exists for your company. Please edit the existing one instead of adding a new one.');
+            } else {
+                const msg = error.response?.data?.message || 'Failed to save module mapping';
+                Alert.alert('Error', msg);
+            }
             throw error;
         }
     };
@@ -265,6 +269,24 @@ const ModulesHomeScreen = ({ navigation }) => {
                                                     <Text style={styles.mobileStatLabel}>Fields:</Text>
                                                     <Text style={styles.mobileStatValue}>{item.field_count || 0}</Text>
                                                 </View>
+                                                <View style={{ flexDirection: 'row', marginLeft: 'auto' }}>
+                                                    <IconButton
+                                                        icon="pencil-outline"
+                                                        size={20}
+                                                        iconColor="#673ab7"
+                                                        onPress={() => handleEditModule(item)}
+                                                        style={{ margin: 0 }}
+                                                        disabled={!item.mapping_id}
+                                                    />
+                                                    <IconButton
+                                                        icon="trash-can-outline"
+                                                        size={20}
+                                                        iconColor="#ef4444"
+                                                        onPress={() => handleDeleteModule(item.id)}
+                                                        style={{ margin: 0 }}
+                                                        disabled={!item.mapping_id}
+                                                    />
+                                                </View>
                                             </View>
                                         </View>
                                     </View>
@@ -305,6 +327,20 @@ const ModulesHomeScreen = ({ navigation }) => {
                                                         size={20}
                                                         iconColor="rgb(239, 149, 10)"
                                                         onPress={() => handleViewModule(item)}
+                                                    />
+                                                    <IconButton
+                                                        icon="pencil-outline"
+                                                        size={20}
+                                                        iconColor="#673ab7"
+                                                        onPress={() => handleEditModule(item)}
+                                                        disabled={!item.mapping_id}
+                                                    />
+                                                    <IconButton
+                                                        icon="trash-can-outline"
+                                                        size={20}
+                                                        iconColor="#ef4444"
+                                                        onPress={() => handleDeleteModule(item.id)}
+                                                        disabled={!item.mapping_id}
                                                     />
                                                 </View>
                                             </DataTable.Cell>

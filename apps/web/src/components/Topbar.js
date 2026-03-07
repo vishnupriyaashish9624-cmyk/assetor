@@ -45,9 +45,11 @@ const Topbar = ({ onMenuPress, isMobile }) => {
                         style={styles.avatar}
                     />
                     <View>
-                        <Text style={styles.profileName}>{user?.name || 'TRakio Admin'}</Text>
+                        <Text style={styles.profileName}>
+                            {user?.name || 'TRakio Admin'}
+                        </Text>
                         <Text style={styles.profileRole}>
-                            {user?.role === 'SUPER_ADMIN' ? 'Superadmin' : (user?.role?.replace('_', ' ') || 'COMPANY ADMIN')}
+                            {user?.client_name ? user.client_name : (user?.role === 'SUPER_ADMIN' ? 'Superadmin' : (user?.role?.replace('_', ' ') || 'COMPANY ADMIN'))}
                         </Text>
                     </View>
                 </View>

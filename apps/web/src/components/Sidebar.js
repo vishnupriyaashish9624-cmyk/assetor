@@ -6,6 +6,72 @@ import useAuthStore from '../store/authStore';
 import OfficeSelectorModal from './modals/OfficeSelectorModal';
 import { useNavigationState } from '@react-navigation/native';
 
+export const MODULE_MAPPING = {
+    'Dashboard': 'dashboard',
+    'AssetDisplay': 'premises_display',
+    'VehicleDisplay': 'vehicles',
+    'Employees': 'employees',
+    'Maintenance': 'maintenance',
+    'Reports': 'reports',
+    'ModulesHome': 'module',
+    'ModuleSections': 'module_sections',
+    'SubModules': 'sub_modules',
+    'Assets': 'assets',
+    'PremisesMaster': 'premises',
+    'Clients': 'clients',
+    'Companies': 'companies',
+};
+
+export const MENU_GROUPS = [
+    {
+        title: null,
+        items: [
+            { key: 'Dashboard', label: 'Dashboard', icon: 'view-dashboard-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'] },
+            { key: 'SuperadminDashboard', label: 'Control Center', icon: 'shield-crown-outline', roles: ['SUPER_ADMIN'] },
+        ]
+    },
+    {
+        title: 'Group Management',
+        key: 'platform',
+        roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
+        items: [
+            { key: 'Companies', label: 'Companies', icon: 'domain', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+            { key: 'Clients', label: 'Clients', icon: 'account-tie-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+        ]
+    },
+    {
+        title: 'Custom Modules',
+        key: 'module_builder',
+        roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'],
+        items: [
+            { key: 'ModulesHome', label: 'Module', icon: 'layers-outline', roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'] },
+            { key: 'ModuleSections', label: 'Module sections', icon: 'view-grid-plus-outline', roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'] },
+            { key: 'SubModules', label: 'Sub-modules', icon: 'file-tree-outline', roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'] },
+        ]
+    },
+    {
+        title: 'Operations',
+        key: 'operations',
+        roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'],
+        items: [
+            { key: 'AssetDisplay', label: 'Premises display', icon: 'monitor-dashboard', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+            { key: 'PremisesMaster', label: 'Premises Master', icon: 'office-building', roles: ['COMPANY_ADMIN'] },
+            { key: 'VehicleDisplay', label: 'Vehicle', icon: 'car-side', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+            { key: 'Employees', label: 'Staff members', icon: 'account-group-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+        ]
+    },
+    {
+        title: 'Settings',
+        key: 'settings',
+        roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
+        items: [
+            { key: 'Settings', label: 'Platform Settings', icon: 'cog-outline', roles: ['SUPER_ADMIN'] },
+            { key: 'SMTPSettings', label: 'SMTP Settings', icon: 'email-cog-outline', roles: ['SUPER_ADMIN'] },
+            { key: 'Roles', label: 'Roles', icon: 'shield-account-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+        ]
+    },
+];
+
 const Sidebar = (props) => {
     const { navigation, onClose, state } = props;
     const user = useAuthStore((state) => state.user);
@@ -25,10 +91,10 @@ const Sidebar = (props) => {
     const [officeSelectorVisible, setOfficeSelectorVisible] = useState(false);
 
     const activeModules = (userRole === 'SUPER_ADMIN')
-        ? ['dashboard', 'assets', 'premises', 'employees', 'maintenance', 'reports', 'premises_display', 'module', 'module_sections', 'sub_modules', 'vehicles']
+        ? ['dashboard', 'assets', 'premises', 'employees', 'maintenance', 'reports', 'premises_display', 'module', 'module_sections', 'sub_modules', 'vehicles', 'clients']
         : (user?.enabled_modules && Array.isArray(user.enabled_modules))
             ? user.enabled_modules
-            : ['dashboard', 'assets', 'employees', 'premises', 'maintenance', 'reports', 'vehicles'];
+            : ['dashboard', 'assets', 'employees', 'premises', 'maintenance', 'reports', 'vehicles', 'clients'];
 
     const toggleGroup = (groupName) => {
         setCollapsedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
@@ -51,20 +117,10 @@ const Sidebar = (props) => {
 
     const isModuleEnabled = (moduleKey) => {
         if (userRole === 'SUPER_ADMIN') return true;
-        const moduleMapping = {
-            'Dashboard': 'dashboard',
-            'AssetDisplay': 'premises_display',
-            'VehicleDisplay': 'vehicles',
-            'Employees': 'employees',
-            'Maintenance': 'maintenance',
-            'Reports': 'reports',
-            'ModulesHome': 'module',
-            'ModuleSections': 'module_sections',
-            'SubModules': 'sub_modules',
-        };
-        const alwaysEnabled = ['Dashboard', 'Companies', 'Settings', 'SuperadminDashboard', 'Clients', 'Roles', 'SMTPSettings'];
+        const alwaysEnabled = ['Dashboard', 'Companies', 'Settings', 'SuperadminDashboard', 'Roles', 'SMTPSettings'];
         if (alwaysEnabled.includes(moduleKey)) return true;
-        const moduleName = moduleMapping[moduleKey];
+
+        const moduleName = MODULE_MAPPING[moduleKey] || moduleKey.toLowerCase();
         return moduleName ? activeModules.includes(moduleName) : false;
     };
 
@@ -72,68 +128,27 @@ const Sidebar = (props) => {
         await logout();
     };
 
-    const menuGroups = [
-        {
-            title: null,
-            items: [
-                { key: 'Dashboard', label: 'Dashboard', icon: 'view-dashboard-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'] },
-                { key: 'SuperadminDashboard', label: 'Control Center', icon: 'shield-crown-outline', roles: ['SUPER_ADMIN'] },
-            ]
-        },
-        {
-            title: 'Platform Management',
-            key: 'platform',
-            roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
-            items: [
-                { key: 'Companies', label: 'Companies', icon: 'domain', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-                { key: 'Clients', label: 'Clients', icon: 'account-tie-outline', roles: ['SUPER_ADMIN'] },
-            ]
-        },
-        {
-            title: 'Custom Modules',
-            key: 'module_builder',
-            roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'],
-            items: [
-                { key: 'ModulesHome', label: 'Module', icon: 'layers-outline', roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'] },
-                { key: 'ModuleSections', label: 'Module sections', icon: 'view-grid-plus-outline', roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'] },
-                { key: 'SubModules', label: 'Sub-modules', icon: 'file-tree-outline', roles: ['COMPANY_ADMIN', 'SUPER_ADMIN'] },
-            ]
-        },
-        {
-            title: 'Operations',
-            key: 'operations',
-            roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'],
-            items: [
-                { key: 'AssetDisplay', label: 'Premises display', icon: 'monitor-dashboard', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-                { key: 'VehicleDisplay', label: 'Vehicle', icon: 'car-side', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-                { key: 'Employees', label: 'Staff members', icon: 'account-group-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-            ]
-        },
-        {
-            title: 'Settings',
-            key: 'settings',
-            roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
-            items: [
-                { key: 'Settings', label: 'Platform Settings', icon: 'cog-outline', roles: ['SUPER_ADMIN'] },
-                { key: 'SMTPSettings', label: 'SMTP Settings', icon: 'email-cog-outline', roles: ['SUPER_ADMIN'] },
-                { key: 'Roles', label: 'Roles', icon: 'shield-account-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-            ]
-        },
-    ];
-
     return (
-        <LinearGradient
-            colors={['rgba(57, 22, 117, 0.9)', 'rgba(117, 70, 204, 1)']}
-            style={styles.container}
-        >
-            <View style={styles.logoContainer}>
+        <View style={styles.container}>
+            <View style={styles.logoRow}>
                 <View style={styles.logoCircle}>
-                    <MaterialCommunityIcons name="office-building" size={36} color="white" />
+                    <Text style={styles.logoInitial}>{(user?.client_name || user?.name || 'L')[0].toUpperCase()}</Text>
+                </View>
+                <Text style={styles.logoText}>{user?.client_name || 'TRakio'}</Text>
+            </View>
+
+            <View style={styles.profileCard}>
+                <View style={styles.profileImagePlaceholder}>
+                    <MaterialCommunityIcons name="account" size={30} color="gray" style={{ marginTop: 5 }} />
+                </View>
+                <View style={styles.profileInfo}>
+                    <Text style={styles.profileName}>{user?.name || user?.first_name || 'TRakio Admin'}</Text>
+                    <Text style={styles.profileRole}>{userRole.replace('_', ' ')}</Text>
                 </View>
             </View>
 
             <ScrollView style={styles.menuContainer} showsVerticalScrollIndicator={false}>
-                {menuGroups.map((group, groupIdx) => {
+                {MENU_GROUPS.map((group, groupIdx) => {
                     if (group.roles && !group.roles.includes(userRole) && userRole !== 'SUPER_ADMIN') return null;
 
                     const visibleItems = group.items.filter(item =>
@@ -166,7 +181,7 @@ const Sidebar = (props) => {
                             )}
 
                             {!isCollapsed && visibleItems.map((item) => {
-                                const isActive = item.key === activeRoute;
+                                const isActive = item.key === activeRoute || (item.key === 'Dashboard' && activeRoute === 'Home');
                                 return (
                                     <TouchableOpacity
                                         key={item.key}
@@ -175,9 +190,9 @@ const Sidebar = (props) => {
                                     >
                                         <MaterialCommunityIcons
                                             name={item.icon}
-                                            size={22}
-                                            color={isActive ? '#401F7A' : 'white'}
-                                            style={[styles.menuIcon, { opacity: isActive ? 1 : 0.7 }]}
+                                            size={20}
+                                            color={isActive ? 'white' : 'rgba(255, 255, 255, 0.8)'}
+                                            style={styles.menuIcon}
                                         />
                                         <Text style={[styles.menuLabel, isActive && styles.activeMenuLabel]}>
                                             {item.label}
@@ -192,7 +207,7 @@ const Sidebar = (props) => {
 
             <View style={styles.footer}>
                 <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                    <MaterialCommunityIcons name="power" size={24} color="white" style={{ marginRight: 15, opacity: 0.8 }} />
+                    <MaterialCommunityIcons name="logout-variant" size={20} color="white" style={{ marginRight: 15 }} />
                     <Text style={styles.logoutText}>Logout</Text>
                 </TouchableOpacity>
             </View>
@@ -202,7 +217,7 @@ const Sidebar = (props) => {
                 onClose={() => setOfficeSelectorVisible(false)}
                 onSelect={handleOfficeSelect}
             />
-        </LinearGradient>
+        </View>
     );
 };
 
@@ -210,112 +225,134 @@ const styles = StyleSheet.create({
     container: {
         width: 260,
         height: '100%',
-        borderTopRightRadius: 40,
-        borderBottomRightRadius: 40,
-        overflow: 'hidden',
-        // Box shadow for the entire sidebar
-        shadowColor: '#000',
-        shadowOffset: { width: 5, height: 0 },
-        shadowOpacity: 0.2,
-        shadowRadius: 15,
+        backgroundColor: '#5231A8',
         elevation: 10,
     },
-    logoContainer: {
-        height: 180,
-        justifyContent: 'center',
+    logoRow: {
+        flexDirection: 'row',
         alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 40,
+        paddingBottom: 20,
     },
     logoCircle: {
-        width: 100,
-        height: 100,
-        borderRadius: 30,
-        backgroundColor: 'rgba(165, 200, 240, 0.2)',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FFD1D1',
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: 'rgba(165, 200, 240, 0.3)',
-        // Shadow for logo circle
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
+        marginRight: 12,
+    },
+    logoInitial: {
+        color: '#D32F2F',
+        fontWeight: 'bold',
+        fontSize: 18,
+    },
+    logoText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 18,
+        letterSpacing: 0.5,
+    },
+    profileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        borderRadius: 12,
+        padding: 12,
+        marginHorizontal: 16,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    profileImagePlaceholder: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#ccc',
+        marginRight: 10,
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    profileInfo: {
+        flex: 1,
+    },
+    profileName: {
+        color: 'white',
+        fontWeight: '700',
+        fontSize: 13,
+        marginBottom: 2,
+    },
+    profileRole: {
+        color: 'rgba(255, 255, 255, 0.6)',
+        fontSize: 9,
+        textTransform: 'uppercase',
+        fontWeight: '600',
+        letterSpacing: 0.5,
     },
     menuContainer: {
         flex: 1,
-        paddingLeft: 20,
+        paddingHorizontal: 0,
     },
     groupContainer: {
-        marginBottom: 25,
+        marginBottom: 8,
     },
     groupHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 15,
-        paddingRight: 15,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        marginTop: 4,
     },
     groupTitle: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: 'rgba(255, 255, 255, 0.35)',
+        fontSize: 10,
+        fontWeight: '700',
+        color: 'rgba(255, 255, 255, 0.5)',
         textTransform: 'uppercase',
-        letterSpacing: 1.5,
+        letterSpacing: 1,
     },
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 15,
-        paddingHorizontal: 25,
-        marginBottom: 5,
-        borderTopLeftRadius: 30,
-        borderBottomLeftRadius: 30,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginHorizontal: 16,
+        marginBottom: 6,
+        borderRadius: 10,
     },
     activeMenuItem: {
-        backgroundColor: 'white',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.15,
-        shadowRadius: 15,
-        elevation: 10,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
     },
     menuIcon: {
-        marginRight: 15,
+        marginRight: 12,
     },
     menuLabel: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '600',
-        color: 'white',
+        color: 'rgba(255, 255, 255, 0.8)',
     },
     activeMenuLabel: {
-        color: '#7a5bebff',
-        fontWeight: '800',
+        color: 'white',
+        fontWeight: '700',
     },
     footer: {
-        paddingVertical: 40,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        padding: 20,
     },
     logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        backgroundColor: 'rgba(165, 200, 240, 0.15)',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
         borderRadius: 12,
-        marginHorizontal: 20,
-        // Shadow for logout button
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
     },
     logoutText: {
-        fontSize: 15,
-        fontWeight: 'bold',
+        fontSize: 14,
+        fontWeight: '700',
         color: 'white',
-        opacity: 0.8,
     }
 });
 

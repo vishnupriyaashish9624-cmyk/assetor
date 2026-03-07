@@ -4,7 +4,12 @@ const authMiddleware = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
+    if (req.method === 'DELETE' || !token) {
+        console.log(`[AuthDebug] Method: ${req.method}, URL: ${req.url}, Token: ${token ? 'Present' : 'NULL'}`);
+    }
+
     if (!token) {
+        if (req.method === 'OPTIONS') return next(); // Skip for preflight
         return res.status(401).json({ success: false, message: 'Access denied. No token provided.' });
     }
 

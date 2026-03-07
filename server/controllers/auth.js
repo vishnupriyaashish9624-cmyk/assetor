@@ -62,6 +62,18 @@ exports.login = async (req, res) => {
             console.error('[Auth] Error fetching enabled_modules:', moduleError);
         }
 
+        let clientName = null;
+        if (user.client_id) {
+            try {
+                const [clients] = await db.execute('SELECT name FROM clients WHERE id = ?', [user.client_id]);
+                if (clients.length > 0) {
+                    clientName = clients[0].name;
+                }
+            } catch (err) {
+                console.error('[Auth] Error fetching client name:', err);
+            }
+        }
+
         // Fetch RBAC Permissions if role_id is present
         let permissions = [];
         if (user.role_id) {
@@ -78,6 +90,7 @@ exports.login = async (req, res) => {
                 id: user.id,
                 company_id: user.company_id,
                 client_id: user.client_id,
+                client_name: clientName,
                 role: user.role,
                 role_id: user.role_id,
                 name: user.name,
@@ -98,6 +111,7 @@ exports.login = async (req, res) => {
                 role_id: user.role_id,
                 company_id: user.company_id,
                 client_id: user.client_id,
+                client_name: clientName,
                 enabled_modules: enabledModules,
                 permissions: permissions,
                 force_reset: user.force_reset
@@ -123,6 +137,7 @@ exports.getMe = async (req, res) => {
         const user = users[0];
         let enabledModules = [];
         let permissions = [];
+        let clientName = null;
 
         // Fetch enabled modules: Prioritize Company, fallback to Client
         if (user.company_id) {
@@ -140,14 +155,17 @@ exports.getMe = async (req, res) => {
 
         if ((!enabledModules || enabledModules.length === 0) && user.client_id) {
             try {
-                const [clients] = await db.execute('SELECT enabled_modules FROM clients WHERE id = ?', [user.client_id]);
-                if (clients.length > 0 && clients[0].enabled_modules) {
-                    enabledModules = typeof clients[0].enabled_modules === 'string'
-                        ? JSON.parse(clients[0].enabled_modules)
-                        : clients[0].enabled_modules;
+                const [clients] = await db.execute('SELECT name, enabled_modules FROM clients WHERE id = ?', [user.client_id]);
+                if (clients.length > 0) {
+                    clientName = clients[0].name;
+                    if (clients[0].enabled_modules) {
+                        enabledModules = typeof clients[0].enabled_modules === 'string'
+                            ? JSON.parse(clients[0].enabled_modules)
+                            : clients[0].enabled_modules;
+                    }
                 }
             } catch (err) {
-                console.error('[GetMe] Error fetching client enabled_modules:', err);
+                console.error('[GetMe] Error fetching client details:', err);
             }
         }
 
@@ -165,6 +183,7 @@ exports.getMe = async (req, res) => {
             success: true,
             user: {
                 ...user,
+                client_name: clientName,
                 enabled_modules: enabledModules,
                 permissions: permissions
             }

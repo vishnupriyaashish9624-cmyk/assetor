@@ -14,6 +14,7 @@ router.use(tenantScope);
 
 // Main Routes
 router.get('/', controller.getVehicles);
+router.get('/usage-options', controller.getUsageOptions);
 router.post('/', controller.createVehicle);
 router.get('/:id', controller.getVehicleById);
 router.put('/:id', controller.updateVehicle);

@@ -22,6 +22,7 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
     const [isRequired, setIsRequired] = useState(false);
     const [isActive, setIsActive] = useState(true);
     const [sortOrder, setSortOrder] = useState('0');
+    const [idPrefix, setIdPrefix] = useState('');
 
     // Options for Radio/Select
     const [options, setOptions] = useState([{ label: '', value: '' }]);
@@ -88,6 +89,7 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
         setIsRequired(false);
         setIsActive(true);
         setSortOrder('0');
+        setIdPrefix('');
         setOptions([{ label: '', value: '' }]);
     };
 
@@ -139,7 +141,8 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
                 is_required: isRequired,
                 is_active: isActive,
                 sort_order: parseInt(sortOrder) || 0,
-                options: (['radio', 'select', 'dropdown'].includes(fieldType)) ? options : []
+                options: (['radio', 'select', 'dropdown', 'checkbox', 'multiselect'].includes(fieldType)) ? options : [],
+                meta_json: fieldType === 'auto_generated' ? { id_code: idPrefix } : null
             };
 
             const res = await api.post('module-builder/module-section-fields', payload);
@@ -164,6 +167,7 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
         { label: 'Radio Buttons', value: 'radio' },
         { label: 'Checkbox', value: 'checkbox' },
         { label: 'Switch', value: 'switch' },
+        { label: 'Auto-generated Field', value: 'auto_generated' },
     ];
 
     const currentTypeLabel = FIELD_TYPES.find(t => t.value === fieldType)?.label || 'Textbox';
@@ -292,6 +296,21 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
                                     placeholderTextColor="#94a3b8"
                                 />
 
+                                {fieldType === 'auto_generated' && (
+                                    <View style={{ marginBottom: 16 }}>
+                                        <Text style={styles.fieldLabelText}>ID Prefix / Code (e.g. VH, INV)</Text>
+                                        <TextInput
+                                            mode="outlined"
+                                            value={idPrefix}
+                                            onChangeText={setIdPrefix}
+                                            style={styles.input}
+                                            outlineColor="#e2e8f0"
+                                            activeOutlineColor="#3b82f6"
+                                            placeholder="e.g. VH"
+                                        />
+                                    </View>
+                                )}
+
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 20 }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                         <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b' }}>Required</Text>
@@ -308,7 +327,7 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
                                     onPress={handleSaveField}
                                     loading={submitting}
                                     style={styles.saveButton}
-                                    contentStyle={{ 高度: 48 }}
+                                    contentStyle={{ height: 48 }}
                                     labelStyle={{ fontSize: 15, fontWeight: 'bold' }}
                                 >
                                     Save Field

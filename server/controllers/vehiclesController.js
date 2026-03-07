@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { generateAutoID } = require('../utils/idGenerator');
 
 // List Vehicles
 exports.getVehicles = async (req, res) => {
@@ -24,12 +25,13 @@ exports.getVehicles = async (req, res) => {
         const totalItems = parseInt(countRows[0]?.total || 0);
 
         const dataQuery = `
-            SELECT v.*, c.country_name as country, a.name as area, pt.name as property_type_name, pmt.type_name as vehicle_type_name
+            SELECT v.*, c.country_name as country, a.name as area, pt.name as property_type_name, pmt.type_name as vehicle_type_name, v.region, vu.name as vehicle_usage_name
             FROM vehicles v 
             LEFT JOIN countries c ON v.country_id = c.id
             LEFT JOIN area a ON v.area_id = a.id
             LEFT JOIN property_types pt ON v.property_type_id = pt.id
             LEFT JOIN premises_types pmt ON v.premises_type_id = pmt.id
+            LEFT JOIN vehicle_usage vu ON v.vehicle_usage_id = vu.id
             ${whereClause} 
             ORDER BY v.created_at DESC 
             LIMIT ? OFFSET ?
@@ -62,12 +64,32 @@ exports.createVehicle = async (req, res) => {
         const companyId = req.companyId || (req.user && req.user.company_id) || 1;
         const body = req.body;
 
+        // Auto-generate IDs for relevant fields
+        try {
+            const [autoFields] = await connection.execute(
+                `SELECT f.field_key, f.meta_json 
+                 FROM module_section_fields f 
+                 JOIN module_sections s ON f.section_id = s.id 
+                 WHERE s.module_id = 2 AND f.field_type = 'auto_generated' AND (f.company_id = ? OR f.company_id = 1)`,
+                [companyId]
+            );
+
+            for (const f of autoFields) {
+                if (!body[f.field_key] || body[f.field_key] === '[SYSTEM GENERATED]') {
+                    const meta = typeof f.meta_json === 'string' ? JSON.parse(f.meta_json) : (f.meta_json || {});
+                    body[f.field_key] = await generateAutoID(companyId, f.field_key, 'vehicle_module_details', 'v', meta.id_code, connection);
+                }
+            }
+        } catch (autoErr) {
+            console.error('[createVehicle] Auto-ID generation failed:', autoErr);
+        }
+
         const insertQuery = `
             INSERT INTO vehicles (
                 company_id, vehicle_name, license_plate, type, driver, status, 
-                country_id, property_type_id, premises_type_id, area_id, vehicle_usage
+                country_id, property_type_id, premises_type_id, area_id, vehicle_usage, region, vehicle_usage_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING vehicle_id
         `;
         const params = [
@@ -81,11 +103,13 @@ exports.createVehicle = async (req, res) => {
             body.property_type_id,
             body.premises_type_id,
             body.area_id,
-            body.vehicle_usage || body.usage || ''
+            body.vehicle_usage || body.usage || '',
+            body.region,
+            body.vehicle_usage_id
         ];
 
         const [rows] = await connection.execute(insertQuery, params);
-        const vehicleId = rows[0].vehicle_id;
+        const vehicleId = rows.insertId;
 
         // Dynamic Fields
         const excludedKeys = ['vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status', 'country_id', 'property_type_id', 'premises_type_id', 'area_id', 'vehicle_usage', 'usage', 'images', 'vehicle_id'];
@@ -149,7 +173,7 @@ exports.updateVehicle = async (req, res) => {
             UPDATE vehicles SET
                 vehicle_name = ?, license_plate = ?, type = ?, driver = ?, status = ?,
                 country_id = ?, property_type_id = ?, premises_type_id = ?, area_id = ?,
-                vehicle_usage = ?, updated_at = CURRENT_TIMESTAMP
+                vehicle_usage = ?, region = ?, vehicle_usage_id = ?, updated_at = CURRENT_TIMESTAMP
             WHERE vehicle_id = ? AND company_id = ?
         `;
         const params = [
@@ -163,6 +187,8 @@ exports.updateVehicle = async (req, res) => {
             body.premises_type_id,
             body.area_id,
             body.vehicle_usage || body.usage || '',
+            body.region,
+            body.vehicle_usage_id,
             id,
             companyId
         ];
@@ -171,7 +197,7 @@ exports.updateVehicle = async (req, res) => {
 
         // Update Dynamic Fields
         await connection.execute('DELETE FROM vehicle_module_details WHERE vehicle_id = ?', [id]);
-        const excludedKeys = ['vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status', 'country_id', 'property_type_id', 'premises_type_id', 'area_id', 'vehicle_usage', 'usage', 'images', 'vehicle_id'];
+        const excludedKeys = ['vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status', 'country_id', 'property_type_id', 'premises_type_id', 'area_id', 'vehicle_usage', 'usage', 'images', 'vehicle_id', 'region'];
         const dynamicEntries = Object.entries(body).filter(([key, val]) => !excludedKeys.includes(key) && val !== null && val !== undefined);
 
         if (dynamicEntries.length > 0) {
@@ -206,6 +232,17 @@ exports.deleteVehicle = async (req, res) => {
         res.json({ success: true, message: 'Vehicle deleted successfully' });
     } catch (error) {
         console.error('Error deleting vehicle:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// Get Vehicle Usage Options
+exports.getUsageOptions = async (req, res) => {
+    try {
+        const [rows] = await db.execute('SELECT * FROM vehicle_usage ORDER BY name ASC');
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error('Error fetching usage options:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };

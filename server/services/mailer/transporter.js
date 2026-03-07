@@ -1,19 +1,43 @@
 const nodemailer = require('nodemailer');
 const db = require('../../config/db');
 
-async function getTransporter() {
+async function getTransporter(clientId = null) {
     try {
-        const [rows] = await db.execute('SELECT * FROM smtp_configs WHERE is_active = true LIMIT 1');
+        let config = null;
 
-        if (rows.length > 0) {
-            const config = rows[0];
+        // 1. Try Client-specific config
+        if (clientId) {
+            const [clientRows] = await db.execute('SELECT * FROM clients WHERE id = ? LIMIT 1', [clientId]);
+            if (clientRows.length > 0 && clientRows[0].smtp_host) {
+                const c = clientRows[0];
+                config = {
+                    host: c.smtp_host,
+                    port: c.smtp_port,
+                    username: c.smtp_user,
+                    password: c.smtp_pass,
+                    encryption: c.smtp_encryption,
+                    from_email: c.smtp_from_email,
+                    from_name: c.smtp_from_name
+                };
+            }
+        }
+
+        // 2. Try Global DB config
+        if (!config) {
+            const [rows] = await db.execute('SELECT * FROM smtp_configs WHERE is_active = true LIMIT 1');
+            if (rows.length > 0) {
+                config = rows[0];
+            }
+        }
+
+        if (config) {
             const transporter = nodemailer.createTransport({
                 host: config.host,
                 port: config.port,
                 secure: config.encryption === 'ssl',
                 auth: {
-                    user: config.username,
-                    pass: config.password
+                    user: config.username || config.user,
+                    pass: config.password || config.pass
                 },
                 tls: {
                     rejectUnauthorized: false
@@ -26,7 +50,7 @@ async function getTransporter() {
             return transporter;
         }
     } catch (err) {
-        console.warn('[Mailer] Could not fetch DB config, falling back to ENV:', err.message);
+        console.warn('[Mailer] Error fetching SMTP config, falling back to ENV:', err.message);
     }
 
     const transporter = nodemailer.createTransport({

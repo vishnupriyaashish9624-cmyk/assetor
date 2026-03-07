@@ -427,7 +427,6 @@ const GroupManagementScreen = ({ navigation }) => {
                                                 <View style={{ flex: 1, marginLeft: 12 }}>
                                                     <Text style={styles.empName}>{emp.name}</Text>
                                                     <Text style={styles.empPos}>{emp.position || 'Employee'}</Text>
-
                                                     <View style={styles.empContactInfo}>
                                                         <View style={styles.contactItem}>
                                                             <MaterialCommunityIcons name="email-outline" size={14} color="#94a3b8" />

@@ -13,9 +13,6 @@ const tenantScope = async (req, res, next) => {
         }
 
         const user = req.user;
-        console.log(`[TenantScope] User keys: ${Object.keys(user || {})}`);
-        if (user) console.log(`[TenantScope] User structure: ${JSON.stringify(user)}`);
-
         const role = String(user?.role || '').toUpperCase();
 
         console.log(`[TenantScope] Process: ${req.method} ${req.url} | User: ${user?.email} | Role: ${role}`);
@@ -36,16 +33,16 @@ const tenantScope = async (req, res, next) => {
         }
         // 3. Regular User handling
         else {
-            resolvedCompanyId = user.company_id;
+            resolvedCompanyId = user?.company_id;
 
             // Recovery: If token is missing company_id, check database
-            if (!resolvedCompanyId && user.id) {
+            if (!resolvedCompanyId && user?.id) {
                 console.log(`[TenantScope] Token missing company_id for user ${user.id}. Querying DB...`);
                 const [rows] = await db.execute('SELECT company_id FROM users WHERE id = ?', [user.id]);
                 if (rows && rows.length > 0) {
                     resolvedCompanyId = rows[0].company_id;
                     // Update user object for current request lifecycle
-                    req.user.company_id = resolvedCompanyId;
+                    if (req.user) req.user.company_id = resolvedCompanyId;
                 }
             }
         }
@@ -62,8 +59,10 @@ const tenantScope = async (req, res, next) => {
         next();
 
     } catch (error) {
-        const fs = require('fs');
-        fs.appendFileSync('tenant_error.log', `[TenantScope] Error: ${error.message}\nStack: ${error.stack}\n`);
+        try {
+            const fs = require('fs');
+            fs.appendFileSync('tenant_error.log', `[${new Date().toISOString()}] Error: ${error.message}\nStack: ${error.stack}\n`);
+        } catch (e) { }
         console.error('[TenantScope] Error:', error);
         return res.status(500).json({ success: false, message: 'Internal server error in tenant middleware' });
     }

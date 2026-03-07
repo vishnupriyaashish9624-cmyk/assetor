@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TextInput as RNTextInput, TouchableOpacit
 import { Card, Text, Button, IconButton, ActivityIndicator, Chip, DataTable, Portal, Modal, Surface, TextInput, Menu, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
+import { uploadFile } from '../api/officeApi';
 import AppLayout from '../components/AppLayout';
 import ModuleFormModal from '../components/modals/ModuleFormModal';
 import VehicleWizardModal from '../components/modals/VehicleWizardModal';
@@ -49,10 +50,12 @@ const VehicleDisplayScreen = ({ navigation }) => {
     const [formTypeMenuVisible, setFormTypeMenuVisible] = useState(false);
     const [typeMenuVisible, setTypeMenuVisible] = useState(false);
     const [areaMenuVisible, setAreaMenuVisible] = useState(false);
+    const [usageMenuVisible, setUsageMenuVisible] = useState(false);
     const [areas, setAreas] = useState([]);
     const [premisesTypes, setPremisesTypes] = useState([]);
     const [propertyTypes, setPropertyTypes] = useState([]);
     const [countries, setCountries] = useState([]);
+    const [vehicleUsages, setVehicleUsages] = useState([]);
     const [openMenuFieldId, setOpenMenuFieldId] = useState(null);
 
     // Store unfiltered module structure for dynamic filtering
@@ -68,6 +71,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
         fetchAreas();
         fetchPremisesTypes();
         fetchPropertyTypes();
+        fetchVehicleUsage();
     }, []);
 
     // Pagination & Search Effects
@@ -84,27 +88,23 @@ const VehicleDisplayScreen = ({ navigation }) => {
         return () => clearTimeout(timer);
     }, [search]);
 
-    // Auto-filter fields when country/type/area changes in formValues
+    // Auto-filter fields when country/type/area/usage changes in formValues
     useEffect(() => {
         const filterFields = async () => {
             if (unfilteredModuleDetails.length > 0 && modules.length > 0) {
-                const premisesModule = modules.find(m => (m.name || '').toLowerCase() === 'vehicle');
-                if (premisesModule && (formValues.country_id || formValues.premises_type_id || formValues.area_id || formValues.property_type_id)) {
+                const vehicleModule = modules.find(m => (m.name || '').toLowerCase() === 'vehicle');
+                if (vehicleModule) {
                     const selectedFieldIds = await fetchSelectedFields(
-                        premisesModule.module_id,
+                        vehicleModule.module_id,
                         formValues.country_id,
-                        formValues.property_type_id,
+                        formValues.property_type_id || formValues.premises_type_id,
                         formValues.premises_type_id,
-                        formValues.area_id
+                        formValues.area_id,
+                        formValues.vehicle_usage_id,
+                        formValues.region
                     );
 
                     console.log('[useEffect] Auto-filtering with field IDs:', selectedFieldIds);
-                    console.log('[useEffect] Form values:', {
-                        country_id: formValues.country_id,
-                        property_type_id: formValues.property_type_id,
-                        premises_type_id: formValues.premises_type_id,
-                        area_id: formValues.area_id
-                    });
 
                     const filteredStructure = filterModuleStructure(unfilteredModuleDetails, selectedFieldIds);
                     setModuleDetails(filteredStructure);
@@ -113,7 +113,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
         };
 
         filterFields();
-    }, [formValues.country_id, formValues.premises_type_id, formValues.area_id, formValues.property_type_id, unfilteredModuleDetails]);
+    }, [formValues.country_id, formValues.premises_type_id, formValues.area_id, formValues.property_type_id, formValues.vehicle_usage_id, formValues.region, unfilteredModuleDetails]);
 
     const fetchAreas = async () => {
         try {
@@ -164,6 +164,15 @@ const VehicleDisplayScreen = ({ navigation }) => {
         }
     };
 
+    const fetchVehicleUsage = async () => {
+        try {
+            const res = await api.get('vehicle-usage');
+            setVehicleUsages(res.data.data || []);
+        } catch (e) {
+            console.error('Fetch vehicle usage error', e);
+        }
+    };
+
     const fetchPropertyTypes = async () => {
         try {
             const res = await api.get('property-types');
@@ -201,7 +210,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
     };
 
     // Helper function to fetch selected fields based on conditions
-    const fetchSelectedFields = async (moduleId, countryId, propertyTypeId, premisesTypeId, areaId) => {
+    const fetchSelectedFields = async (moduleId, countryId, propertyTypeId, premisesTypeId, areaId, vehicleUsageId, region) => {
         try {
             const params = new URLSearchParams({
                 module_id: moduleId
@@ -211,23 +220,26 @@ const VehicleDisplayScreen = ({ navigation }) => {
             if (propertyTypeId) params.append('property_type_id', propertyTypeId);
             if (premisesTypeId) params.append('premises_type_id', premisesTypeId);
             if (areaId) params.append('area_id', areaId);
+            if (vehicleUsageId) params.append('vehicle_usage_id', vehicleUsageId);
+            if (region && region !== 'All') params.append('region', region);
 
             const res = await api.get(`company-modules/selected-fields?${params.toString()}`);
             if (res.data.success) {
-                return res.data.data.selected_field_ids || [];
+                return res.data.data.selected_field_ids; // Can be null if no config match
             }
-            return [];
+            return null;
         } catch (error) {
             console.error('Error fetching selected fields:', error);
-            return [];
+            return null;
         }
     };
 
     // Helper function to filter fields based on selected field IDs
     const filterModuleStructure = (structure, selectedFieldIds) => {
-        if (!selectedFieldIds || selectedFieldIds.length === 0) {
-            // If no fields are selected, show all fields
-            return structure;
+        if (!selectedFieldIds) return structure;
+        if (selectedFieldIds.length === 0) {
+            // If explicit configuration found but empty, return empty
+            return [];
         }
 
         return structure.map(section => ({
@@ -280,6 +292,26 @@ const VehicleDisplayScreen = ({ navigation }) => {
 
             setModuleDetails(fullStructure);
             setUnfilteredModuleDetails(fullStructure); // Store for dynamic filtering
+
+            // Pre-load auto-generated IDs
+            if (mode === 'add') {
+                const newValues = {};
+                for (const sec of fullStructure) {
+                    for (const field of (sec.fields || [])) {
+                        if (field.field_type === 'auto_generated') {
+                            try {
+                                const idRes = await api.get(`module-builder/preview-id?module_id=${module.module_id}&field_key=${field.field_key}`);
+                                if (idRes.data.success) {
+                                    newValues[field.field_key] = idRes.data.data;
+                                }
+                            } catch (e) {
+                                console.error('Failed to pre-load ID', e);
+                            }
+                        }
+                    }
+                }
+                setFormValues(v => ({ ...v, ...newValues }));
+            }
         } catch (error) {
             console.error('Fetch structure error:', error);
             alert('Failed to load module details');
@@ -347,18 +379,20 @@ const VehicleDisplayScreen = ({ navigation }) => {
         setFormValues(prev => ({ ...prev, [key]: value }));
 
         // If user changes country, type, or area, re-filter the fields
-        if (['country_id', 'premises_type_id', 'area_id', 'property_type_id'].includes(key) && unfilteredModuleDetails.length > 0) {
-            const premisesModule = modules.find(m => (m.name || '').toLowerCase() === 'vehicle');
-            if (premisesModule) {
+        // If user changes configuration keys, re-filter the fields
+        const configKeys = ['country_id', 'premises_type_id', 'area_id', 'property_type_id', 'vehicle_usage_id', 'region'];
+        if (configKeys.includes(key) && unfilteredModuleDetails.length > 0) {
+            const vehicleModule = modules.find(m => (m.name || '').toLowerCase() === 'vehicle');
+            if (vehicleModule) {
                 const selectedFieldIds = await fetchSelectedFields(
-                    premisesModule.module_id,
+                    vehicleModule.module_id,
                     key === 'country_id' ? value : newFormValues.country_id,
                     key === 'property_type_id' ? value : newFormValues.property_type_id,
                     key === 'premises_type_id' ? value : newFormValues.premises_type_id,
-                    key === 'area_id' ? value : newFormValues.area_id
+                    key === 'area_id' ? value : newFormValues.area_id,
+                    key === 'vehicle_usage_id' ? value : newFormValues.vehicle_usage_id,
+                    key === 'region' ? value : newFormValues.region
                 );
-
-                console.log('[handleInputChange] Re-filtering with field IDs:', selectedFieldIds);
 
                 const filteredStructure = filterModuleStructure(unfilteredModuleDetails, selectedFieldIds);
                 setModuleDetails(filteredStructure);
@@ -368,10 +402,6 @@ const VehicleDisplayScreen = ({ navigation }) => {
 
     const handleEditVehicle = async (item) => {
         try {
-            const vehicleModule = modules.find(m => (m.module_name || m.name || '').toLowerCase() === 'vehicle');
-            if (vehicleModule) {
-                await fetchModuleStructure(vehicleModule, 'add');
-            }
             setFormValues(item);
 
             // Fetch full details if needed
@@ -386,8 +416,6 @@ const VehicleDisplayScreen = ({ navigation }) => {
             setVehicleWizardVisible(true);
         } catch (error) {
             console.error('Edit vehicle error:', error);
-        } finally {
-            setDetailsLoading(false);
         }
     };
 
@@ -553,8 +581,9 @@ const VehicleDisplayScreen = ({ navigation }) => {
                 // Show all active fields when adding/editing
                 return f.is_active !== 0;
             } else {
-                // Only show fields with data in view mode
-                const hasData = formValues[f.field_key] !== undefined && formValues[f.field_key] !== '';
+                // Only show fields with non-empty data in view mode
+                const val = formValues[f.field_key];
+                const hasData = val !== undefined && val !== null && val !== '' && val !== 'null' && val !== '-';
                 return hasData;
             }
         });
@@ -575,9 +604,10 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                 const isBool = ['checkbox', 'switch'].includes(field.field_type);
                                 const isRadio = field.field_type === 'radio';
                                 const isTextarea = field.field_type === 'textarea';
-                                const isFile = field.field_type === 'file';
+                                const isFile = field.field_type === 'file' || (field.label || '').toLowerCase().includes('document') || (field.label || '').toLowerCase().includes('file');
                                 const isImage = field.field_type === 'image';
-                                const val = formValues[field.field_key];
+                                const fieldKey = field.field_key || field.field_name || field.name || field.field_label || field.label || `field_${field.id}`;
+                                const val = formValues[fieldKey];
                                 const fieldWidth = (isMobile || isTextarea || isFile || isImage) ? '100%' : '48%';
 
                                 if (isBool) {
@@ -587,7 +617,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                 <Text style={styles.inputLabel}>{field.label}</Text>
                                                 <TouchableOpacity
                                                     style={{ flexDirection: 'row', alignItems: 'center' }}
-                                                    onPress={() => onInputChange(field.field_key, !val)}
+                                                    onPress={() => onInputChange(fieldKey, !val)}
                                                 >
                                                     <MaterialCommunityIcons
                                                         name={field.field_type === 'switch' ? (val ? 'toggle-switch' : 'toggle-switch-off-outline') : (val ? 'checkbox-marked' : 'checkbox-blank-outline')}
@@ -611,7 +641,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                         <TouchableOpacity
                                                             key={idx}
                                                             style={{ flexDirection: 'row', alignItems: 'center' }}
-                                                            onPress={() => onInputChange(field.field_key, optVal)}
+                                                            onPress={() => onInputChange(fieldKey, optVal)}
                                                         >
                                                             <MaterialCommunityIcons
                                                                 name={isSelected ? "radiobox-marked" : "radiobox-blank"}
@@ -628,6 +658,14 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                 }
 
                                 if (isDropdown) {
+                                    let displayVal = val || '';
+                                    if (val && field.options && Array.isArray(field.options)) {
+                                        const selectedOpt = field.options.find(opt => (opt.option_value || opt.value || opt.option_label) === val);
+                                        if (selectedOpt) {
+                                            displayVal = selectedOpt.option_label || selectedOpt.label || val;
+                                        }
+                                    }
+
                                     return (
                                         <View key={field.id} style={[styles.formRow, { width: fieldWidth }]}>
                                             <Text style={styles.inputLabel}>{field.label}</Text>
@@ -641,7 +679,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                         <TextInput
                                                             mode="outlined"
                                                             placeholder={field.placeholder || `Select ${field.label}`}
-                                                            value={val || ''}
+                                                            value={displayVal}
                                                             editable={false}
                                                             style={styles.textInput}
                                                             pointerEvents="none"
@@ -675,7 +713,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                 <Menu.Item
                                                                     key={idx}
                                                                     onPress={() => {
-                                                                        onInputChange(field.field_key, optVal);
+                                                                        onInputChange(fieldKey, optVal);
                                                                         setOpenMenuFieldId(null);
                                                                     }}
                                                                     title={opt.option_label}
@@ -717,7 +755,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                             if (file) {
                                                                 // For now we just store filename for display
                                                                 // Actual upload logic would go here
-                                                                onInputChange(field.field_key, file.name);
+                                                                onInputChange(fieldKey, file.name);
                                                             }
                                                         };
                                                         input.click();
@@ -751,7 +789,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                         iconColor="#ef4444"
                                                         onPress={(e) => {
                                                             e.stopPropagation();
-                                                            onInputChange(field.field_key, '');
+                                                            onInputChange(fieldKey, '');
                                                         }}
                                                     />
                                                 )}
@@ -794,8 +832,8 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                     <TextInput
                                                                         mode="outlined"
                                                                         placeholder="Enter Policy No."
-                                                                        value={formValues[`${field.field_key}_policy_no`] || ''}
-                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_policy_no`, text)}
+                                                                        value={formValues[`${fieldKey}_policy_no`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${fieldKey}_policy_no`, text)}
                                                                         style={[styles.textInput, { height: 40, fontSize: 13 }]}
                                                                         outlineColor="#e2e8f0"
                                                                         activeOutlineColor="#3b82f6"
@@ -809,13 +847,13 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                     <TextInput
                                                                         mode="outlined"
                                                                         placeholder="YYYY-MM-DD"
-                                                                        value={formValues[`${field.field_key}_issue_date`] || ''}
-                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_issue_date`, text)}
+                                                                        value={formValues[`${fieldKey}_issue_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${fieldKey}_issue_date`, text)}
                                                                         style={[styles.textInput, { height: 40, fontSize: 13 }]}
                                                                         outlineColor="#e2e8f0"
                                                                         activeOutlineColor="#3b82f6"
                                                                         theme={{ roundness: 8 }}
-                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_issue_date`)} />}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${fieldKey}_issue_date`)} />}
                                                                     />
                                                                 </View>
                                                             )}
@@ -825,13 +863,13 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                     <TextInput
                                                                         mode="outlined"
                                                                         placeholder="YYYY-MM-DD"
-                                                                        value={formValues[`${field.field_key}_start_date`] || ''}
-                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_start_date`, text)}
+                                                                        value={formValues[`${fieldKey}_start_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${fieldKey}_start_date`, text)}
                                                                         style={[styles.textInput, { height: 40, fontSize: 13 }]}
                                                                         outlineColor="#e2e8f0"
                                                                         activeOutlineColor="#3b82f6"
                                                                         theme={{ roundness: 8 }}
-                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_start_date`)} />}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${fieldKey}_start_date`)} />}
                                                                     />
                                                                 </View>
                                                             )}
@@ -841,13 +879,13 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                     <TextInput
                                                                         mode="outlined"
                                                                         placeholder="YYYY-MM-DD"
-                                                                        value={formValues[`${field.field_key}_end_date`] || ''}
-                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_end_date`, text)}
+                                                                        value={formValues[`${fieldKey}_end_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${fieldKey}_end_date`, text)}
                                                                         style={[styles.textInput, { height: 40, fontSize: 13 }]}
                                                                         outlineColor="#e2e8f0"
                                                                         activeOutlineColor="#3b82f6"
                                                                         theme={{ roundness: 8 }}
-                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_end_date`)} />}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${fieldKey}_end_date`)} />}
                                                                     />
                                                                 </View>
                                                             )}
@@ -857,13 +895,13 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                     <TextInput
                                                                         mode="outlined"
                                                                         placeholder="YYYY-MM-DD"
-                                                                        value={formValues[`${field.field_key}_expiry`] || ''}
-                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_expiry`, text)}
+                                                                        value={formValues[`${fieldKey}_expiry_date`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${fieldKey}_expiry_date`, text)}
                                                                         style={[styles.textInput, { height: 40, fontSize: 13 }]}
                                                                         outlineColor="#e2e8f0"
                                                                         activeOutlineColor="#3b82f6"
                                                                         theme={{ roundness: 8 }}
-                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${field.field_key}_expiry`)} />}
+                                                                        right={<TextInput.Icon icon="calendar" size={16} color="#94a3b8" onPress={() => pickDate(`${fieldKey}_expiry_date`)} />}
                                                                     />
                                                                 </View>
                                                             )}
@@ -873,8 +911,8 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                     <TextInput
                                                                         mode="outlined"
                                                                         placeholder="Enter Coverage Type"
-                                                                        value={formValues[`${field.field_key}_coverage_type`] || ''}
-                                                                        onChangeText={(text) => onInputChange(`${field.field_key}_coverage_type`, text)}
+                                                                        value={formValues[`${fieldKey}_coverage_type`] || ''}
+                                                                        onChangeText={(text) => onInputChange(`${fieldKey}_coverage_type`, text)}
                                                                         style={[styles.textInput, { height: 40, fontSize: 13 }]}
                                                                         outlineColor="#e2e8f0"
                                                                         activeOutlineColor="#3b82f6"
@@ -889,11 +927,11 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                                         {[30, 60, 90].map(days => (
                                                                             <Chip
                                                                                 key={days}
-                                                                                selected={formValues[`${field.field_key}_reminder`] === String(days)}
-                                                                                onPress={() => onInputChange(`${field.field_key}_reminder`, String(days))}
+                                                                                selected={formValues[`${fieldKey}_reminder`] === String(days)}
+                                                                                onPress={() => onInputChange(`${fieldKey}_reminder`, String(days))}
                                                                                 showSelectedOverlay
-                                                                                style={{ backgroundColor: formValues[`${field.field_key}_reminder`] === String(days) ? '#e0f2fe' : '#f1f5f9' }}
-                                                                                textStyle={{ color: formValues[`${field.field_key}_reminder`] === String(days) ? '#0284c7' : '#64748b' }}
+                                                                                style={{ backgroundColor: formValues[`${fieldKey}_reminder`] === String(days) ? '#e0f2fe' : '#f1f5f9' }}
+                                                                                textStyle={{ color: formValues[`${fieldKey}_reminder`] === String(days) ? '#0284c7' : '#64748b' }}
                                                                             >{days} Days</Chip>
                                                                         ))}
                                                                     </View>
@@ -907,6 +945,104 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         </View>
                                     );
                                 }
+                                if (field.field_type === 'file_pdf') {
+                                    return (
+                                        <View key={field.id} style={[styles.formRow, { width: fieldWidth }]}>
+                                            <Text style={styles.inputLabel}>{field.label}</Text>
+                                            <TouchableOpacity
+                                                style={[styles.textInput, {
+                                                    height: 44,
+                                                    justifyContent: 'center',
+                                                    backgroundColor: '#f8fafc',
+                                                    borderStyle: val ? 'solid' : 'dashed',
+                                                    borderColor: val ? '#10b981' : '#e2e8f0'
+                                                }]}
+                                                onPress={() => {
+                                                    const input = document.createElement('input');
+                                                    input.type = 'file';
+                                                    input.accept = 'application/pdf';
+                                                    input.onchange = async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            const reader = new FileReader();
+                                                            reader.onload = async () => {
+                                                                try {
+                                                                    const res = await uploadFile({
+                                                                        name: file.name,
+                                                                        content: reader.result,
+                                                                        moduleName: 'Vehicle'
+                                                                    });
+                                                                    if (res.success) {
+                                                                        onInputChange(fieldKey, res.path);
+                                                                    }
+                                                                } catch (err) {
+                                                                    console.error('Upload failed:', err);
+                                                                }
+                                                            };
+                                                            reader.readAsDataURL(file);
+                                                        }
+                                                    };
+                                                    input.click();
+                                                }}
+                                            >
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
+                                                    <MaterialCommunityIcons
+                                                        name={val ? "file-check" : "file-pdf-box"}
+                                                        size={20}
+                                                        color={val ? "#10b981" : "#64748b"}
+                                                    />
+                                                    <Text style={{ fontSize: 13, color: val ? "#059669" : "#64748b", fontWeight: val ? '600' : '400' }} numberOfLines={1}>
+                                                        {val ? val.split('/').pop() : "Upload PDF (Auto-renaming)"}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                            {val ? (
+                                                <Text style={{ fontSize: 10, color: '#16a34a', marginTop: 4, fontStyle: 'italic' }}>
+                                                    File stored as: {val.split('/').pop()}
+                                                </Text>
+                                            ) : (
+                                                <Text style={styles.helperText}>Format: v-YY-MM-DD-XXX.pdf</Text>
+                                            )}
+                                        </View>
+                                    );
+                                }
+
+                                if (field.field_type === 'auto_generated') {
+                                    const meta = field.meta_json ? (typeof field.meta_json === 'string' ? JSON.parse(field.meta_json) : field.meta_json) : {};
+
+                                    // Automatic ID Code generation
+                                    let idCode = meta.id_code;
+                                    if (!idCode) {
+                                        const mid = field.module_id || 2; // Default to 2 for Vehicles
+                                        if (mid == 1) idCode = 'PR';
+                                        else if (mid == 2) idCode = 'VH';
+                                        else idCode = 'VH'; // Fallback for vehicle screen
+                                    }
+
+                                    const yearPart = new Date().getFullYear().toString();
+                                    const monthPart = String(new Date().getMonth() + 1).padStart(2, '0');
+                                    const dayPart = String(new Date().getDate()).padStart(2, '0');
+                                    const exampleId = `COMP-${idCode}-${yearPart}-${monthPart}-${dayPart}-100`;
+
+                                    return (
+                                        <View key={field.id} style={[styles.formRow, { width: fieldWidth }]}>
+                                            <Text style={styles.inputLabel}>{field.label}</Text>
+                                            <View pointerEvents="none">
+                                                <TextInput
+                                                    mode="outlined"
+                                                    value={val || ''}
+                                                    placeholder={exampleId}
+                                                    placeholderTextColor="#94a3b8"
+                                                    editable={false}
+                                                    style={[styles.textInput, { backgroundColor: '#f8fafc' }]}
+                                                    outlineColor="#e2e8f0"
+                                                    left={<TextInput.Icon icon="auto-fix" color="#64748b" />}
+                                                />
+                                            </View>
+                                            <Text style={styles.helperText}>Format: {"{prefix}"}-{idCode}-{yearPart}-{monthPart}-{dayPart}-{"{XXX}"}</Text>
+                                        </View>
+                                    );
+                                }
 
                                 return (
                                     <View key={field.id} style={[styles.formRow, { width: fieldWidth }]}>
@@ -915,7 +1051,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                             mode="outlined"
                                             placeholder={field.placeholder || `Enter ${field.label}`}
                                             value={val || ''}
-                                            onChangeText={(text) => onInputChange(field.field_key, text)}
+                                            onChangeText={(text) => onInputChange(fieldKey, text)}
                                             style={styles.textInput}
                                             outlineColor="#e2e8f0"
                                             activeOutlineColor="#3b82f6"
@@ -938,28 +1074,77 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                     <DataTable.Title style={{ flex: 1.2 }} textStyle={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 0.5 }}>FIELD NAME</DataTable.Title>
                                     <DataTable.Title style={{ flex: 2 }} textStyle={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 0.5 }}>DATA</DataTable.Title>
                                 </DataTable.Header>
-                                {fieldsToRender.map((f, i) => (
-                                    <DataTable.Row
-                                        key={f.id}
-                                        style={{
-                                            borderBottomWidth: i === fieldsToRender.length - 1 ? 0 : 1,
-                                            borderBottomColor: '#f1f5f9',
-                                            minHeight: 56,
-                                            paddingVertical: 8
-                                        }}
-                                    >
-                                        <DataTable.Cell style={{ flex: 1.2, paddingLeft: 16 }}>
-                                            <Text style={{ fontSize: 14, fontWeight: '600', color: '#475569' }}>{f.label}</Text>
-                                        </DataTable.Cell>
-                                        <DataTable.Cell style={{ flex: 2, paddingRight: 16 }}>
-                                            <Text style={{ fontSize: 14, color: '#1e293b', lineHeight: 20 }}>
-                                                {typeof formValues[f.field_key] === 'boolean'
-                                                    ? (formValues[f.field_key] ? 'Yes' : 'No')
-                                                    : String(formValues[f.field_key] || '-')}
-                                            </Text>
-                                        </DataTable.Cell>
-                                    </DataTable.Row>
-                                ))}
+                                {fieldsToRender.map((f, i) => {
+                                    const fieldKey = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
+                                    const val = formValues[fieldKey];
+                                    const isFile = f.field_type === 'file' || f.field_type === 'pdf' || f.field_type === 'file_pdf' ||
+                                        (f.label || '').toLowerCase().includes('upload') ||
+                                        (f.label || '').toLowerCase().includes('document') ||
+                                        (f.label || '').toLowerCase().includes('file') ||
+                                        (typeof val === 'string' && (val.includes('/uploads/') || val.includes('base64')));
+
+                                    const metadata = [
+                                        { key: 'policy_no', label: 'Policy No.' },
+                                        { key: 'coverage_type', label: 'Coverage Type' },
+                                        { key: 'issue_date', label: 'Issue Date' },
+                                        { key: 'start_date', label: 'Start Date' },
+                                        { key: 'end_date', label: 'End Date' },
+                                        { key: 'expiry_date', label: 'Expiry Date' },
+                                        { key: 'reminder', label: 'Reminder' }
+                                    ];
+
+                                    const populatedMetadata = isFile ? metadata.filter(meta => formValues[`${fieldKey}_${meta.key}`]) : [];
+
+                                    return (
+                                        <React.Fragment key={f.id}>
+                                            <DataTable.Row
+                                                style={{
+                                                    borderBottomWidth: (i === fieldsToRender.length - 1 && populatedMetadata.length === 0) ? 0 : 1,
+                                                    borderBottomColor: '#f1f5f9',
+                                                    minHeight: 56,
+                                                    paddingVertical: 8
+                                                }}
+                                            >
+                                                <DataTable.Cell style={{ flex: 1.2, paddingLeft: 16 }}>
+                                                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#475569' }}>{f.label}</Text>
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 2, paddingRight: 16 }}>
+                                                    {isFile ? (
+                                                        <Text style={{ fontSize: 14, color: '#3b82f6', fontWeight: '600' }}>
+                                                            {val ? (typeof val === 'string' ? val.split('/').pop() : 'File Uploaded') : '-'}
+                                                        </Text>
+                                                    ) : (
+                                                        <Text style={{ fontSize: 14, color: '#1e293b', lineHeight: 20 }}>
+                                                            {typeof val === 'boolean'
+                                                                ? (val ? 'Yes' : 'No')
+                                                                : String(val || '-')}
+                                                        </Text>
+                                                    )}
+                                                </DataTable.Cell>
+                                            </DataTable.Row>
+
+                                            {populatedMetadata.map((meta, mIdx) => (
+                                                <DataTable.Row
+                                                    key={`${f.id}_${meta.key}`}
+                                                    style={{
+                                                        borderBottomWidth: (i === fieldsToRender.length - 1 && mIdx === populatedMetadata.length - 1) ? 0 : 1,
+                                                        borderBottomColor: '#f1f5f9',
+                                                        minHeight: 48,
+                                                        paddingVertical: 4,
+                                                        backgroundColor: '#f8fafc'
+                                                    }}
+                                                >
+                                                    <DataTable.Cell style={{ flex: 1.2, paddingLeft: 32 }}>
+                                                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b' }}>{f.label} {meta.label}</Text>
+                                                    </DataTable.Cell>
+                                                    <DataTable.Cell style={{ flex: 2, paddingRight: 16 }}>
+                                                        <Text style={{ fontSize: 13, color: '#1e293b' }}>{formValues[`${fieldKey}_${meta.key}`]}</Text>
+                                                    </DataTable.Cell>
+                                                </DataTable.Row>
+                                            ))}
+                                        </React.Fragment>
+                                    );
+                                })}
                             </DataTable>
                         </View>
                     )}
@@ -1024,16 +1209,16 @@ const VehicleDisplayScreen = ({ navigation }) => {
 
                 <View style={styles.mobileGrid}>
                     <View style={styles.mobileGridItem}>
-                        <Text style={styles.mobileLabel}>USAGE</Text>
-                        <Text style={styles.mobileValue}>{item.vehicle_usage || '-'}</Text>
-                    </View>
-                    <View style={styles.mobileGridItem}>
                         <Text style={styles.mobileLabel}>COUNTRY</Text>
                         <Text style={styles.mobileValue}>{item.country || '-'}</Text>
                     </View>
                     <View style={styles.mobileGridItem}>
-                        <Text style={styles.mobileLabel}>AREA</Text>
-                        <Text style={styles.mobileValue}>{item.area || '-'}</Text>
+                        <Text style={styles.mobileLabel}>REGION</Text>
+                        <Text style={styles.mobileValue}>{item.region || '-'}</Text>
+                    </View>
+                    <View style={styles.mobileGridItem}>
+                        <Text style={styles.mobileLabel}>USAGE</Text>
+                        <Text style={styles.mobileValue}>{item.vehicle_usage_name || item.vehicle_usage || (item.area_id == 1 ? 'Commercial' : item.area_id == 2 ? 'Personal' : '-')}</Text>
                     </View>
                 </View>
 
@@ -1104,9 +1289,9 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                     <DataTable.Header style={styles.tableHeader}>
                                         <DataTable.Title style={{ flex: 1, paddingLeft: 16 }} textStyle={styles.headerText}>Type</DataTable.Title>
                                         <DataTable.Title style={{ flex: 2.5 }} textStyle={styles.headerText}>Vehicle Name</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Usage</DataTable.Title>
                                         <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Country</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Area</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Region/State</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Usage</DataTable.Title>
                                         <DataTable.Title style={{ flex: 1, justifyContent: 'center' }} textStyle={styles.headerText}>Actions</DataTable.Title>
                                     </DataTable.Header>
                                     <ScrollView style={{ maxHeight: 'calc(100vh - 420px)' }}>
@@ -1158,15 +1343,15 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                         </View>
                                                     </DataTable.Cell>
                                                     <DataTable.Cell style={{ flex: 1.5 }}>
-                                                        <Text style={[styles.cellText, { textTransform: 'uppercase' }]}>{item.vehicle_usage || '-'}</Text>
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.5 }}>
                                                         <View>
                                                             <Text style={styles.cellText}>{item.country || '-'}</Text>
                                                         </View>
                                                     </DataTable.Cell>
                                                     <DataTable.Cell style={{ flex: 1.5 }}>
-                                                        <Text style={styles.cellText}>{item.area || '-'}</Text>
+                                                        <Text style={styles.cellText}>{item.region || '-'}</Text>
+                                                    </DataTable.Cell>
+                                                    <DataTable.Cell style={{ flex: 1.5 }}>
+                                                        <Text style={styles.cellText}>{item.vehicle_usage_name || item.vehicle_usage || (item.area_id == 1 ? 'Commercial' : item.area_id == 2 ? 'Personal' : '-')}</Text>
                                                     </DataTable.Cell>
                                                     <DataTable.Cell style={{ flex: 1, justifyContent: 'center' }}>
                                                         <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center' }}>
@@ -1330,6 +1515,33 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                     </View>
 
                                     <View style={styles.headerField}>
+                                        <Text style={styles.inputLabel}>Usage</Text>
+                                        <Menu
+                                            visible={usageMenuVisible}
+                                            onDismiss={() => setUsageMenuVisible(false)}
+                                            anchor={
+                                                <TouchableOpacity onPress={() => setUsageMenuVisible(true)}>
+                                                    <TextInput
+                                                        mode="outlined"
+                                                        value={vehicleUsages.find(u => u.id == formValues.vehicle_usage_id)?.name || ''}
+                                                        placeholder="Select Usage"
+                                                        editable={false}
+                                                        style={styles.headerInput}
+                                                        right={<TextInput.Icon icon="chevron-down" />}
+                                                    />
+                                                </TouchableOpacity>
+                                            }
+                                        >
+                                            {vehicleUsages.map(u => (
+                                                <Menu.Item key={u.id} title={u.name} onPress={() => {
+                                                    onInputChange('vehicle_usage_id', u.id);
+                                                    setUsageMenuVisible(false);
+                                                }} />
+                                            ))}
+                                        </Menu>
+                                    </View>
+
+                                    <View style={styles.headerField}>
                                         <Text style={styles.inputLabel}>Area</Text>
                                         <Menu
                                             visible={areaMenuVisible}
@@ -1367,74 +1579,35 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                 </View>
                             ) : (
                                 <View style={{ padding: 20 }}>
-                                    {/* Core Identity Section (Always Visible) */}
-                                    <Surface style={styles.sectionCard}>
-                                        <View style={styles.sectionHeader}>
-                                            <Text style={styles.sectionTitle}>Basic Information</Text>
-                                        </View>
-                                        <View style={styles.formContainer}>
-                                            <View style={[styles.formRow, { width: isMobile ? '100%' : '48%' }]}>
-                                                <Text style={styles.inputLabel}>Vehicle Name *</Text>
-                                                <TextInput
-                                                    mode="outlined"
-                                                    value={formValues.vehicle_name || ''}
-                                                    onChangeText={text => onInputChange('vehicle_name', text)}
-                                                    placeholder="e.g. Toyota Camry"
-                                                    style={styles.textInput}
-                                                    editable={isAdding}
-                                                    outlineColor="#e2e8f0"
-                                                />
-                                            </View>
-                                            <View style={[styles.formRow, { width: isMobile ? '100%' : '48%' }]}>
-                                                <Text style={styles.inputLabel}>License Plate *</Text>
-                                                <TextInput
-                                                    mode="outlined"
-                                                    value={formValues.license_plate || ''}
-                                                    onChangeText={text => onInputChange('license_plate', text)}
-                                                    placeholder="e.g. DXB-12345"
-                                                    style={styles.textInput}
-                                                    editable={isAdding}
-                                                    outlineColor="#e2e8f0"
-                                                />
-                                            </View>
-                                            <View style={[styles.formRow, { width: isMobile ? '100%' : '48%' }]}>
-                                                <Text style={styles.inputLabel}>Type</Text>
-                                                <TextInput
-                                                    mode="outlined"
-                                                    value={formValues.type || ''}
-                                                    onChangeText={text => onInputChange('type', text)}
-                                                    placeholder="e.g. SEDAN"
-                                                    style={styles.textInput}
-                                                    editable={isAdding}
-                                                    outlineColor="#e2e8f0"
-                                                />
-                                            </View>
-                                            <View style={[styles.formRow, { width: isMobile ? '100%' : '48%' }]}>
-                                                <Text style={styles.inputLabel}>Driver</Text>
-                                                <TextInput
-                                                    mode="outlined"
-                                                    value={formValues.driver || ''}
-                                                    onChangeText={text => onInputChange('driver', text)}
-                                                    placeholder="Assigned driver name"
-                                                    style={styles.textInput}
-                                                    editable={isAdding}
-                                                    outlineColor="#e2e8f0"
-                                                />
-                                            </View>
-                                        </View>
-                                    </Surface>
-
                                     {/* Dynamic Sections */}
-                                    {moduleDetails.map((sec, idx) => renderSection(sec, idx + 1))}
+                                    {(() => {
+                                        let renderedCount = 0;
+                                        return moduleDetails.map((sec) => {
+                                            const fieldsToRender = (sec.fields || []).filter(f => {
+                                                if (isAdding) return f.is_active !== 0;
+                                                const fk = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
+                                                return formValues[fk] !== undefined && formValues[fk] !== '';
+                                            });
+                                            if (fieldsToRender.length === 0) return null;
+                                            renderedCount++;
+                                            return renderSection(sec, renderedCount);
+                                        });
+                                    })()}
 
-                                    {moduleDetails.length === 0 && !detailsLoading && (
-                                        <View style={{ padding: 20, alignItems: 'center' }}>
-                                            <MaterialCommunityIcons name="alert-circle-outline" size={32} color="#94a3b8" />
-                                            <Text style={{ marginTop: 8, color: '#94a3b8', textAlign: 'center' }}>
-                                                No additional fields configured for this module.
-                                            </Text>
-                                        </View>
-                                    )}
+                                    {!detailsLoading && moduleDetails.every(sec => {
+                                        const fieldsToRender = (sec.fields || []).filter(f => {
+                                            if (isAdding) return f.is_active !== 0;
+                                            return formValues[f.field_key] !== undefined && formValues[f.field_key] !== '';
+                                        });
+                                        return fieldsToRender.length === 0;
+                                    }) && (
+                                            <View style={{ padding: 20, alignItems: 'center' }}>
+                                                <MaterialCommunityIcons name="alert-circle-outline" size={32} color="#94a3b8" />
+                                                <Text style={{ marginTop: 8, color: '#94a3b8', textAlign: 'center' }}>
+                                                    No fields configured or populated for this module.
+                                                </Text>
+                                            </View>
+                                        )}
                                 </View>
                             )}
                         </ScrollView>
@@ -1579,7 +1752,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         // Width is handled dynamically in renderSection to support responsiveness
     },
-    inputLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 8 },
+    inputLabel: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 8 },
     textInput: { backgroundColor: 'white', fontSize: 14, minHeight: 44 },
     helperText: { fontSize: 11, color: '#64748b', marginTop: 4, fontStyle: 'italic' },
     emptyText: { color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', marginVertical: 10 },
@@ -1691,11 +1864,13 @@ const styles = StyleSheet.create({
     },
     mobileGrid: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         paddingTop: 8,
         gap: 12
     },
     mobileGridItem: {
         flex: 1,
+        minWidth: '40%',
         backgroundColor: '#f8fafc',
         padding: 8,
         borderRadius: 8,

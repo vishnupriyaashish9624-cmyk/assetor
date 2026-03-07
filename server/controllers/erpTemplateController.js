@@ -102,7 +102,7 @@ exports.createTemplate = async (req, res) => {
             'INSERT INTO module_templates (company_id, module_id, template_name) VALUES (?, ?, ?) RETURNING id',
             [req.user?.company_id || 0, module_id, template_name || '']
         );
-        const templateId = tRows[0].id;
+        const templateId = tRows.insertId;
 
         // 2. Process Heads
         let hOrder = 1;
@@ -115,7 +115,7 @@ exports.createTemplate = async (req, res) => {
                 'INSERT INTO module_heads (template_id, head_title, head_order) VALUES (?, ?, ?) RETURNING id',
                 [templateId, head.head_title, head.head_order || hOrder++]
             );
-            const headId = hRows[0].id;
+            const headId = hRows.insertId;
 
             // 3. Process Subheads
             let sOrder = 1;
@@ -131,7 +131,7 @@ exports.createTemplate = async (req, res) => {
                         sub.subhead_order || sOrder++
                     ]
                 );
-                const subheadId = sRows[0].id;
+                const subheadId = sRows.insertId;
 
                 // 4. Process Options
                 if (['SELECT', 'RADIO', 'CHECKBOX'].includes(sub.field_type)) {
@@ -176,7 +176,7 @@ exports.createConfiguration = async (req, res) => {
             'INSERT INTO module_templates (company_id, module_id, template_name, description) VALUES (?, ?, ?, ?) RETURNING id',
             [company_id, module_id, template_name.trim(), description || '']
         );
-        const templateId = tRows[0].id;
+        const templateId = tRows.insertId;
 
         // 2. Add Default Sections if requested
         if (use_template_sections) {
@@ -184,7 +184,7 @@ exports.createConfiguration = async (req, res) => {
                 'INSERT INTO module_heads (template_id, head_title, head_order) VALUES (?, ?, ?) RETURNING id',
                 [templateId, 'Basic Information', 1]
             );
-            const headId = hRows[0].id;
+            const headId = hRows.insertId;
 
             await connection.execute(
                 'INSERT INTO module_subheads (head_id, subhead_title, field_type, subhead_order) VALUES (?, ?, ?, ?)',
@@ -242,7 +242,7 @@ exports.updateTemplate = async (req, res) => {
                 'INSERT INTO module_heads (template_id, head_title, head_order) VALUES (?, ?, ?) RETURNING id',
                 [id, head.head_title, head.head_order || hOrder++]
             );
-            const headId = hRows[0].id;
+            const headId = hRows.insertId;
 
             let sOrder = 1;
             for (const sub of head.subheads) {
@@ -257,7 +257,7 @@ exports.updateTemplate = async (req, res) => {
                         sub.subhead_order || sOrder++
                     ]
                 );
-                const subheadId = sRows[0].id;
+                const subheadId = sRows.insertId;
 
                 if (['SELECT', 'RADIO', 'CHECKBOX'].includes(sub.field_type)) {
                     if (!sub.options || sub.options.length === 0) {

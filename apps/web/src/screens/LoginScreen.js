@@ -7,6 +7,7 @@ const LoginScreen = () => {
     const { width } = useWindowDimensions();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const { login, loading, error } = useAuthStore();
 
@@ -63,11 +64,17 @@ const LoginScreen = () => {
                                     style={styles.passwordInput}
                                     placeholder="••••••••"
                                     placeholderTextColor="#9ca3af"
-                                    secureTextEntry
+                                    secureTextEntry={!showPassword}
                                     value={password}
                                     onChangeText={setPassword}
                                 />
-                                <MaterialCommunityIcons name="eye-off-outline" size={20} color="#9ca3af" />
+                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                    <MaterialCommunityIcons
+                                        name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                        size={20}
+                                        color="#9ca3af"
+                                    />
+                                </TouchableOpacity>
                             </View>
                         </View>
 

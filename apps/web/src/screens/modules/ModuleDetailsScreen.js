@@ -349,7 +349,7 @@ const ModuleDetailsScreen = ({ route, navigation }) => {
                                         <MaterialCommunityIcons name="chevron-down" size={20} />
                                     </View>
                                     <View style={styles.typeRow}>
-                                        {['text', 'textarea', 'number', 'date', 'select', 'radio', 'switch', 'file_pdf', 'currency', 'phone', 'email'].map(t => (
+                                        {['text', 'textarea', 'number', 'date', 'select', 'radio', 'switch', 'file_pdf', 'currency', 'phone', 'email', 'auto_generated'].map(t => (
                                             <Chip
                                                 key={t}
                                                 selected={fieldForm.field_type === t}
@@ -369,7 +369,28 @@ const ModuleDetailsScreen = ({ route, navigation }) => {
                             <Switch value={fieldForm.required} onValueChange={v => setFieldForm({ ...fieldForm, required: v })} />
                         </View>
 
-                        <TextInput label="Placeholder" value={fieldForm.placeholder} onChangeText={t => setFieldForm({ ...fieldForm, placeholder: t })} mode="outlined" style={styles.input} />
+                        {fieldForm.field_type === 'auto_generated' && (
+                            <View style={{ marginBottom: 16 }}>
+                                <View style={{ padding: 12, backgroundColor: '#f0fdf4', borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <MaterialCommunityIcons name="information" size={16} color="#16a34a" />
+                                        <Text style={{ fontSize: 13, color: '#16a34a', fontWeight: 'bold' }}>AUTO-ID CONFIGURATION</Text>
+                                    </View>
+                                    <View style={{ marginTop: 8 }}>
+                                        <Text style={{ fontSize: 11, color: '#15803d', marginBottom: 4 }}>This field will automatically generate sequential IDs based on the module type.</Text>
+                                        <Text style={{ fontSize: 14, color: '#15803d', fontWeight: '700' }}>
+                                            Format: {"{PREFIX}"}-{moduleId === '1' ? 'PR' : (moduleId === '2' ? 'VH' : (moduleName || 'AS').substring(0, 2).toUpperCase())}-YY-MM-DD-{"{XXX}"}
+                                        </Text>
+                                        <Text style={{ fontSize: 11, color: '#15803d', marginTop: 4 }}>
+                                            Example: COMP-{moduleId === '1' ? 'PR' : (moduleId === '2' ? 'VH' : (moduleName || 'AS').substring(0, 2).toUpperCase())}-26-02-26-100
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+                        {fieldForm.field_type !== 'auto_generated' && (
+                            <TextInput label="Placeholder" value={fieldForm.placeholder} onChangeText={t => setFieldForm({ ...fieldForm, placeholder: t })} mode="outlined" style={styles.input} />
+                        )}
                         <TextInput label="Help Text" value={fieldForm.help_text} onChangeText={t => setFieldForm({ ...fieldForm, help_text: t })} mode="outlined" style={styles.input} />
 
                         {fieldForm.field_type === 'number' && (

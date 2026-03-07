@@ -1,9 +1,10 @@
 const db = require('../config/db');
+const { generateAutoID } = require('../utils/idGenerator');
 const fs = require('fs');
 const path = require('path');
 
 const EXCLUDED_KEYS = new Set([
-    'premise_type', 'premises_name', 'building_name', 'premises_use', 'country', 'city', 'full_address', 'location_notes', 'status', 'document_name', 'document_path', 'document_mime', 'google_map_url', 'capacity', 'address_line2', 'landmark', 'parking_available', 'parking_area',
+    'premise_type', 'premises_name', 'building_name', 'premises_use', 'country', 'city', 'full_address', 'location_notes', 'status', 'document_name', 'document_path', 'document_mime', 'google_map_url', 'capacity', 'address_line2', 'landmark', 'parking_available', 'parking_area', 'region',
     'area_id', 'company_module_id',
     'buy_date', 'purchase_value', 'property_size_sqft', 'title_deed_ref', 'owner_name', 'renewal_required', 'renewal_date', 'insurance_required', 'insurance_expiry', 'notes', 'floors_count', 'depreciation_rate', 'electricity_available', 'water_available', 'internet_available',
     'landlord_name', 'landlord_contact_person', 'landlord_phone', 'landlord_email', 'contract_start', 'contract_end', 'monthly_rent', 'yearly_rent', 'security_deposit', 'renewal_reminder_date', 'payment_frequency', 'next_payment_date', 'late_fee_terms',
@@ -282,10 +283,10 @@ exports.addPremiseDocument = async (req, res) => {
 
 // Helper to sanitize inputs
 const toDbDate = (val) => (val && val !== '' ? val : null);
-const toDbNum = (val) => (val && val !== '' && !isNaN(val) ? parseFloat(val) : 0);
-const toDbInt = (val) => (val && val !== '' && !isNaN(val) ? parseInt(val, 10) : 0);
+const toDbNum = (val) => (val !== undefined && val !== null && val !== '' && !isNaN(val) ? parseFloat(val) : null);
+const toDbInt = (val) => (val !== undefined && val !== null && val !== '' && !isNaN(val) ? parseInt(val, 10) : null);
 const toDbBool = (val) => (val ? 1 : 0);
-const toDbStr = (val) => (val && val.trim() !== '' ? val.trim() : null);
+const toDbStr = (val) => (val && String(val).trim() !== '' ? String(val).trim() : null);
 
 // Create Premise
 exports.createPremise = async (req, res) => {
@@ -306,12 +307,32 @@ exports.createPremise = async (req, res) => {
 
         const body = req.body;
 
+        // Auto-generate IDs for relevant fields
+        try {
+            const [autoFields] = await connection.execute(
+                `SELECT f.field_key, f.meta_json 
+                 FROM module_section_fields f 
+                 JOIN module_sections s ON f.section_id = s.id 
+                 WHERE s.module_id = 1 AND f.field_type = 'auto_generated' AND (f.company_id = ? OR f.company_id = 1)`,
+                [companyId]
+            );
+
+            for (const f of autoFields) {
+                if (!body[f.field_key] || body[f.field_key] === '[SYSTEM GENERATED]') {
+                    const meta = typeof f.meta_json === 'string' ? JSON.parse(f.meta_json) : (f.meta_json || {});
+                    body[f.field_key] = await generateAutoID(companyId, f.field_key, 'premises_module_details', 'p', meta.id_code, connection);
+                }
+            }
+        } catch (autoErr) {
+            console.error('[createPremise] Auto-ID generation failed:', autoErr);
+        }
+
         console.log('Creating premise payload:', JSON.stringify(body, null, 2));
 
         // 1. Insert Base
         const insertBaseQuery = `INSERT INTO office_premises
-            (company_id, premise_type, premises_name, building_name, premises_use, country, area_id, company_module_id, city, full_address, location_notes, status, document_name, document_path, document_mime, google_map_url, capacity, address_line2, landmark, parking_available, parking_area)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            (company_id, premise_type, premises_name, building_name, premises_use, country, area_id, company_module_id, city, full_address, location_notes, status, document_name, document_path, document_mime, google_map_url, capacity, address_line2, landmark, parking_available, parking_area, region)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
         const baseParams = [
             companyId,
@@ -334,11 +355,12 @@ exports.createPremise = async (req, res) => {
             toDbStr(body.address_line2),
             toDbStr(body.landmark),
             toDbBool(body.parking_available),
-            toDbStr(body.parking_area)
+            toDbStr(body.parking_area),
+            toDbStr(body.region)
         ];
 
         const [rows] = await connection.execute(insertBaseQuery + ' RETURNING premise_id', baseParams);
-        const premiseId = rows[0].premise_id;
+        const premiseId = rows.insertId;
 
         // 2. Insert Details
         if (body.premise_type === 'OWNED' && body.owned) {
@@ -428,19 +450,15 @@ exports.createPremise = async (req, res) => {
 
     } catch (error) {
         await connection.rollback();
-        console.error('CRITICAL DB ERROR (Create):', {
-            message: error.message,
-            code: error.code,
-            sql: error.sql,
-            sqlMessage: error.sqlMessage
-        });
+        console.error('CRITICAL DB ERROR (Create):', error);
+        try {
+            const errorLog = `[${new Date().toISOString()}] Create Premise Error: ${error.message}\nStack: ${error.stack}\nPayload: ${JSON.stringify(req.body)}\n`;
+            fs.appendFileSync(path.join(__dirname, '../server_error.log'), errorLog);
+        } catch (e) { }
         res.status(500).json({
             success: false,
             message: 'Database error occurred',
-            error: {
-                code: error.code,
-                sqlMessage: error.sqlMessage
-            }
+            error: error.message
         });
     } finally {
         connection.release();
@@ -480,7 +498,7 @@ exports.updatePremise = async (req, res) => {
         const updateBaseQuery = `UPDATE office_premises SET
         premises_name =?, building_name =?, premises_use =?, country =?, area_id =?, company_module_id =?, city =?, full_address =?, location_notes =?, status =?,
             document_name =?, document_path =?, document_mime =?, google_map_url =?, capacity =?, address_line2 =?, landmark =?,
-            parking_available =?, parking_area =?
+            parking_available =?, parking_area =?, region =?
                 WHERE premise_id =? AND company_id =? `;
 
         const baseParams = [
@@ -503,6 +521,7 @@ exports.updatePremise = async (req, res) => {
             toDbStr(body.landmark),
             toDbBool(body.parking_available),
             toDbStr(body.parking_area),
+            toDbStr(body.region),
             id, companyId
         ];
 
@@ -603,19 +622,15 @@ exports.updatePremise = async (req, res) => {
 
     } catch (error) {
         await connection.rollback();
-        console.error('CRITICAL DB ERROR (Update):', {
-            message: error.message,
-            code: error.code,
-            sql: error.sql,
-            sqlMessage: error.sqlMessage
-        });
+        console.error('CRITICAL DB ERROR (Update):', error);
+        try {
+            const errorLog = `[${new Date().toISOString()}] Update Premise Error: ${error.message}\nStack: ${error.stack}\nPayload: ${JSON.stringify(req.body)}\n`;
+            fs.appendFileSync(path.join(__dirname, '../server_error.log'), errorLog);
+        } catch (e) { }
         res.status(500).json({
             success: false,
             message: 'Update failed',
-            error: {
-                code: error.code,
-                sqlMessage: error.sqlMessage
-            }
+            error: error.message
         });
     } finally {
         connection.release();
@@ -647,9 +662,11 @@ exports.deletePremise = async (req, res) => {
 
 
 // Upload File (Base64 approach)
+const { generateFileName } = require('../utils/idGenerator');
+
 exports.uploadFile = async (req, res) => {
     try {
-        const { name, content } = req.body; // content is base64 string
+        const { name, content, moduleName, customDate } = req.body; // content is base64 string
         if (!name || !content) {
             return res.status(400).json({ success: false, message: 'Missing name or content' });
         }
@@ -657,16 +674,29 @@ exports.uploadFile = async (req, res) => {
         // Clean base64 header if present (e.g. "data:application/pdf;base64,")
         const base64Data = content.replace(/^data:([A-Za-z-+\/]+);base64,/, '');
 
-        // Ensure directory exists (recursively is safer)
+        // Ensure directory exists
         const uploadDir = path.join(__dirname, '../uploads/premises');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
 
-        // Generate unique filename
-        const uniqueName = `${Date.now()}_${name.replace(/\s+/g, '_')}`;
-        const filePath = path.join(uploadDir, uniqueName);
+        const companyId = req.companyId || (req.user && req.user.company_id) || 1;
+        console.log('[uploadFile] Processing:', { name, moduleName, customDate, companyId });
 
+        let uniqueName;
+        if (moduleName) {
+            const tableMap = {
+                'Vehicle': 'vehicle_module_details',
+                'Premises': 'premises_module_details',
+                'Asset': 'premises_module_details'
+            };
+            const detailTable = tableMap[moduleName] || 'premises_module_details';
+            uniqueName = await generateFileName(moduleName, companyId, detailTable, name, customDate);
+        } else {
+            uniqueName = `${Date.now()}_${name.replace(/\s+/g, '_')}`;
+        }
+
+        const filePath = path.join(uploadDir, uniqueName);
         fs.writeFileSync(filePath, base64Data, 'base64');
 
         // Return relative path for DB
