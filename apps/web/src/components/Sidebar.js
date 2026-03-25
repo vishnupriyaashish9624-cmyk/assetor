@@ -13,6 +13,7 @@ export const MODULE_MAPPING = {
     'Employees': 'employees',
     'Maintenance': 'maintenance',
     'Reports': 'reports',
+    'Requests': 'assets',
     'ModulesHome': 'module',
     'ModuleSections': 'module_sections',
     'SubModules': 'sub_modules',
@@ -20,6 +21,7 @@ export const MODULE_MAPPING = {
     'PremisesMaster': 'premises',
     'Clients': 'clients',
     'Companies': 'companies',
+    'AssetCategories': 'assets',
 };
 
 export const MENU_GROUPS = [
@@ -54,6 +56,9 @@ export const MENU_GROUPS = [
         key: 'operations',
         roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'],
         items: [
+            { key: 'Assets', label: 'Asset Registry', icon: 'cube-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'] },
+            { key: 'Requests', label: 'Asset Requests', icon: 'clipboard-list-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'] },
+            { key: 'Maintenance', label: 'Asset Maintenance', icon: 'wrench-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'] },
             { key: 'AssetDisplay', label: 'Premises display', icon: 'monitor-dashboard', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
             { key: 'PremisesMaster', label: 'Premises Master', icon: 'office-building', roles: ['COMPANY_ADMIN'] },
             { key: 'VehicleDisplay', label: 'Vehicle', icon: 'car-side', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
@@ -66,8 +71,9 @@ export const MENU_GROUPS = [
         roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
         items: [
             { key: 'Settings', label: 'Platform Settings', icon: 'cog-outline', roles: ['SUPER_ADMIN'] },
-            { key: 'SMTPSettings', label: 'SMTP Settings', icon: 'email-cog-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+            { key: 'SMTPSettings', label: 'SMTP Settings', icon: 'email-lock', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
             { key: 'Roles', label: 'Roles', icon: 'shield-account-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+            { key: 'AssetCategories', label: 'Product Category', icon: 'shape-outline', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
         ]
     },
 ];

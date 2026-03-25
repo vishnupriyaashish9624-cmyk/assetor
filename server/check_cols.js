@@ -1,13 +1,10 @@
 const db = require('./config/db');
 async function run() {
     try {
-        const [rows] = await db.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'module_section_fields' ORDER BY ordinal_position");
-        console.log('Columns in module_section_fields:');
-        console.log(JSON.stringify(rows, null, 2));
-        process.exit(0);
+        const [rows] = await db.execute("SELECT column_name, is_nullable, column_default FROM information_schema.columns WHERE table_name = 'asset_categories'");
+        console.table(rows);
     } catch (e) {
         console.error(e);
-        process.exit(1);
     }
 }
 run();

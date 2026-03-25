@@ -352,7 +352,13 @@ exports.getStatusMaster = async (req, res) => {
  */
 exports.getSelectedFieldsByConditions = async (req, res) => {
     try {
-        const companyId = req.user?.company_id || req.companyId;
+        let companyId = req.user?.company_id || req.companyId;
+
+        // Super Admin support: allow passing ?company_id=X to test anywhere
+        if (req.user?.role === 'SUPER_ADMIN' && req.query.company_id) {
+            companyId = parseInt(req.query.company_id, 10);
+        }
+
         const { module_id, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, region } = req.query;
 
         if (!companyId) return res.status(403).json({ success: false, message: 'Company context missing' });
@@ -361,32 +367,30 @@ exports.getSelectedFieldsByConditions = async (req, res) => {
         let whereConditions = ['cm.company_id = ?', 'cm.module_id = ?'];
         let whereParams = [companyId, module_id];
         let scoreParts = ['100']; // Base score
-        let selectParams = []; // Parameters injected in the SELECT clause
+        let selectParams = [];
 
-        // Hierarchy of parameters
         const addCondition = (val, field, scoreWeight) => {
             if (val) {
-                whereConditions.push(`(cm.${field} = ? OR cm.${field} IS NULL)`);
+                whereConditions.push(`cm.${field} = ?`);
                 whereParams.push(val);
-                scoreParts.push(`(CASE WHEN cm.${field} = ? THEN ${scoreWeight} ELSE (CASE WHEN cm.${field} IS NULL THEN 1 ELSE 0 END) END)`);
+                scoreParts.push(`(CASE WHEN cm.${field} = ? THEN ${scoreWeight} ELSE 0 END)`);
                 selectParams.push(val);
             } else {
-                whereConditions.push(`cm.${field} IS NULL`);
                 scoreParts.push(`(CASE WHEN cm.${field} IS NULL THEN 1 ELSE 0 END)`);
             }
         };
 
-        addCondition(country_id, 'country_id', 10);
+        addCondition(country_id, 'country_id', 50); // High weight for country
         addCondition(property_type_id, 'property_type_id', 5);
         addCondition(premises_type_id, 'premises_type_id', 5);
         addCondition(area_id, 'area_id', 5);
-        addCondition(vehicle_usage_id, 'vehicle_usage_id', 20); // High weight for vehicle usage
+        addCondition(vehicle_usage_id, 'vehicle_usage_id', 40); // High weight for usage
 
         // Region special case
         if (region && region !== 'All') {
-            whereConditions.push("(cm.region = ? OR cm.region IS NULL OR cm.region = 'All')");
+            whereConditions.push("cm.region = ?");
             whereParams.push(region);
-            scoreParts.push("(CASE WHEN cm.region = ? THEN 15 ELSE (CASE WHEN cm.region IS NULL OR cm.region = 'All' THEN 1 ELSE 0 END) END)");
+            scoreParts.push("(CASE WHEN cm.region = ? THEN 30 ELSE 0 END)");
             selectParams.push(region);
         } else {
             whereConditions.push("(cm.region IS NULL OR cm.region = 'All')");
@@ -404,10 +408,13 @@ exports.getSelectedFieldsByConditions = async (req, res) => {
             LIMIT 1
         `;
 
-        // IMPORTANT: selectParams appear in the SELECT clause, so they must come BEFORE whereParams
+        // params in order: 
+        // 1. selectParams (for scoreParts)
+        // 2. whereParams (for WHERE clause)
         const finalParams = [...selectParams, ...whereParams];
 
-        console.log('[getSelectedFieldsByConditions] Params Check:', { selectLen: selectParams.length, whereLen: whereParams.length, total: finalParams.length });
+        console.log('[getSelectedFieldsByConditions] SQL Query:', query);
+        console.log('[getSelectedFieldsByConditions] Params Check:', { selectLen: selectParams.length, whereLen: whereParams.length, total: finalParams.length }, 'Params:', finalParams);
 
         const [rows] = await db.execute(query, finalParams);
 

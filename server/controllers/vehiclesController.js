@@ -64,6 +64,26 @@ exports.createVehicle = async (req, res) => {
         const companyId = req.companyId || (req.user && req.user.company_id) || 1;
         const body = req.body;
 
+        // 1. Check for duplicate (License Plate or Name)
+        let duplicateQuery = 'SELECT vehicle_id FROM vehicles WHERE company_id = ? AND (vehicle_name = ?';
+        let duplicateParams = [companyId, body.vehicle_name || body.name];
+
+        if (body.license_plate && body.license_plate.trim()) {
+            duplicateQuery += ' OR license_plate = ?';
+            duplicateParams.push(body.license_plate.trim());
+        }
+        duplicateQuery += ')';
+
+        const [existing] = await connection.execute(duplicateQuery, duplicateParams);
+
+        if (existing.length > 0) {
+            await connection.rollback();
+            return res.status(409).json({
+                success: false,
+                message: 'A vehicle with this name or license plate already exists in your company.'
+            });
+        }
+
         // Auto-generate IDs for relevant fields
         try {
             const [autoFields] = await connection.execute(

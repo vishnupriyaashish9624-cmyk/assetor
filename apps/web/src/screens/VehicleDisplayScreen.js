@@ -396,6 +396,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
 
                 const filteredStructure = filterModuleStructure(unfilteredModuleDetails, selectedFieldIds);
                 setModuleDetails(filteredStructure);
+
             }
         }
     };
@@ -1452,7 +1453,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                             <ScrollView style={{ maxHeight: 200 }}>
                                                 {countries.map(c => (
                                                     <Menu.Item key={c.id} title={c.country_name} onPress={() => {
-                                                        onInputChange('country_id', c.id);
+                                                        handleInputChange('country_id', c.id);
                                                         setCountryMenuVisible(false);
                                                     }} />
                                                 ))}
@@ -1480,7 +1481,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         >
                                             {propertyTypes.map(p => (
                                                 <Menu.Item key={p.id} title={p.name} onPress={() => {
-                                                    onInputChange('property_type_id', p.id);
+                                                    handleInputChange('property_type_id', p.id);
                                                     setFormTypeMenuVisible(false);
                                                 }} />
                                             ))}
@@ -1507,7 +1508,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         >
                                             {premisesTypes.map(t => (
                                                 <Menu.Item key={t.id} title={t.type_name} onPress={() => {
-                                                    onInputChange('premises_type_id', t.id);
+                                                    handleInputChange('premises_type_id', t.id);
                                                     setTypeMenuVisible(false);
                                                 }} />
                                             ))}
@@ -1534,7 +1535,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         >
                                             {vehicleUsages.map(u => (
                                                 <Menu.Item key={u.id} title={u.name} onPress={() => {
-                                                    onInputChange('vehicle_usage_id', u.id);
+                                                    handleInputChange('vehicle_usage_id', u.id);
                                                     setUsageMenuVisible(false);
                                                 }} />
                                             ))}
@@ -1561,7 +1562,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         >
                                             {areas.map(a => (
                                                 <Menu.Item key={a.id} title={a.name} onPress={() => {
-                                                    onInputChange('area_id', a.id);
+                                                    handleInputChange('area_id', a.id);
                                                     setAreaMenuVisible(false);
                                                 }} />
                                             ))}

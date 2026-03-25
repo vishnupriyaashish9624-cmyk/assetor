@@ -4,9 +4,10 @@ const { checkClientLimit, checkCompanyLimit } = require('../utils/limitChecker')
 exports.getAssets = async (req, res) => {
     try {
         const [rows] = await db.execute(
-            'SELECT a.*, ac.name as category_name, e.name as current_holder_name FROM assets a ' +
+            'SELECT a.*, ac.name as category_name, e.name as current_holder_name, d.name as department_name FROM assets a ' +
             'LEFT JOIN asset_categories ac ON a.category_id = ac.id ' +
             'LEFT JOIN employees e ON a.current_holder_id = e.id ' +
+            'LEFT JOIN departments d ON e.department_id = d.id ' +
             'WHERE a.company_id = ?',
             [req.companyId]
         );
@@ -19,7 +20,11 @@ exports.getAssets = async (req, res) => {
 exports.getAssetById = async (req, res) => {
     try {
         const [rows] = await db.execute(
-            'SELECT * FROM assets WHERE id = ? AND company_id = ?',
+            'SELECT a.*, ac.name as category_name, e.name as current_holder_name, d.name as department_name FROM assets a ' +
+            'LEFT JOIN asset_categories ac ON a.category_id = ac.id ' +
+            'LEFT JOIN employees e ON a.current_holder_id = e.id ' +
+            'LEFT JOIN departments d ON e.department_id = d.id ' +
+            'WHERE a.id = ? AND a.company_id = ?',
             [req.params.id, req.companyId]
         );
         if (rows.length === 0) return res.status(404).json({ success: false, message: 'Asset not found' });
@@ -30,7 +35,7 @@ exports.getAssetById = async (req, res) => {
 };
 
 exports.createAsset = async (req, res) => {
-    const { category_id, asset_code, name, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes } = req.body;
+    const { category_id, asset_code, name, sub_category, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes } = req.body;
     try {
         // Enforce limits
         const [company] = await db.execute('SELECT client_id FROM companies WHERE id = ?', [req.companyId]);
@@ -57,10 +62,11 @@ exports.createAsset = async (req, res) => {
                 });
             }
         }
+        const { category_id, asset_code, name, sub_category, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes, quantity, current_holder_id, image_data } = req.body;
 
         const [rows] = await db.execute(
-            'INSERT INTO assets (company_id, category_id, asset_code, name, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
-            [req.companyId, category_id, asset_code, name, brand, model, serial_number, purchase_date, purchase_cost, status || 'AVAILABLE', location, notes]
+            'INSERT INTO assets (company_id, category_id, asset_code, name, sub_category, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes, quantity, current_holder_id, image_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [req.companyId, category_id, asset_code, name, sub_category, brand, model, serial_number, purchase_date, purchase_cost, current_holder_id ? 'ASSIGNED' : (status || 'AVAILABLE'), location, notes, quantity || 1, current_holder_id || null, image_data || null]
         );
         res.status(201).json({ success: true, data: { id: rows.insertId, ...req.body } });
     } catch (error) {
@@ -69,11 +75,11 @@ exports.createAsset = async (req, res) => {
 };
 
 exports.updateAsset = async (req, res) => {
-    const { category_id, name, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes } = req.body;
+    const { category_id, asset_code, name, sub_category, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes, quantity, current_holder_id, image_data } = req.body;
     try {
         await db.execute(
-            'UPDATE assets SET category_id=?, name=?, brand=?, model=?, serial_number=?, purchase_date=?, purchase_cost=?, status=?, location=?, notes=? WHERE id=? AND company_id=?',
-            [category_id, name, brand, model, serial_number, purchase_date, purchase_cost, status, location, notes, req.params.id, req.companyId]
+            'UPDATE assets SET category_id=?, asset_code=?, name=?, sub_category=?, brand=?, model=?, serial_number=?, purchase_date=?, purchase_cost=?, status=?, location=?, notes=?, quantity=?, current_holder_id=?, image_data=? WHERE id=? AND company_id=?',
+            [category_id, asset_code, name, sub_category, brand, model, serial_number, purchase_date, purchase_cost, current_holder_id ? 'ASSIGNED' : status, location, notes, quantity || 1, current_holder_id || null, image_data || null, req.params.id, req.companyId]
         );
         res.json({ success: true, message: 'Asset updated successfully' });
     } catch (error) {

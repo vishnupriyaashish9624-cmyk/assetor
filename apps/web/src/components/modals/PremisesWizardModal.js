@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Modal, Portal, Button, Menu, TextInput, Chip, Divider } from 'react-native-paper';
+import AlertDialog from '../AlertDialog';
 import api from '../../api/client';
 import { uploadFile } from '../../api/officeApi';
 
@@ -17,6 +18,7 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
     const [uploadingField, setUploadingField] = useState(null);
     const fileInputRef = useRef(null);
     const currentFileField = useRef(null);
+    const [alertDialog, setAlertDialog] = useState({ visible: false, title: '', message: '' });
     const SERVER_URL = 'http://localhost:5032';
 
     // Dropdown Data
@@ -192,13 +194,21 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
             const selectedFieldIds = filterRes.data?.data?.selected_field_ids;
 
             let filteredSections = [];
-            if (!selectedFieldIds) {
-                // Show all if no matching config
-                filteredSections = sectionsWithFields;
+            if (!selectedFieldIds || selectedFieldIds.length === 0) {
+                const requiredKeys = ['country_id', 'premises_type_id', 'area_id'];
+                const selectedCount = requiredKeys.filter(k => classification[k] !== undefined && classification[k] !== null && classification[k] !== '').length;
+
+                if (selectedCount >= 2) {
+                    setAlertDialog({
+                        visible: true,
+                        title: 'Not Configured',
+                        message: 'This combination is not configured.'
+                    });
+                }
             } else {
                 filteredSections = sectionsWithFields.map(sec => ({
                     ...sec,
-                    fields: sec.fields.filter(f => selectedFieldIds.some(sid => String(sid) === String(f.id)))
+                    fields: sec.fields.filter(f => selectedFieldIds.some(sid => String(sid) === String(f.id) || String(sid) === String(f.field_id) || String(sid) === String(f.field_key)))
                 })).filter(s => s.fields.length > 0);
             }
 
@@ -617,6 +627,13 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
                     </>
                 )}
             </Modal>
+            <AlertDialog
+                visible={alertDialog.visible}
+                onDismiss={() => setAlertDialog(p => ({ ...p, visible: false }))}
+                title={alertDialog.title}
+                message={alertDialog.message || 'This combination is not configured.'}
+                type="warning"
+            />
         </Portal>
     );
 };

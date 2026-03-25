@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const DateField = ({ label, value, onChange, placeholder = "DD/MM/YYYY", required }) => {
+const DateField = ({ label, value, onChange, placeholder = "DD/MM/YYYY", required, readOnly = false }) => {
 
     // For Web: Use input type="date" but hide native indicator and use custom icon
     // This allows native picker to work while keeping custom consistent UI
@@ -14,7 +14,7 @@ const DateField = ({ label, value, onChange, placeholder = "DD/MM/YYYY", require
                     <input
                         type="date"
                         value={value}
-                        onChange={(e) => onChange(e.target.value)}
+                        onChange={(e) => !readOnly && onChange(e.target.value)}
                         placeholder="YYYY-MM-DD" // Native date inputs use ISO mostly
                         style={{
                             border: '1px solid #e2e8f0',
@@ -26,17 +26,12 @@ const DateField = ({ label, value, onChange, placeholder = "DD/MM/YYYY", require
                             width: '100%',
                             outline: 'none',
                             fontFamily: 'inherit',
-                            backgroundColor: 'white',
-                            cursor: 'pointer',
-                            // Hide native calendar icon
-                            '--webkit-calendar-picker-indicator': {
-                                display: 'none',
-                                opacity: 0
-                            }
+                            backgroundColor: readOnly ? '#F8FAFC' : 'white',
+                            cursor: readOnly ? 'default' : 'pointer',
+                            pointerEvents: readOnly ? 'none' : 'auto',
+                            opacity: readOnly ? 0.8 : 1,
                         }}
-                        // This snippet injects a style tag to forcibly hide the indicator for this input class if we had one
-                        // Instead, we use a simple inline style approach or rely on the onClick showPicker
-                        onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                        onClick={(e) => !readOnly && e.target.showPicker && e.target.showPicker()}
                     />
                     {/* The CSS override for the indicator is best done via class or style injection if possible. 
                         Since we can't easily inject global CSS, we rely on the custom icon overlaying or 
@@ -77,10 +72,11 @@ const DateField = ({ label, value, onChange, placeholder = "DD/MM/YYYY", require
             {label && <Text style={styles.label}>{label} {required && '*'}</Text>}
             <View style={styles.inputWrapper}>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, readOnly && { backgroundColor: '#F8FAFC' }]}
                     value={value}
                     onChangeText={onChange}
                     placeholder="YYYY-MM-DD"
+                    editable={!readOnly}
                 />
                 <MaterialCommunityIcons name="calendar" size={20} color="#94a3b8" style={styles.icon} />
             </View>

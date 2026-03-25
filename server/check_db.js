@@ -1,22 +1,22 @@
-
 const db = require('./config/db');
-
-async function checkData() {
+async function run() {
     try {
-        const tables = ['countries', 'premises_types', 'area', 'property_types', 'module_master'];
-        for (const table of tables) {
-            const [rows] = await db.execute(`SELECT COUNT(*) as count FROM ${table}`);
-            console.log(`Table ${table} has ${rows[0].count} rows.`);
-            if (rows[0].count > 0) {
-                const [data] = await db.execute(`SELECT * FROM ${table} LIMIT 5`);
-                console.log(`Sample data for ${table}:`, data);
-            }
+        const [rows] = await db.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+        console.log('Tables:', rows.map(r => r.table_name));
+
+        const [allCats] = await db.execute('SELECT * FROM asset_categories');
+        console.log('asset_categories count:', allCats.length);
+
+        // Check if "Asset_category" exists (case sensitive)
+        try {
+            const [otherCats] = await db.execute('SELECT * FROM "Asset_category"');
+            console.log('"Asset_category" count:', otherCats.length);
+            console.log('"Asset_category" data:', JSON.stringify(otherCats, null, 2));
+        } catch (e) {
+            console.log('"Asset_category" table does not exist or error:', e.message);
         }
-    } catch (err) {
-        console.error('Error checking data:', err);
-    } finally {
-        process.exit();
+    } catch (e) {
+        console.error(e);
     }
 }
-
-checkData();
+run();

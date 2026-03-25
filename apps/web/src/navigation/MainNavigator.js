@@ -24,19 +24,23 @@ import EmployeesScreen from '../screens/EmployeesScreen';
 import RolesScreen from '../screens/RolesScreen';
 import SMTPSettingsScreen from '../screens/SMTPSettingsScreen';
 import ClientsScreen from '../screens/ClientsScreen';
+import AssetCategoriesScreen from '../screens/AssetCategoriesScreen';
+import AddCategoryScreen from '../screens/AddCategoryScreen';
 import PremisesMasterScreen from '../screens/PremisesMasterScreen';
 
+import AssetRequestScreen from '../screens/AssetRequestScreen';
 
-// Screen Wrappers
+import AssetMaintenanceScreen from '../screens/AssetMaintenanceScreen';
+
 const CompaniesScreen = GroupManagementScreen;
 const SettingsScreen = (props) => <PlaceholderScreen {...props} title="Settings" icon="cog-outline" />;
 const OfficeOwnedScreen = OwnedPremisesScreen;
 const OfficeRentalScreen = RentalPremisesScreen;
-const CategoriesScreen = (props) => <PlaceholderScreen {...props} title="Asset Categories" icon="shape-outline" actionLabel="New Category" />;
+const CategoriesScreen = AssetCategoriesScreen;
 const DepartmentsScreen = (props) => <PlaceholderScreen {...props} title="Departments" icon="office-building-outline" actionLabel="New Department" />;
 const TrackingScreen = (props) => <PlaceholderScreen {...props} title="Asset Tracking" icon="map-marker-path" />;
-const MaintenanceScreen = (props) => <PlaceholderScreen {...props} title="Maintenance" icon="wrench-outline" actionLabel="New Request" />;
-const RequestsScreen = JobWizardScreen; // Wired to Job Wizard Demo for User Review
+const MaintenanceScreen = AssetMaintenanceScreen;
+const RequestsScreen = AssetRequestScreen;
 const ReportsScreen = (props) => <PlaceholderScreen {...props} title="Reports" icon="file-chart-outline" actionLabel="Export Report" />;
 // AssetDisplayScreen replaced by import
 
@@ -69,6 +73,7 @@ const MainNavigator = () => {
 
             <Drawer.Screen name="Assets" component={AssetsScreen} />
             <Drawer.Screen name="AssetCategories" component={CategoriesScreen} />
+            <Drawer.Screen name="AddCategory" component={AddCategoryScreen} />
             <Drawer.Screen name="Departments" component={DepartmentsScreen} />
             <Drawer.Screen name="Employees" component={EmployeesScreen} />
             <Drawer.Screen name="AssetTracking" component={TrackingScreen} />
