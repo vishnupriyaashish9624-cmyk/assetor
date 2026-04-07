@@ -18,6 +18,8 @@ const ModulesHomeScreen = ({ navigation }) => {
     const [selectedModule, setSelectedModule] = useState(null);
     const [initialSection, setInitialSection] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [itToDel, setItToDel] = useState(null);
 
     const itemsPerPage = 10;
     const { width } = useWindowDimensions();
@@ -88,27 +90,28 @@ const ModulesHomeScreen = ({ navigation }) => {
         }
     };
 
-    const handleDeleteModule = async (id) => {
-        Alert.alert(
-            'Delete Module',
-            'Are you sure you want to remove this module from your company catalog?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await api.delete(`company-modules/${id}`);
-                            fetchModules();
-                        } catch (error) {
-                            console.error('Delete module error:', error);
-                            Alert.alert('Error', 'Failed to remove module mapping');
-                        }
-                    }
-                }
-            ]
-        );
+    const handleDeleteModule = (moduleOrId) => {
+        setItToDel(moduleOrId);
+        setDeleteModalVisible(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!itToDel) return;
+        try {
+            const deleteId = typeof itToDel === 'object' ? itToDel.id : itToDel;
+            console.log(`[ModulesHomeScreen] Deleting module mapping: ${deleteId}`);
+            await api.delete(`company-modules/${deleteId}`);
+            setDeleteModalVisible(false);
+            setItToDel(null);
+            Alert.alert('Success', 'Module removed successfully');
+            fetchModules();
+        } catch (error) {
+            console.error('Delete module error:', error);
+            const msg = error.response?.data?.message || 'Failed to remove module mapping';
+            Alert.alert('Error', msg);
+        } finally {
+            setDeleteModalVisible(false);
+        }
     };
 
 
@@ -499,6 +502,52 @@ const ModulesHomeScreen = ({ navigation }) => {
                                     buttonColor="#5e35a1"
                                 >
                                     Close Details
+                                </Button>
+                            </View>
+                        </View>
+                    </Modal>
+                </Portal>
+                {/* Delete Confirmation Modal */}
+                <Portal>
+                    <Modal
+                        visible={deleteModalVisible}
+                        onDismiss={() => setDeleteModalVisible(false)}
+                        contentContainerStyle={styles.deleteModal}
+                    >
+                        <View style={styles.deleteCard}>
+                            <View style={styles.deleteHeader}>
+                                <View style={styles.deleteIconCircle}>
+                                    <MaterialCommunityIcons name="alert-outline" size={28} color="#ef4444" />
+                                </View>
+                                <View>
+                                    <Text style={styles.deleteTitle}>Delete Module</Text>
+                                    <Text style={styles.deleteSubtitle}>This will remove the module from your active catalog.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.deleteContent}>
+                                <Text style={styles.deleteText}>
+                                    Are you sure you want to remove <Text style={{ fontWeight: 'bold' }}>{itToDel?.name || 'this module'}</Text>?
+                                    This action cannot be undone.
+                                </Text>
+                            </View>
+
+                            <View style={styles.deleteFooter}>
+                                <Button
+                                    mode="outlined"
+                                    onPress={() => setDeleteModalVisible(false)}
+                                    style={styles.cancelBtn}
+                                    textColor="#64748b"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    mode="contained"
+                                    onPress={confirmDelete}
+                                    buttonColor="#ef4444"
+                                    style={styles.confirmBtn}
+                                >
+                                    Yes, Delete
                                 </Button>
                             </View>
                         </View>
@@ -910,6 +959,62 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#1e293b',
     },
+    // Delete Modal Styles
+    deleteModal: {
+        backgroundColor: 'transparent',
+        padding: 20,
+        width: '100%',
+        maxWidth: 450,
+        alignSelf: 'center',
+    },
+    deleteCard: {
+        backgroundColor: 'white',
+        borderRadius: 20,
+        overflow: 'hidden',
+        elevation: 20,
+    },
+    deleteHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 20,
+        gap: 16,
+    },
+    deleteIconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: '#fef2f2',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    deleteTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    deleteSubtitle: {
+        fontSize: 12,
+        color: '#64748b',
+    },
+    deleteContent: {
+        paddingHorizontal: 20,
+        paddingBottom: 24,
+    },
+    deleteText: {
+        fontSize: 14,
+        color: '#475569',
+        lineHeight: 20,
+    },
+    deleteFooter: {
+        flexDirection: 'row',
+        padding: 16,
+        gap: 12,
+        backgroundColor: '#f8fafc',
+        justifyContent: 'flex-end',
+    },
+    cancelBtn: { borderRadius: 10, borderColor: '#e2e8f0' },
+    confirmBtn: { borderRadius: 10, elevation: 0 },
 });
+
 
 export default ModulesHomeScreen;

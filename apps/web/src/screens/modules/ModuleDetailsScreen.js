@@ -349,7 +349,7 @@ const ModuleDetailsScreen = ({ route, navigation }) => {
                                         <MaterialCommunityIcons name="chevron-down" size={20} />
                                     </View>
                                     <View style={styles.typeRow}>
-                                        {['text', 'textarea', 'number', 'date', 'select', 'radio', 'switch', 'file_pdf', 'currency', 'phone', 'email', 'auto_generated'].map(t => (
+                                        {['text', 'textarea', 'number', 'date', 'select', 'radio', 'switch', 'file_pdf', 'currency', 'phone', 'email', ...(String(moduleId) === '1' ? ['auto_generated'] : [])].map(t => (
                                             <Chip
                                                 key={t}
                                                 selected={fieldForm.field_type === t}

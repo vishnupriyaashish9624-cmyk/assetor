@@ -110,6 +110,23 @@ const PremiseDetailsModal = ({ visible, onClose, data, onEdit }) => {
                         <Field label="Notes" value={data.location_notes || data.notes} fullWidth />
                     </Section>
 
+                    {/* Custom / Dynamic Fields */}
+                    {Object.keys(data).filter(key =>
+                        !['premises_name', 'building_name', 'premises_use', 'premise_type', 'property_size_sqft', 'floors_count', 'capacity', 'location_notes', 'notes', 'country', 'city', 'full_address', 'address_line2', 'landmark', 'google_map_url', 'buy_date', 'purchase_value', 'renewal_date', 'title_deed_ref', 'owner_name', 'landlord_name', 'landlord_contact_person', 'landlord_phone', 'contract_start', 'contract_end', 'security_deposit', 'renewal_reminder_date', 'payment_frequency', 'yearly_rent', 'monthly_rent', 'next_payment_date', 'electricity_available', 'water_available', 'internet_available', 'electricity_id', 'water_id', 'document_path', 'image_path', 'premise_id', 'id', 'created_at', 'updated_at', 'status', 'company_id'].includes(key) &&
+                        !key.endsWith('_name') && !key.endsWith('_policy_no') && !key.endsWith('_coverage_type') && !key.endsWith('_issue_date') && !key.endsWith('_start_date') && !key.endsWith('_end_date') && !key.endsWith('_expiry_date') && !key.endsWith('_reminder') &&
+                        data[key] !== null && data[key] !== ''
+                    ).length > 0 && (
+                            <Section title="Additional Information">
+                                {Object.keys(data).filter(key =>
+                                    !['premises_name', 'building_name', 'premises_use', 'premise_type', 'property_size_sqft', 'floors_count', 'capacity', 'location_notes', 'notes', 'country', 'city', 'full_address', 'address_line2', 'landmark', 'google_map_url', 'buy_date', 'purchase_value', 'renewal_date', 'title_deed_ref', 'owner_name', 'landlord_name', 'landlord_contact_person', 'landlord_phone', 'contract_start', 'contract_end', 'security_deposit', 'renewal_reminder_date', 'payment_frequency', 'yearly_rent', 'monthly_rent', 'next_payment_date', 'electricity_available', 'water_available', 'internet_available', 'electricity_id', 'water_id', 'document_path', 'image_path', 'premise_id', 'id', 'created_at', 'updated_at', 'status', 'company_id'].includes(key) &&
+                                    !key.endsWith('_name') && !key.endsWith('_policy_no') && !key.endsWith('_coverage_type') && !key.endsWith('_issue_date') && !key.endsWith('_start_date') && !key.endsWith('_end_date') && !key.endsWith('_expiry_date') && !key.endsWith('_reminder') &&
+                                    data[key] !== null && data[key] !== ''
+                                ).map(key => (
+                                    <Field key={key} label={key.replace(/_/g, ' ').toUpperCase()} value={data[key]} />
+                                ))}
+                            </Section>
+                        )}
+
                     {/* B) Location */}
                     <Section title="Location Details">
                         <Field label="Country" value={data.country} />
@@ -171,18 +188,20 @@ const PremiseDetailsModal = ({ visible, onClose, data, onEdit }) => {
                     {/* F) Documents */}
                     {/* F) Documents */}
                     <Section title="Documents">
-                        {data.document_path ? (
+                        {/* Static Document */}
+                        {(data.document_path || data.image_path) && (
                             <View style={styles.docCard}>
-                                <MaterialCommunityIcons name="file-pdf-box" size={32} color="#ef4444" />
+                                <MaterialCommunityIcons name="file-document-outline" size={32} color="#3b82f6" />
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.docName}>{data.document_name || 'Document'}</Text>
+                                    <Text style={styles.docName}>{data.document_name || 'Main Document'}</Text>
                                     <Text style={styles.docMeta}>Attached Document</Text>
                                 </View>
                                 <View style={{ flexDirection: 'row', gap: 8 }}>
                                     <TouchableOpacity
                                         style={styles.docBtn}
                                         onPress={() => {
-                                            const url = data.document_url || `http://localhost:5026${data.document_path}`;
+                                            const baseUrl = 'http://localhost:5032';
+                                            const url = data.document_url || `${baseUrl}${data.document_path || data.image_path}`;
                                             if (Platform.OS === 'web') window.open(url, '_blank');
                                         }}
                                     >
@@ -191,7 +210,8 @@ const PremiseDetailsModal = ({ visible, onClose, data, onEdit }) => {
                                     <TouchableOpacity
                                         style={styles.docBtn}
                                         onPress={() => {
-                                            const url = data.document_url || `http://localhost:5026${data.document_path}`;
+                                            const baseUrl = 'http://localhost:5032';
+                                            const url = data.document_url || `${baseUrl}${data.document_path || data.image_path}`;
                                             if (Platform.OS === 'web') {
                                                 const link = document.createElement('a');
                                                 link.href = url;
@@ -206,9 +226,57 @@ const PremiseDetailsModal = ({ visible, onClose, data, onEdit }) => {
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                        ) : (
-                            <Text style={styles.noDocs}>No documents uploaded</Text>
                         )}
+
+                        {/* Dynamic Documents */}
+                        {Object.keys(data).filter(key =>
+                            typeof data[key] === 'string' &&
+                            data[key].includes('/uploads/') &&
+                            !['document_path', 'image_path'].includes(key) &&
+                            !key.endsWith('_name')
+                        ).map(key => (
+                            <View key={key} style={[styles.docCard, { marginTop: 12 }]}>
+                                <MaterialCommunityIcons name="file-document-outline" size={32} color="#10b981" />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.docName}>{data[`${key}_name`] || key.replace(/_/g, ' ')}</Text>
+                                    <Text style={styles.docMeta}>Dynamic Field Document</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <TouchableOpacity
+                                        style={styles.docBtn}
+                                        onPress={() => {
+                                            const baseUrl = 'http://localhost:5032';
+                                            const url = data[key].startsWith('http') ? data[key] : `${baseUrl}${data[key]}`;
+                                            if (Platform.OS === 'web') window.open(url, '_blank');
+                                        }}
+                                    >
+                                        <Text style={styles.docBtnText}>View</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.docBtn}
+                                        onPress={() => {
+                                            const baseUrl = 'http://localhost:5032';
+                                            const url = data[key].startsWith('http') ? data[key] : `${baseUrl}${data[key]}`;
+                                            if (Platform.OS === 'web') {
+                                                const link = document.createElement('a');
+                                                link.href = url;
+                                                link.download = data[`${key}_name`] || 'download';
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                            }
+                                        }}
+                                    >
+                                        <Text style={styles.docBtnText}>Download</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+
+                        {!data.document_path && !data.image_path &&
+                            !Object.keys(data).some(key => typeof data[key] === 'string' && data[key].includes('/uploads/') && !['document_path', 'image_path'].includes(key)) && (
+                                <Text style={styles.noDocs}>No documents uploaded</Text>
+                            )}
                     </Section>
 
                     {/* G) Associated Modules */}

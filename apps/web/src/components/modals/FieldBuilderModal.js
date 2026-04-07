@@ -167,7 +167,8 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
         { label: 'Radio Buttons', value: 'radio' },
         { label: 'Checkbox', value: 'checkbox' },
         { label: 'Switch', value: 'switch' },
-        { label: 'Auto-generated Field', value: 'auto_generated' },
+        ...(String(moduleId) === '1' ? [{ label: 'Auto-generated Field', value: 'auto_generated' }] : []),
+
     ];
 
     const currentTypeLabel = FIELD_TYPES.find(t => t.value === fieldType)?.label || 'Textbox';
@@ -310,6 +311,8 @@ const FieldBuilderModal = ({ visible, onClose, moduleId, moduleName }) => {
                                         />
                                     </View>
                                 )}
+
+
 
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 20 }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

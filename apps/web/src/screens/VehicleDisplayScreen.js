@@ -1111,9 +1111,40 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                 </DataTable.Cell>
                                                 <DataTable.Cell style={{ flex: 2, paddingRight: 16 }}>
                                                     {isFile ? (
-                                                        <Text style={{ fontSize: 14, color: '#3b82f6', fontWeight: '600' }}>
-                                                            {val ? (typeof val === 'string' ? val.split('/').pop() : 'File Uploaded') : '-'}
-                                                        </Text>
+                                                        <View style={{ width: '100%', paddingVertical: 4 }}>
+                                                            <View style={{
+                                                                backgroundColor: '#f8fafc',
+                                                                borderRadius: 8,
+                                                                padding: 8,
+                                                                borderWidth: 1,
+                                                                borderColor: '#e2e8f0',
+                                                                flexDirection: 'row',
+                                                                alignItems: 'center',
+                                                                gap: 10
+                                                            }}>
+                                                                <MaterialCommunityIcons name="file-document-outline" size={20} color="#3b82f6" />
+                                                                <View style={{ flex: 1 }}>
+                                                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b' }} numberOfLines={1}>
+                                                                        {val ? (typeof val === 'string' ? val.split('/').pop() : 'Document Attached') : 'No File'}
+                                                                    </Text>
+                                                                    <Text style={{ fontSize: 11, color: '#10b981', fontWeight: '600' }}>Uploaded Successfully</Text>
+                                                                </View>
+                                                                {val && (
+                                                                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                                                                        <TouchableOpacity
+                                                                            onPress={() => {
+                                                                                const SERVER_URL = 'http://localhost:5032';
+                                                                                const url = val.startsWith('http') ? val : `${SERVER_URL}${val}`;
+                                                                                if (Platform.OS === 'web') window.open(url, '_blank');
+                                                                            }}
+                                                                            style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#eff6ff', borderRadius: 4 }}
+                                                                        >
+                                                                            <Text style={{ fontSize: 11, color: '#3b82f6', fontWeight: '700' }}>View</Text>
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        </View>
                                                     ) : (
                                                         <Text style={{ fontSize: 14, color: '#1e293b', lineHeight: 20 }}>
                                                             {typeof val === 'boolean'

@@ -273,8 +273,7 @@ const AssetDisplayScreen = ({ navigation }) => {
                         {fieldsToRender.map((f, i) => {
                             const fieldKey = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
                             const val = formValues[fieldKey];
-                            const isFile = f.field_type === 'file' || f.field_type === 'pdf' || f.field_type === 'file_pdf' ||
-                                (f.label || '').toLowerCase().includes('upload') ||
+                            const isFile = f.field_type === 'file' || f.field_type === 'file_upload' || f.field_type === 'image' || f.field_type === 'signature' || f.field_type === 'pdf' || f.field_type === 'file_pdf' ||
                                 (f.label || '').toLowerCase().includes('document') ||
                                 (f.label || '').toLowerCase().includes('file') ||
                                 (typeof val === 'string' && (val.includes('/uploads/') || val.includes('base64')));
@@ -290,20 +289,64 @@ const AssetDisplayScreen = ({ navigation }) => {
                             ];
 
                             const populatedMetadata = isFile ? metadata.filter(meta => formValues[`${fieldKey}_${meta.key}`]) : [];
+                            const SERVER_URL = 'http://localhost:5032';
 
                             return (
                                 <View key={f.id} style={{ borderBottomWidth: i === fieldsToRender.length - 1 ? 0 : 1, borderBottomColor: '#f1f5f9' }}>
-                                    <DataTable.Row style={{ minHeight: 52, paddingVertical: 8 }}>
+                                    <DataTable.Row style={{ minHeight: isFile ? 72 : 52, paddingVertical: 8 }}>
                                         <DataTable.Cell style={{ flex: 1.5 }}>
                                             <Text style={{ fontSize: 13, fontWeight: '700', color: '#475569' }}>{f.label}</Text>
                                         </DataTable.Cell>
                                         <DataTable.Cell style={{ flex: 2.5 }}>
                                             {isFile ? (
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <MaterialCommunityIcons name="file-document-outline" size={16} color="#3b82f6" />
-                                                    <Text style={{ fontSize: 13, color: '#3b82f6', fontWeight: '600' }} numberOfLines={1}>
-                                                        {val ? (typeof val === 'string' ? val.split('/').pop() : 'Document Attached') : '-'}
-                                                    </Text>
+                                                <View style={{ width: '100%', paddingVertical: 4 }}>
+                                                    <View style={{
+                                                        backgroundColor: '#f8fafc',
+                                                        borderRadius: 8,
+                                                        padding: 10,
+                                                        borderWidth: 1,
+                                                        borderColor: '#e2e8f0',
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        gap: 12
+                                                    }}>
+                                                        <MaterialCommunityIcons name="file-document-outline" size={24} color="#3b82f6" />
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b' }} numberOfLines={1}>
+                                                                {val ? (typeof val === 'string' ? val.split('/').pop() : 'Document Attached') : 'No File'}
+                                                            </Text>
+                                                            <Text style={{ fontSize: 11, color: '#10b981', fontWeight: '600' }}>Uploaded Successfully</Text>
+                                                        </View>
+                                                        {val && (
+                                                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        const url = val.startsWith('http') ? val : `${SERVER_URL}${val}`;
+                                                                        if (Platform.OS === 'web') window.open(url, '_blank');
+                                                                    }}
+                                                                    style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#eff6ff', borderRadius: 4 }}
+                                                                >
+                                                                    <Text style={{ fontSize: 11, color: '#3b82f6', fontWeight: '700' }}>View</Text>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        const url = val.startsWith('http') ? val : `${SERVER_URL}${val}`;
+                                                                        if (Platform.OS === 'web') {
+                                                                            const link = document.createElement('a');
+                                                                            link.href = url;
+                                                                            link.download = val.split('/').pop();
+                                                                            document.body.appendChild(link);
+                                                                            link.click();
+                                                                            document.body.removeChild(link);
+                                                                        }
+                                                                    }}
+                                                                    style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 4 }}
+                                                                >
+                                                                    <Text style={{ fontSize: 11, color: '#16a34a', fontWeight: '700' }}>Download</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        )}
+                                                    </View>
                                                 </View>
                                             ) : (
                                                 <Text style={{ fontSize: 13, color: '#1e293b' }}>
@@ -736,6 +779,7 @@ const AssetDisplayScreen = ({ navigation }) => {
                         message={alertConfig.message}
                         type={alertConfig.type}
                     />
+
                 </Portal>
             </View>
         </AppLayout >

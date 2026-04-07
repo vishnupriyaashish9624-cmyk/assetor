@@ -1,42 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { Modal, Portal, Button, Menu, TextInput, Chip, Divider, Dialog, Text, Card, Switch, RadioButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Modal, Portal, Button, Menu, TextInput, Chip, Divider, Dialog } from 'react-native-paper';
-import AlertDialog from '../AlertDialog';
 import api from '../../api/client';
 import { uploadFile } from '../../api/officeApi';
+import AlertDialog from '../AlertDialog';
 
-const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) => {
-    const { width, height } = useWindowDimensions();
-    const isMobile = width < 768;
-
-    // State
+const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [initializing, setInitializing] = useState(true);
-    const [uploadingField, setUploadingField] = useState(null);
     const fileInputRef = useRef(null);
     const currentFileField = useRef(null);
-    const SERVER_URL = 'http://localhost:5032';
+    const [uploadingField, setUploadingField] = useState(null);
 
     // Dropdown Data
     const [countries, setCountries] = useState([]);
     const [propertyTypes, setPropertyTypes] = useState([]);
     const [premisesTypes, setPremisesTypes] = useState([]);
     const [areas, setAreas] = useState([]);
+    const [vehicleUsages, setVehicleUsages] = useState([]);
+    const [vehicleCategories, setVehicleCategories] = useState([]);
     const [regions, setRegions] = useState([]);
     const [regionsLoading, setRegionsLoading] = useState(false);
-    const [vehicleUsages, setVehicleUsages] = useState([]);
 
     // Dropdown Menus Visibility
     const [menus, setMenus] = useState({
         country: false,
         region: false,
-        propertyType: false,
         premisesType: false,
         area: false
     });
+    const [activeDynamicMenu, setActiveDynamicMenu] = useState(null);
 
     // Form Data - Step 1
     const [classification, setClassification] = useState({
@@ -47,15 +43,10 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
         driver: '',
         vehicle_usage_id: null,
         country_id: null,
-        property_type_id: null,
-        premises_type_id: null,
-        area_id: null,
+        region: '',
         status: 'Active',
         country_name: '',
-        region: '',
-        property_type_name: '',
-        premises_type_name: '',
-        area_name: ''
+        premises_type_name: ''
     });
 
     // Dynamic Module Data
@@ -96,25 +87,26 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
     useEffect(() => {
         if (visible) {
             setStep(1);
+            setInitializing(true);
             fetchDropdowns();
+            fetchModuleConfig();
 
             if (initialData && Object.keys(initialData).length > 0) {
-                const countryObj = countries.find(c => c.id === initialData.country_id);
                 setClassification({
+                    vehicle_id: initialData.vehicle_id || null,
+                    vehicle_name: initialData.vehicle_name || '',
+                    license_plate: initialData.license_plate || '',
+                    type: initialData.type || '',
+                    driver: initialData.driver || '',
                     vehicle_usage_id: initialData.vehicle_usage_id || null,
                     country_id: initialData.country_id || null,
                     region: initialData.region || '',
-                    property_type_id: initialData.property_type_id || null,
-                    premises_type_id: initialData.premises_type_id || null,
-                    area_id: initialData.area_id || null,
-                    status: initialData.status === 'Active' || initialData.is_active === 1 ? 'Active' : 'Inactive',
-                    country_name: countryObj?.country_name || initialData.country_name || (initialData.country_id === null ? 'All' : ''),
-                    property_type_name: propertyTypes.find(p => p.id === initialData.property_type_id)?.name || '',
-                    premises_type_name: initialData.premises_type_name || (vehicleUsages.find(v => v.id === initialData.vehicle_usage_id)?.name || ''),
-                    area_name: areas.find(a => a.id === initialData.area_id)?.name || ''
+                    status: initialData.status || 'Active',
+                    country_name: initialData.country_name || '',
+                    premises_type_name: initialData.premises_type_name || ''
                 });
 
-                const baseKeys = ['vehicle_id', 'company_id', 'status', 'is_active', 'country_id', 'property_type_id', 'premises_type_id', 'vehicle_usage_id', 'area_id', 'country_name', 'property_type_name', 'premises_type_name', 'area_name', 'created_at', 'updated_at', 'image_path'];
+                const baseKeys = ['vehicle_id', 'company_id', 'status', 'is_active', 'country_id', 'property_type_id', 'premises_type_id', 'vehicle_usage_id', 'area_id', 'vehicle_category_id', 'country_name', 'property_type_name', 'premises_type_name', 'area_name', 'vehicle_category_name', 'created_at', 'updated_at', 'image_path'];
                 const dynamic = {};
                 Object.keys(initialData).forEach(key => {
                     if (!baseKeys.includes(key)) dynamic[key] = initialData[key];
@@ -122,88 +114,43 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                 setDynamicData(dynamic);
             } else {
                 setClassification({
+                    vehicle_usage_id: null,
                     country_id: null,
                     region: '',
-                    property_type_id: null,
-                    premises_type_id: null,
-                    area_id: null,
                     status: 'Active',
                     country_name: '',
-                    property_type_name: '',
-                    premises_type_name: '',
-                    area_name: ''
+                    premises_type_name: ''
                 });
                 setDynamicData({});
                 setAutoGenerated({});
                 setModuleStructure([]);
             }
         }
-    }, [visible, initialData, countries.length, vehicleUsages.length]);
+    }, [visible, initialData]);
 
     useEffect(() => {
-        if (visible && (classification.country_id || classification.vehicle_usage_id || (classification.region && classification.region !== 'All'))) {
+        if (visible && (classification.country_id || classification.vehicle_usage_id || classification.region)) {
             fetchModuleConfig();
         }
     }, [classification.country_id, classification.vehicle_usage_id, classification.region]);
 
     useEffect(() => {
-        const fetchRegions = async () => {
-            const cName = classification.country_name;
-            if (!cName) {
-                setRegions([]);
-                return;
-            }
-
-            if (cName.toLowerCase() === 'all') {
-                setRegions([{ name: 'All', state_code: 'ALL' }]);
-                if (!classification.region) {
-                    setClassification(p => ({ ...p, region: 'All' }));
-                }
-                return;
-            }
-
+        if (classification.country_id) {
+            fetchRegions(classification.country_id);
+        } else {
             setRegions([]);
-            setRegionsLoading(true);
-
-            let queryCountry = cName;
-            if (queryCountry.toLowerCase() === 'uae') queryCountry = 'United Arab Emirates';
-            if (queryCountry.toLowerCase() === 'usa') queryCountry = 'United States';
-            if (queryCountry.toLowerCase() === 'uk') queryCountry = 'United Kingdom';
-
-            try {
-                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ country: queryCountry })
-                });
-                const data = await res.json();
-                if (data.data && data.data.states) {
-                    setRegions(data.data.states.map(s => ({
-                        name: s.name,
-                        state_code: s.state_code
-                    })));
-                }
-            } catch (e) {
-                console.error('Fetch regions error', e);
-            } finally {
-                setRegionsLoading(false);
-            }
-        };
-
-        if (classification.country_name) {
-            fetchRegions();
         }
-    }, [classification.country_name]);
+    }, [classification.country_id]);
 
     const fetchDropdowns = async () => {
-        setInitializing(true);
         try {
-            const [cRes, propRes, premRes, areaRes, usageRes] = await Promise.all([
+            const [cRes, propRes, premRes, areaRes, usageRes, vCatRes] = await Promise.all([
                 api.get('countries'),
                 api.get('property-types'),
                 api.get('premises-types'),
                 api.get('areas'),
-                api.get('vehicle-usage')
+                api.get('vehicle-usage'),
+                api.get('vehicle-categories')
             ]);
 
             if (cRes.data?.success) setCountries(cRes.data.data);
@@ -211,15 +158,26 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
             if (premRes.data?.success) setPremisesTypes(premRes.data.data);
             if (areaRes.data?.success) setAreas(areaRes.data.data || areaRes.data);
             if (usageRes.data?.success) setVehicleUsages(usageRes.data.data);
+            if (vCatRes.data?.success) setVehicleCategories(vCatRes.data.data);
 
         } catch (error) {
             console.error('Error fetching dropdowns:', error);
-        } finally {
-            setInitializing(false);
         }
     };
 
-    const fetchSelectedFields = async (moduleId, countryId, propertyTypeId, premisesTypeId, areaId, vehicleUsageId, region) => {
+    const fetchRegions = async (countryId) => {
+        setRegionsLoading(true);
+        try {
+            const res = await api.get('countries/regions', { params: { country_id: countryId } });
+            if (res.data?.success) setRegions(res.data.data || []);
+        } catch (e) {
+            console.error('Error fetching regions:', e);
+        } finally {
+            setRegionsLoading(false);
+        }
+    };
+
+    const fetchSelectedFields = async (moduleId, countryId, propertyTypeId, premisesTypeId, areaId, vehicleUsageId, vehicleCategoryId, region) => {
         try {
             const params = { module_id: moduleId };
             if (countryId) params.country_id = countryId;
@@ -227,14 +185,21 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
             if (premisesTypeId) params.premises_type_id = premisesTypeId;
             if (areaId) params.area_id = areaId;
             if (vehicleUsageId) params.vehicle_usage_id = vehicleUsageId;
+            if (vehicleCategoryId) params.vehicle_category_id = vehicleCategoryId;
+            if (region) params.region = region;
             if (region && region !== 'All') params.region = region;
 
             const res = await api.get('company-modules/selected-fields', { params });
-            return res.data?.data?.selected_field_ids; // Can be null if no config match
+            return res.data?.data?.selected_field_ids;
         } catch (e) {
             console.error('[fetchSelectedFields] Error:', e);
             return null;
         }
+    };
+
+    const triggerFilePicker = (fieldKey) => {
+        currentFileField.current = fieldKey;
+        if (fileInputRef.current) fileInputRef.current.click();
     };
 
     const handleFileSelect = async (event) => {
@@ -247,33 +212,22 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
         reader.onloadend = async () => {
             const base64 = reader.result;
             try {
-                // Generate custom filename: VH YYYY-MM-DD - OriginalName - XXX
                 const date = new Date();
                 const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                const randomNum = Math.floor(100 + Math.random() * 900); // Generate 3-digit random number
+                const randomNum = Math.floor(100 + Math.random() * 900);
                 const customFileName = `VH ${formattedDate} - ${file.name} - ${randomNum}`;
 
                 const result = await uploadFile({ name: customFileName, content: base64, moduleName: 'Vehicle' });
                 if (result.success) {
-                    setDynamicData(p => ({
-                        ...p,
-                        [fieldKey]: result.path,
-                        [`${fieldKey}_name`]: customFileName
-                    }));
+                    setDynamicData(p => ({ ...p, [fieldKey]: result.path, [`${fieldKey}_name`]: customFileName }));
                 }
-            } catch (error) {
-                console.error('File upload failed:', error);
-            } finally {
+            } catch (error) { console.error('File upload failed:', error); }
+            finally {
                 setUploadingField(null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
         };
         reader.readAsDataURL(file);
-    };
-
-    const triggerFilePicker = (fieldKey) => {
-        currentFileField.current = fieldKey;
-        if (fileInputRef.current) fileInputRef.current.click();
     };
 
     const fetchModuleConfig = async () => {
@@ -300,18 +254,15 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                 const selectedFieldIds = await fetchSelectedFields(
                     vehicleModule.module_id,
                     classification.country_id,
-                    classification.property_type_id,
-                    classification.premises_type_id,
-                    classification.area_id,
+                    null, null, null,
                     classification.vehicle_usage_id,
+                    null,
                     classification.region
                 );
-
                 if (!selectedFieldIds || selectedFieldIds.length === 0) {
                     filteredSections = [];
-
                     const requiredKeys = ['country_id', 'vehicle_usage_id'];
-                    const selectedCount = requiredKeys.filter(k => classification[k] !== undefined && classification[k] !== null && classification[k] !== '').length;
+                    const selectedCount = requiredKeys.filter(k => classification[k] !== null && classification[k] !== '').length;
 
                     if (selectedCount >= 2) {
                         setAlertDialog({
@@ -321,60 +272,42 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                         });
                     }
                 } else {
-                    // Configuration found, apply filter
-                    console.log('[DEBUG-WIZARD] Config found! IDs:', selectedFieldIds);
                     filteredSections = sectionsWithFields.map(sec => ({
                         ...sec,
-                        fields: sec.fields.filter(f => selectedFieldIds.some(sid => String(sid) === String(f.id) || String(sid) === String(f.field_id) || String(sid) === String(f.field_key)))
+                        fields: sec.fields.filter(f => selectedFieldIds.some(sid => String(sid) === String(f.id) || String(sid) === String(f.field_key)))
                     })).filter(s => s.fields.length > 0);
-                    console.log('[DEBUG-WIZARD] Filtered sections length:', filteredSections.length);
                 }
             } else {
-                // If no conditions, show all fields
                 filteredSections = sectionsWithFields;
             }
 
             setModuleId(vehicleModule.module_id);
             setModuleStructure(filteredSections);
 
-
-
             // Fetch auto-generated IDs
             const autoFields = filteredSections.flatMap(s => s.fields || []).filter(f => f.field_type === 'auto_generated');
             if (autoFields.length > 0) {
                 const results = {};
                 for (const f of autoFields) {
-                    const fieldKey = f.field_key || f.field_name || f.name || f.field_label || `field_${f.id}`;
-                    try {
-                        const res = await api.get('module-builder/preview-id', {
-                            params: {
-                                module_id: vehicleModule.module_id,
-                                field_key: f.field_key || fieldKey
-                            }
-                        });
-                        if (res.data?.success) {
-                            // ONLY set if we don't already have one (e.g. not in Edit mode or already fetched)
-                            if (!dynamicData[fieldKey]) {
-                                results[fieldKey] = res.data.data;
-                            }
-                        }
-                    } catch (e) {
-                        console.error(`Error fetching ID for ${fieldKey}:`, e);
+                    const fieldKey = f.field_key || `field_${f.id}`;
+                    if (!dynamicData[fieldKey]) {
+                        try {
+                            const res = await api.get('module-builder/preview-id', {
+                                params: { module_id: vehicleModule.module_id, field_key: f.field_key }
+                            });
+                            if (res.data?.success) results[fieldKey] = res.data.data;
+                        } catch (e) { }
                     }
                 }
-                if (Object.keys(results).length > 0) {
-                    setDynamicData(prev => ({ ...prev, ...results }));
-                    setAutoGenerated(prev => ({ ...prev, ...results }));
-                }
+                if (Object.keys(results).length > 0) setDynamicData(prev => ({ ...prev, ...results }));
             }
         } catch (error) {
             console.error('Error fetching module config:', error);
         } finally {
             setLoading(false);
+            setInitializing(false);
         }
     };
-
-    // Removed redundant useEffect to prevent race conditions
 
     const handleNext = () => { if (step < totalSteps) setStep(step + 1); };
     const handleBack = () => { if (step > 1) setStep(step - 1); else onClose(); };
@@ -384,8 +317,6 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
         try {
             const finalClassification = { ...classification };
             if (initialData?.vehicle_id) finalClassification.vehicle_id = initialData.vehicle_id;
-            let vehicleName = dynamicData.vehicle_name || classification.vehicle_name || classification.premises_type_name || 'Vehicle';
-            finalClassification.vehicle_name = vehicleName;
             const payload = { ...finalClassification, ...dynamicData };
             await onSave(payload);
         } catch (error) {
@@ -402,18 +333,11 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
         const section = moduleStructure[stepIndex - 2];
         if (!section) return null;
 
-        const parseFileConfig = (str) => {
-            if (str && str.startsWith("JSON:")) {
-                try { return JSON.parse(str.replace("JSON:", "")); } catch (e) { return {}; }
-            }
-            return {};
-        };
-
         return (
             <View style={styles.stepContent}>
                 <View style={styles.dynamicCard}>
                     <View style={styles.sectionHeaderCard}>
-                        <Text style={styles.sectionHeaderTitle}>{stepIndex}. {section.name}</Text>
+                        <Text style={styles.sectionHeaderTitle}>{section.name}</Text>
                     </View>
                     <View style={styles.cardBody}>
                         {Platform.OS === 'web' && (
@@ -421,20 +345,17 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                         )}
                         <View style={styles.fieldsGrid}>
                             {(section.fields || []).map(field => {
-                                const fieldName = field.label || field.field_label || field.name || field.field_name || field.field_key || 'Field';
-                                const fieldKey = field.field_key || field.field_name || field.name || field.field_label || `field_${field.id}`;
+                                const fieldKey = field.field_key || `field_${field.id}`;
+                                const fieldName = field.label || field.field_name || field.name || 'Field';
+                                const isDate = field.field_type === 'date' || fieldKey.toLowerCase().includes('date');
 
-                                const isFile = field.field_type === 'file' || field.field_type === 'pdf' || field.field_type === 'document' ||
-                                    fieldName.toLowerCase().includes('upload') ||
-                                    fieldName.toLowerCase().includes('document') ||
-                                    fieldName.toLowerCase().includes('file');
-                                const isDate = field.field_type === 'date' || fieldName.toLowerCase().includes('date');
-
+                                const isFile = field.field_type === 'file' || field.field_type === 'file_upload' || field.field_type === 'image' || field.field_type === 'signature' || field.field_type === 'pdf' || field.field_type === 'file_pdf' || fieldName.toLowerCase().includes('document') || fieldName.toLowerCase().includes('file');
                                 if (isFile) {
                                     const filePath = dynamicData[fieldKey];
-                                    const fileName = dynamicData[`${fieldKey}_name`] || (filePath ? filePath.split('/').pop() : '');
-                                    const config = parseFileConfig(field.placeholder);
-                                    const hasAnyExtra = config.expiry || config.issueDate || config.startDate || config.endDate || config.policyNo || config.coverageType;
+                                    const fileName = dynamicData[`${fieldKey}_name`];
+                                    const meta = field.meta_json ? (typeof field.meta_json === 'string' ? JSON.parse(field.meta_json) : field.meta_json) : null;
+                                    const config = meta?.insurance_config || {};
+                                    const hasAnyExtra = config.policyNo || config.coverageType || config.issueDate || config.startDate || config.endDate || config.expiry || config.reminder;
 
                                     return (
                                         <View key={field.id} style={[styles.dynamicField, hasAnyExtra && { width: '100%' }]}>
@@ -455,70 +376,12 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                                                             </View>
                                                         </View>
                                                     ) : (
-                                                        <TouchableOpacity style={[styles.uploadBox, uploadingField === fieldKey && { opacity: 0.6 }]} onPress={() => triggerFilePicker(fieldKey)} disabled={uploadingField === fieldKey}>
-                                                            {uploadingField === fieldKey ? <ActivityIndicator color="#3b82f6" /> : <><MaterialCommunityIcons name="cloud-upload-outline" size={28} color="#94a3b8" /><Text style={styles.uploadText}>Upload {fieldName}</Text></>}
+                                                        <TouchableOpacity style={[styles.uploadBox, uploadingField === fieldKey && { opacity: 0.6 }]} onPress={() => triggerFilePicker(fieldKey)}>
+                                                            <MaterialCommunityIcons name="cloud-upload-outline" size={28} color="#94a3b8" />
+                                                            <Text style={styles.uploadText}>Upload {fieldName}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
-
-                                                {hasAnyExtra && (
-                                                    <View style={{ flex: 3, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                                                        {config.policyNo && (
-                                                            <View style={{ width: '48%' }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>Policy No.</Text>
-                                                                <TextInput mode="outlined" dense value={dynamicData[`${fieldKey}_policy_no`] || ''} onChangeText={(t) => setDynamicData(p => ({ ...p, [`${fieldKey}_policy_no`]: t }))} style={{ height: 40, fontSize: 13, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} />
-                                                            </View>
-                                                        )}
-                                                        {config.coverageType && (
-                                                            <View style={{ width: '48%' }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>Coverage Type</Text>
-                                                                <TextInput mode="outlined" dense value={dynamicData[`${fieldKey}_coverage_type`] || ''} onChangeText={(t) => setDynamicData(p => ({ ...p, [`${fieldKey}_coverage_type`]: t }))} style={{ height: 40, fontSize: 13, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} />
-                                                            </View>
-                                                        )}
-                                                        {config.issueDate && (
-                                                            <View style={{ width: '31%' }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>Issue Date</Text>
-                                                                <TextInput mode="outlined" dense value={dynamicData[`${fieldKey}_issue_date`] || ''} onChangeText={(t) => setDynamicData(p => ({ ...p, [`${fieldKey}_issue_date`]: t }))} style={{ height: 40, fontSize: 13, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} right={<TextInput.Icon icon="calendar" size={16} />} render={renderDateInput(`${fieldKey}_issue_date`, dynamicData[`${fieldKey}_issue_date`], (val) => setDynamicData(p => ({ ...p, [`${fieldKey}_issue_date`]: val })))} />
-                                                            </View>
-                                                        )}
-                                                        {config.startDate && (
-                                                            <View style={{ width: '31%' }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>Start Date</Text>
-                                                                <TextInput mode="outlined" dense value={dynamicData[`${fieldKey}_start_date`] || ''} onChangeText={(t) => setDynamicData(p => ({ ...p, [`${fieldKey}_start_date`]: t }))} style={{ height: 40, fontSize: 13, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} right={<TextInput.Icon icon="calendar" size={16} />} render={renderDateInput(`${fieldKey}_start_date`, dynamicData[`${fieldKey}_start_date`], (val) => setDynamicData(p => ({ ...p, [`${fieldKey}_start_date`]: val })))} />
-                                                            </View>
-                                                        )}
-                                                        {config.endDate && (
-                                                            <View style={{ width: '31%' }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>End Date</Text>
-                                                                <TextInput mode="outlined" dense value={dynamicData[`${fieldKey}_end_date`] || ''} onChangeText={(t) => setDynamicData(p => ({ ...p, [`${fieldKey}_end_date`]: t }))} style={{ height: 40, fontSize: 13, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} right={<TextInput.Icon icon="calendar" size={16} />} render={renderDateInput(`${fieldKey}_end_date`, dynamicData[`${fieldKey}_end_date`], (val) => setDynamicData(p => ({ ...p, [`${fieldKey}_end_date`]: val })))} />
-                                                            </View>
-                                                        )}
-                                                        {config.expiry && (
-                                                            <View style={{ width: '31%' }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>Expiry Date</Text>
-                                                                <TextInput mode="outlined" dense value={dynamicData[`${fieldKey}_expiry_date`] || ''} onChangeText={(t) => setDynamicData(p => ({ ...p, [`${fieldKey}_expiry_date`]: t }))} style={{ height: 40, fontSize: 13, backgroundColor: '#fff' }} outlineStyle={{ borderRadius: 8 }} right={<TextInput.Icon icon="calendar" size={16} />} render={renderDateInput(`${fieldKey}_expiry_date`, dynamicData[`${fieldKey}_expiry_date`], (val) => setDynamicData(p => ({ ...p, [`${fieldKey}_expiry_date`]: val })))} />
-                                                            </View>
-                                                        )}
-                                                        {config.reminder && (
-                                                            <View style={{ width: '100%', marginTop: 8 }}>
-                                                                <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>Reminder (Days before expiry)</Text>
-                                                                <View style={{ flexDirection: 'row', gap: 8 }}>
-                                                                    {[30, 60, 90].map(days => (
-                                                                        <Chip
-                                                                            key={days}
-                                                                            selected={dynamicData[`${fieldKey}_reminder`] === String(days)}
-                                                                            onPress={() => setDynamicData(p => ({ ...p, [`${fieldKey}_reminder`]: String(days) }))}
-                                                                            style={{ height: 32 }}
-                                                                            textStyle={{ fontSize: 12 }}
-                                                                        >
-                                                                            {days} Days
-                                                                        </Chip>
-                                                                    ))}
-                                                                </View>
-                                                            </View>
-                                                        )}
-                                                    </View>
-                                                )}
                                             </View>
                                         </View>
                                     );
@@ -527,27 +390,61 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                                 return (
                                     <View key={field.id} style={styles.dynamicField}>
                                         <Text style={styles.inputLabel}>{fieldName}</Text>
-                                        <TextInput
-                                            mode="outlined"
-                                            placeholder={field.field_type === 'auto_generated' ? '[SYSTEM GENERATED]' : `Enter ${fieldName.toLowerCase()}`}
-                                            value={dynamicData[fieldKey] || ''}
-                                            onChangeText={(text) => setDynamicData(p => ({ ...p, [fieldKey]: text }))}
-                                            editable={field.field_type !== 'auto_generated'}
-                                            style={[styles.headerInput, field.field_type === 'auto_generated' && { backgroundColor: '#f8fafc' }]}
-                                            outlineColor="#e2e8f0"
-                                            activeOutlineColor="#3b82f6"
-                                            theme={{ roundness: 8 }}
-                                            right={field.field_type === 'auto_generated' ? (
-                                                <TextInput.Icon icon="lock" color="#94a3b8" />
-                                            ) : isDate ? (
-                                                <TextInput.Icon icon="calendar" color="#94a3b8" />
-                                            ) : (
-                                                <TextInput.Icon icon="pencil-outline" color="#94a3b8" />
-                                            )}
-                                            render={isDate ? renderDateInput(fieldKey, dynamicData[fieldKey], (val) => setDynamicData(p => ({ ...p, [fieldKey]: val }))) : undefined}
-                                        />
-                                        {field.field_type === 'auto_generated' && (
-                                            <Text style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>This ID is automatically generated.</Text>
+                                        {field.field_type === 'dropdown' ? (
+                                            <Menu visible={activeDynamicMenu === fieldKey} onDismiss={() => setActiveDynamicMenu(null)} anchor={
+                                                <TouchableOpacity onPress={() => setActiveDynamicMenu(fieldKey)} activeOpacity={0.7}>
+                                                    <View pointerEvents="none">
+                                                        <TextInput mode="outlined" placeholder="Select..." value={dynamicData[fieldKey] || ''} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
+                                                    </View>
+                                                </TouchableOpacity>
+                                            } contentStyle={styles.menuContent}>
+                                                <ScrollView style={{ maxHeight: 250, width: 220 }}>
+                                                    {(field.options || []).map(opt => (
+                                                        <Menu.Item
+                                                            key={opt.id}
+                                                            onPress={() => {
+                                                                setActiveDynamicMenu(null);
+                                                                setDynamicData(prev => ({ ...prev, [fieldKey]: opt.option_label || opt.label }));
+                                                            }}
+                                                            title={opt.option_label || opt.label}
+                                                            titleStyle={styles.menuItemLabel}
+                                                        />
+                                                    ))}
+                                                </ScrollView>
+                                            </Menu>
+                                        ) : (field.field_type === 'radio' || field.field_type === 'boolean') ? (
+                                            <RadioButton.Group onValueChange={val => setDynamicData(p => ({ ...p, [fieldKey]: val }))} value={dynamicData[fieldKey] || ''}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 20 }}>
+                                                        <RadioButton value="Yes" color="#3b82f6" />
+                                                        <Text style={{ color: '#1e293b' }}>Yes</Text>
+                                                    </View>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                        <RadioButton value="No" color="#3b82f6" />
+                                                        <Text style={{ color: '#1e293b' }}>No</Text>
+                                                    </View>
+                                                </View>
+                                            </RadioButton.Group>
+                                        ) : (
+                                            <TextInput
+                                                mode="outlined"
+                                                placeholder={field.field_type === 'auto_generated' ? '[SYSTEM GENERATED]' : `Enter ${fieldName.toLowerCase()}`}
+                                                value={dynamicData[fieldKey] || ''}
+                                                onChangeText={(text) => setDynamicData(p => ({ ...p, [fieldKey]: text }))}
+                                                editable={field.field_type !== 'auto_generated'}
+                                                style={[styles.headerInput, field.field_type === 'auto_generated' && { backgroundColor: '#f8fafc' }]}
+                                                outlineColor="#e2e8f0"
+                                                activeOutlineColor="#3b82f6"
+                                                theme={{ roundness: 8 }}
+                                                right={field.field_type === 'auto_generated' ? (
+                                                    <TextInput.Icon icon="lock" color="#94a3b8" />
+                                                ) : isDate ? (
+                                                    <TextInput.Icon icon="calendar" color="#94a3b8" />
+                                                ) : (
+                                                    <TextInput.Icon icon="pencil-outline" color="#94a3b8" />
+                                                )}
+                                                render={isDate ? renderDateInput(fieldKey, dynamicData[fieldKey], (val) => setDynamicData(p => ({ ...p, [fieldKey]: val }))) : undefined}
+                                            />
                                         )}
                                     </View>
                                 );
@@ -566,198 +463,136 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData = null }) =>
                     <View>
                         <Text style={styles.modalTitle}>Vehicle</Text>
                         <Text style={styles.modalSub}>
-                            {initialData ? 'Edit vehicle details' : 'Add new vehicle entry'} • Step {step}: {step === 1 ? 'Basic Information' : (moduleStructure[step - 2]?.name || 'Details')}
+                            {initialData ? 'Edit vehicle' : 'Add new'} • Step {step}
                         </Text>
                     </View>
-                    <TouchableOpacity onPress={onClose}>
-                        <MaterialCommunityIcons name="close" size={24} color="#64748b" />
-                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onClose}><MaterialCommunityIcons name="close" size={24} color="#64748b" /></TouchableOpacity>
                 </View>
 
                 {/* Progress Stepper */}
-                <View style={[styles.stepperContainer, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.stepperScrollContent}
-                        ref={(ref) => {
-                            if (ref && step > 1) {
-                                // Simple scroll to follow active step
-                                ref.scrollTo({ x: (step - 2) * 100, animated: true });
-                            }
-                        }}
-                    >
-                        {Array.from({ length: totalSteps }).map((_, i) => {
-                            const stepNum = i + 1;
-                            const isActive = step === stepNum;
-                            const isCompleted = step > stepNum;
-                            const label = stepNum === 1 ? 'Basic Info' : (moduleStructure[i - 1]?.name || 'Details');
-
-                            return (
-                                <View key={stepNum} style={styles.stepItem}>
-                                    <View style={[styles.stepIndicator, (isActive || isCompleted) && styles.stepIndicatorActive]}>
-                                        {isCompleted ? <MaterialCommunityIcons name="check" size={16} color="white" /> : <Text style={[styles.stepIndicatorText, isActive && styles.stepIndicatorTextActive]}>{stepNum}</Text>}
-                                    </View>
-                                    <Text style={[styles.stepLabelText, isActive && styles.stepLabelTextActive, isCompleted && styles.stepLabelTextCompleted]} numberOfLines={2}>{label}</Text>
-                                    {i < totalSteps - 1 && <View style={[styles.stepLine, (step > stepNum) && styles.stepLineActive]} />}
-                                </View>
-                            );
-                        })}
-                    </ScrollView>
-                </View>
-
                 {initializing ? (
-                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-                        <ActivityIndicator size="large" color="#3b82f6" />
-                        <Text style={{ marginTop: 16, color: '#64748b' }}>Loading configuration...</Text>
-                    </View>
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#3b82f6" /></View>
                 ) : (
                     <>
-                        <ScrollView style={{ flex: 1 }}>
+                        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
                             {step === 1 && (
-                                <View style={styles.fixedHeader}>
-                                    <View style={styles.sectionHeader}>
-                                        <Text style={styles.sectionTitle}>1. Basic Information</Text>
-                                    </View>
-                                    <View style={styles.headerFormContent}>
-                                        <View style={styles.headerField}>
-                                            <Text style={styles.inputLabel}>Module Name</Text>
-                                            <View style={styles.fixedModuleInput}>
-                                                <Chip selected selectedColor="#3b82f6" style={styles.moduleChip} textStyle={styles.moduleChipText}>Vehicle</Chip>
-                                                <MaterialCommunityIcons name="chevron-down" size={20} color="#94a3b8" />
-                                            </View>
-                                        </View>
-                                        <View style={styles.headerField}>
-                                            <Text style={styles.inputLabel}>Country</Text>
-                                            <Menu visible={menus.country} onDismiss={() => toggleMenu('country', false)} anchor={
-                                                <TouchableOpacity onPress={() => toggleMenu('country', true)} activeOpacity={0.7}>
-                                                    <View pointerEvents="none">
-                                                        <TextInput mode="outlined" placeholder="Select..." value={classification.country_name || ''} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
-                                                    </View>
-                                                </TouchableOpacity>
-                                            } contentStyle={styles.menuContent}>
-                                                <ScrollView style={{ maxHeight: 250, width: 220 }}>
-                                                    {countries.map(c => <Menu.Item key={c.id} onPress={() => { toggleMenu('country', false); setClassification(p => ({ ...p, country_id: c.id, country_name: c.country_name || c.name })); }} title={c.country_name || c.name} titleStyle={styles.menuItemLabel} />)}
-                                                </ScrollView>
-                                            </Menu>
-                                        </View>
-                                        <View style={styles.headerField}>
-                                            <Text style={styles.inputLabel}>Region</Text>
-                                            <Menu visible={menus.region} onDismiss={() => toggleMenu('region', false)} anchor={
-                                                <TouchableOpacity onPress={() => toggleMenu('region', true)} activeOpacity={0.7} disabled={!classification.country_id && !classification.country_name}>
-                                                    <View pointerEvents="none">
-                                                        <TextInput mode="outlined" placeholder={classification.country_name ? "Select..." : "Select Country first"} value={classification.region || ''} editable={false} style={[styles.headerInput, !classification.country_name && { backgroundColor: '#f8fafc' }]} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
-                                                    </View>
-                                                </TouchableOpacity>
-                                            } contentStyle={styles.menuContent}>
-                                                <ScrollView style={{ maxHeight: 250, width: 220 }}>
-                                                    {regionsLoading ? (
-                                                        <View style={{ padding: 16, alignItems: 'center' }}>
-                                                            <ActivityIndicator size="small" color="#3b82f6" />
-                                                            <Text style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>Loading regions...</Text>
+                                <View style={styles.stepOneContainer}>
+                                    <View style={styles.stepperContainer}>
+                                        {Array.from({ length: totalSteps }).map((_, i) => {
+                                            const stepNum = i + 1;
+                                            const isActive = step === stepNum;
+                                            const isCompleted = step > stepNum;
+                                            const label = i === 0 ? 'Basic Info' : (moduleStructure[i - 1]?.name || `Section ${i}`);
+                                            return (
+                                                <React.Fragment key={i}>
+                                                    <View style={styles.stepItem}>
+                                                        <View style={[styles.stepCircle, (isActive || isCompleted) && styles.stepCircleActive]}>
+                                                            {isCompleted ? <MaterialCommunityIcons name="check" size={18} color="white" /> : <Text style={[styles.stepNumber, (isActive || isCompleted) && styles.stepNumberActive]}>{stepNum}</Text>}
                                                         </View>
-                                                    ) : (
-                                                        <>
-                                                            {regions.length === 0 && <Menu.Item title="No regions found" disabled />}
-                                                            {regions.map((r, i) => <Menu.Item key={i} onPress={() => { toggleMenu('region', false); setClassification(p => ({ ...p, region: r.name })); }} title={r.name} titleStyle={styles.menuItemLabel} />)}
-                                                        </>
-                                                    )}
-                                                </ScrollView>
-                                            </Menu>
-                                        </View>
-                                        <View style={styles.headerField}>
-                                            <Text style={styles.inputLabel}>Usage</Text>
-                                            <Menu visible={menus.premisesType} onDismiss={() => toggleMenu('premisesType', false)} anchor={
-                                                <TouchableOpacity onPress={() => toggleMenu('premisesType', true)} activeOpacity={0.7}>
-                                                    <View pointerEvents="none">
-                                                        <TextInput mode="outlined" placeholder="Select..." value={classification.premises_type_name || ''} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
+                                                        <Text style={styles.stepLabel}>{label}</Text>
                                                     </View>
-                                                </TouchableOpacity>
-                                            } contentStyle={styles.menuContent}>
-                                                <View style={{ width: 220 }}>
-                                                    {vehicleUsages.map(t => <Menu.Item key={t.id} onPress={() => { toggleMenu('premisesType', false); setClassification(p => ({ ...p, vehicle_usage_id: t.id, premises_type_name: t.name })); }} title={t.name} titleStyle={styles.menuItemLabel} />)}
-                                                </View>
-                                            </Menu>
-                                        </View>
+                                                    {i < totalSteps - 1 && <View style={[styles.stepLine, isCompleted && styles.stepLineActive]} />}
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </View>
 
-                                    <View style={[styles.headerFormContent, { marginTop: 12, alignItems: 'center', justifyContent: 'flex-start', gap: 40 }]}>
-                                        <View style={[styles.headerField, { maxWidth: 80, alignItems: 'center' }]}>
-                                            <Text style={styles.inputLabel}>Status</Text>
-                                            <TouchableOpacity onPress={() => setClassification(p => ({ ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' }))} style={{ marginTop: 4 }}>
-                                                <MaterialCommunityIcons name={classification.status === 'Active' ? "toggle-switch" : "toggle-switch-off"} size={48} color={classification.status === 'Active' ? "#00a18e" : "#cbd5e1"} />
-                                            </TouchableOpacity>
+                                    <Card style={styles.sectionCard}>
+                                        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{step}. Basic Information</Text></View>
+                                        <View style={styles.headerForm}>
+                                            <View style={styles.headerFormGrid}>
+
+                                                <View style={styles.headerFieldSmall}>
+                                                    <Text style={styles.headerLabel}>Country</Text>
+                                                    <Menu visible={menus.country} onDismiss={() => toggleMenu('country', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('country', true)}><View pointerEvents="none"><TextInput mode="outlined" value={classification.country_name || ''} editable={false} style={styles.headerInput} right={<TextInput.Icon icon="chevron-down" />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
+                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>{countries.map(c => <Menu.Item key={c.id} onPress={() => { toggleMenu('country', false); setClassification(p => ({ ...p, country_id: c.id, country_name: c.country_name || c.name, region: '' })); }} title={c.country_name || c.name} />)}</ScrollView>
+                                                    </Menu>
+                                                </View>
+                                                <View style={styles.headerFieldSmall}>
+                                                    <Text style={styles.headerLabel}>Region</Text>
+                                                    <Menu visible={menus.region} onDismiss={() => toggleMenu('region', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('region', true)} disabled={!classification.country_id || regionsLoading}><View pointerEvents="none"><TextInput mode="outlined" placeholder={classification.country_id ? (regionsLoading ? "Loading..." : "Select...") : "Select Country first"} value={classification.region || ''} editable={false} style={[styles.headerInput, (!classification.country_id || regionsLoading) && { backgroundColor: '#f8fafc' }]} right={<TextInput.Icon icon={regionsLoading ? "loading" : "chevron-down"} />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
+                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>
+                                                            {regions.length > 0 ? regions.map((r, i) => (
+                                                                <Menu.Item key={i} onPress={() => { toggleMenu('region', false); setClassification(p => ({ ...p, region: r.name })); }} title={r.name} />
+                                                            )) : <Menu.Item title="No regions found" disabled />}
+                                                        </ScrollView>
+                                                    </Menu>
+                                                </View>
+                                                <View style={styles.headerFieldSmall}>
+                                                    <Text style={styles.headerLabel}>Usage</Text>
+                                                    <Menu visible={menus.premisesType} onDismiss={() => toggleMenu('premisesType', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('premisesType', true)}><View pointerEvents="none"><TextInput mode="outlined" value={classification.premises_type_name || ''} editable={false} style={styles.headerInput} right={<TextInput.Icon icon="chevron-down" />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
+                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>{vehicleUsages.map(u => <Menu.Item key={u.id} onPress={() => { toggleMenu('premisesType', false); setClassification(p => ({ ...p, vehicle_usage_id: u.id, premises_type_name: u.name })); }} title={u.name} />)}</ScrollView>
+                                                    </Menu>
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.statusSectionContainer}>
+                                                <Text style={styles.headerLabel}>Status</Text>
+                                                <Switch value={classification.status === 'Active'} onValueChange={(val) => setClassification(p => ({ ...p, status: val ? 'Active' : 'Inactive' }))} color="#10b981" />
+                                            </View>
                                         </View>
-                                    </View>
+                                    </Card>
                                 </View>
                             )}
                             {step >= 2 && renderDynamicSection(step)}
                         </ScrollView>
                         <View style={styles.modalFooter}>
-                            <TouchableOpacity onPress={step === 1 ? onClose : handleBack} style={styles.cancelBtn}>
-                                <Text style={styles.cancelBtnText}>{step === 1 ? 'Cancel' : 'Back'}</Text>
+                            <TouchableOpacity onPress={step === 1 ? onClose : handleBack} style={[styles.footerBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0' }]}>
+                                <Text style={[styles.footerBtnText, { color: '#64748b' }]}>{step === 1 ? 'Cancel' : 'Back'}</Text>
                             </TouchableOpacity>
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                                {step < totalSteps ? (
-                                    <TouchableOpacity onPress={handleNext} style={styles.nextBtn}>
-                                        <Text style={styles.nextBtnText}>Next Step</Text>
-                                        <MaterialCommunityIcons name="arrow-right" size={20} color="white" />
-                                    </TouchableOpacity>
+                            <TouchableOpacity onPress={step < totalSteps ? handleNext : handleSaveForm} style={[styles.footerBtn, { backgroundColor: '#3b82f6' }]} disabled={loading || saving}>
+                                {loading || saving ? (
+                                    <ActivityIndicator color="white" size="small" />
                                 ) : (
-                                    <TouchableOpacity onPress={handleSaveForm} style={[styles.saveBtn, { backgroundColor: '#10b981' }]} disabled={loading || saving}>
-                                        {loading || saving ? <ActivityIndicator color="white" /> : (
-                                            <>
-                                                <MaterialCommunityIcons name="check" size={20} color="white" />
-                                                <Text style={styles.saveBtnText}>Save Vehicle</Text>
-                                            </>
-                                        )}
-                                    </TouchableOpacity>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={[styles.footerBtnText, { color: 'white' }]}>{step < totalSteps ? 'Next Step' : 'Save'}</Text>
+                                        {step < totalSteps && <MaterialCommunityIcons name="arrow-right" size={18} color="white" style={{ marginLeft: 8 }} />}
+                                    </View>
                                 )}
-                            </View>
+                            </TouchableOpacity>
                         </View>
                     </>
                 )}
             </Modal>
-            <AlertDialog
-                visible={alertDialog.visible}
-                onDismiss={() => setAlertDialog(p => ({ ...p, visible: false }))}
-                title={alertDialog.title}
-                message={alertDialog.message || 'This combination is not configured.'}
-                type="warning"
-            />
+            <AlertDialog visible={alertDialog.visible} onDismiss={() => setAlertDialog(p => ({ ...p, visible: false }))} title={alertDialog.title} message={alertDialog.message} />
         </Portal>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { backgroundColor: 'white', alignSelf: 'center', width: '90%', maxWidth: 1000, maxHeight: '90%', borderRadius: 12, overflow: 'hidden' },
+    container: { backgroundColor: 'white', alignSelf: 'center', width: '90%', maxWidth: 1100, maxHeight: '95%', borderRadius: 12 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
     modalTitle: { fontSize: 20, fontWeight: '800', color: '#1e293b' },
     modalSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
-    stepperContainer: { backgroundColor: '#fdfdfd' },
-    stepperScrollContent: { paddingHorizontal: 30, paddingVertical: 20, paddingBottom: 45 },
-    stepItem: { width: 100, alignItems: 'center', position: 'relative' },
-    stepIndicator: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
-    stepIndicatorActive: { backgroundColor: '#3b82f6' },
-    stepIndicatorText: { color: '#64748b', fontSize: 13, fontWeight: 'bold' },
-    stepIndicatorTextActive: { color: 'white' },
-    stepLabelText: { fontSize: 10, fontWeight: '600', color: '#94a3b8', marginTop: 8, textAlign: 'center', width: 90, position: 'absolute', top: 32 },
-    stepLabelTextActive: { color: '#3b82f6', fontWeight: '800' },
-    stepLabelTextCompleted: { color: '#3b82f6' },
-    stepLine: { height: 2, width: 68, backgroundColor: '#f1f5f9', position: 'absolute', top: 16, left: 66, zIndex: 1 },
+    modalContent: { flex: 1, backgroundColor: '#f8fafc' },
+    scrollArea: { flex: 1 },
+    scrollContent: { flexGrow: 1, paddingBottom: 20 },
+    stepperContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 10 },
+    stepItem: { alignItems: 'center', marginHorizontal: 25 },
+    stepCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+    stepCircleActive: { backgroundColor: '#3b82f6' },
+    stepNumber: { fontSize: 16, fontWeight: '700', color: '#64748b' },
+    stepNumberActive: { color: '#fff' },
+    stepLabel: { fontSize: 12, color: '#64748b', fontWeight: '600' },
+    stepLine: { width: 50, height: 2, backgroundColor: '#e2e8f0', marginTop: -25 },
     stepLineActive: { backgroundColor: '#3b82f6' },
-    fixedHeader: { backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 8 },
-    sectionHeader: { backgroundColor: 'rgb(108, 122, 224)', paddingVertical: 14, paddingHorizontal: 24 },
-    sectionTitle: { fontWeight: '700', color: '#ffffff', fontSize: 16, letterSpacing: 0.3 },
-    headerFormContent: { flexDirection: 'row', padding: 20, justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' },
-    headerField: { flex: 1, minWidth: 120 },
-    inputLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 8 },
-    headerInput: { backgroundColor: 'white', height: 44, fontSize: 13 },
-    fixedModuleInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, height: 44, paddingHorizontal: 8, backgroundColor: 'white' },
+    stepOneContainer: { flex: 1 },
+    sectionCard: { marginHorizontal: 20, marginTop: 10, borderRadius: 8, elevation: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+    sectionHeader: { backgroundColor: '#7c3aed', paddingVertical: 10, paddingHorizontal: 16 },
+    sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    headerForm: { padding: 20 },
+    headerFormGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -8 },
+    headerFieldSmall: { width: '25%', paddingHorizontal: 8, marginBottom: 16 },
+    headerLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 8 },
+    headerInput: { height: 40, backgroundColor: '#fff' },
+    modalFooter: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', backgroundColor: '#fff' },
+    footerBtn: { borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24, minWidth: 120, alignItems: 'center', justifyContent: 'center' },
+    footerBtnText: { fontSize: 14, fontWeight: '700' },
+    menuContent: { backgroundColor: '#fff', borderRadius: 8, elevation: 4 },
     moduleChip: { backgroundColor: '#eff6ff', height: 28 },
     moduleChipText: { fontSize: 12, fontWeight: '700', color: '#1d4ed8' },
     stepContent: { padding: 24 },
-    dynamicCard: { backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', elevation: 2 },
+    dynamicCard: { backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
     sectionHeaderCard: { backgroundColor: 'rgb(108, 122, 224)', paddingVertical: 16, paddingHorizontal: 24 },
     sectionHeaderTitle: { fontWeight: '700', color: '#ffffff', fontSize: 18 },
     cardBody: { padding: 24 },
@@ -769,14 +604,12 @@ const styles = StyleSheet.create({
     uploadBox: { height: 80, borderRadius: 12, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
     uploadText: { marginTop: 8, fontSize: 13, color: '#475569', fontWeight: '700' },
     modalFooter: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', backgroundColor: '#ffffff' },
-    cancelBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#fee2e2', gap: 8 },
-    cancelBtnText: { color: '#ef4444', fontWeight: '700', fontSize: 14 },
-    nextBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3b82f6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, gap: 8 },
-    nextBtnText: { color: 'white', fontWeight: '700', fontSize: 14 },
-    saveBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3b82f6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, gap: 8 },
-    saveBtnText: { color: 'white', fontWeight: '700', fontSize: 14 },
-    menuContent: { backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 4, elevation: 4 },
-    menuItemLabel: { fontSize: 13, color: '#334155', fontWeight: '500' }
+    cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+    cancelBtnText: { color: '#64748b', fontWeight: '700' },
+    nextBtn: { backgroundColor: '#3b82f6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+    nextBtnText: { color: 'white', fontWeight: '700' },
+    menuContent: { backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+    menuItemLabel: { fontSize: 13, color: '#334155' }
 });
 
 export default VehicleWizardModal;

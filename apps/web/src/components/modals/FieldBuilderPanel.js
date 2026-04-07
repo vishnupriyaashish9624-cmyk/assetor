@@ -29,6 +29,7 @@ const FIELD_TYPES = [
     { label: 'Image Upload', value: 'image', icon: 'image-outline' },
     { label: 'Signature', value: 'signature', icon: 'pen' },
     { label: 'Auto-generated ID', value: 'auto_generated', icon: 'identifier' },
+
     { label: 'Rich Text Editor', value: 'richtext', icon: 'format-text' },
     { label: 'Section Break', value: 'section_break', icon: 'minus' },
     { label: 'Hidden Field', value: 'hidden', icon: 'eye-off-outline' },
@@ -526,9 +527,11 @@ const FieldBuilderPanel = ({ moduleId, moduleName, readOnly = false, initialSect
                                                 }
                                             >
                                                 <ScrollView style={{ maxHeight: 300 }}>
-                                                    {FIELD_TYPES.map(t => (
-                                                        <Menu.Item key={t.value} title={t.label} leadingIcon={t.icon} onPress={() => { setFieldType(t.value); setShowTypeMenu(false); }} />
-                                                    ))}
+                                                    {FIELD_TYPES
+                                                        .filter(t => t.value !== 'auto_generated' || String(moduleId) === '1')
+                                                        .map(t => (
+                                                            <Menu.Item key={t.value} title={t.label} leadingIcon={t.icon} onPress={() => { setFieldType(t.value); setShowTypeMenu(false); }} />
+                                                        ))}
                                                 </ScrollView>
                                             </Menu>
                                         </View>

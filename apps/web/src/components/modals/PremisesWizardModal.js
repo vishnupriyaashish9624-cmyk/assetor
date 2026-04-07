@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Modal, Portal, Button, Menu, TextInput, Chip, Divider } from 'react-native-paper';
+import { Modal, Portal, Button, Menu, TextInput, Chip, Divider, RadioButton } from 'react-native-paper';
 import AlertDialog from '../AlertDialog';
 import api from '../../api/client';
 import { uploadFile } from '../../api/officeApi';
@@ -35,7 +35,8 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
         region: false,
         propertyType: false,
         premisesType: false,
-        area: false
+        area: false,
+        dynamic: {}
     });
 
     // Form Data - Step 1 (Classification)
@@ -334,6 +335,7 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
 
     const totalSteps = 1 + moduleStructure.length;
     const toggleMenu = (key, val) => setMenus(prev => ({ ...prev, [key]: val }));
+    const toggleDynamicMenu = (fieldKey, val) => setMenus(prev => ({ ...prev, dynamic: { ...prev.dynamic, [fieldKey]: val } }));
 
     const renderDynamicSection = (stepIndex) => {
         const section = moduleStructure[stepIndex - 2];
@@ -360,7 +362,7 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
                             {(section.fields || []).map(field => {
                                 const fieldName = field.label || field.field_label || field.name || 'Field';
                                 const fieldKey = field.field_key || `field_${field.id}`;
-                                const isFile = field.field_type === 'file' || fieldName.toLowerCase().includes('document');
+                                const isFile = field.field_type === 'file' || field.field_type === 'file_upload' || field.field_type === 'image' || field.field_type === 'signature' || field.field_type === 'pdf' || field.field_type === 'file_pdf' || fieldName.toLowerCase().includes('document') || fieldName.toLowerCase().includes('file');
                                 const isDate = field.field_type === 'date' || fieldName.toLowerCase().includes('date');
 
                                 if (isFile) {
@@ -451,6 +453,85 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
                                                     </View>
                                                 )}
                                             </View>
+                                        </View>
+                                    );
+                                }
+
+                                const isDropdown = ['dropdown', 'select', 'selection'].includes(field.field_type);
+                                const options = field.options || field.field_options || [];
+
+                                if (isDropdown) {
+                                    return (
+                                        <View key={field.id} style={styles.dynamicField}>
+                                            <Text style={styles.inputLabel}>{fieldName}</Text>
+                                            <Menu
+                                                visible={!!menus.dynamic[fieldKey]}
+                                                onDismiss={() => toggleDynamicMenu(fieldKey, false)}
+                                                anchor={
+                                                    <TouchableOpacity onPress={() => toggleDynamicMenu(fieldKey, true)} activeOpacity={0.7}>
+                                                        <View pointerEvents="none">
+                                                            <TextInput
+                                                                mode="outlined"
+                                                                placeholder={`Select ${fieldName.toLowerCase()}`}
+                                                                value={dynamicData[fieldKey] || ''}
+                                                                editable={false}
+                                                                style={styles.headerInput}
+                                                                outlineColor="#e2e8f0"
+                                                                activeOutlineColor="#3b82f6"
+                                                                theme={{ roundness: 8 }}
+                                                                right={<TextInput.Icon icon="chevron-down" color="#94a3b8" />}
+                                                            />
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                }
+                                                contentStyle={styles.menuContent}
+                                            >
+                                                <ScrollView style={{ maxHeight: 200, width: 220 }}>
+                                                    {options.length === 0 ? (
+                                                        <Menu.Item title="No options available" disabled />
+                                                    ) : (
+                                                        options.map((opt, i) => (
+                                                            <Menu.Item
+                                                                key={i}
+                                                                onPress={() => {
+                                                                    setDynamicData(p => ({ ...p, [fieldKey]: opt.option_label || opt.label || opt.value }));
+                                                                    toggleDynamicMenu(fieldKey, false);
+                                                                }}
+                                                                title={opt.option_label || opt.label || opt.value}
+                                                                titleStyle={styles.menuItemLabel}
+                                                            />
+                                                        ))
+                                                    )}
+                                                </ScrollView>
+                                            </Menu>
+                                        </View>
+                                    );
+                                }
+
+                                const isRadio = ['radio'].includes(field.field_type);
+                                if (isRadio) {
+                                    return (
+                                        <View key={field.id} style={styles.dynamicField}>
+                                            <Text style={styles.inputLabel}>{fieldName}</Text>
+                                            <RadioButton.Group
+                                                onValueChange={val => setDynamicData(p => ({ ...p, [fieldKey]: val }))}
+                                                value={dynamicData[fieldKey] || ''}
+                                            >
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
+                                                    {options.length === 0 ? (
+                                                        <Text style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>No options configured</Text>
+                                                    ) : (
+                                                        options.map((opt, i) => (
+                                                            <View key={i} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                                <RadioButton value={opt.option_label || opt.label || opt.value} color="#3b82f6" />
+                                                                <Text style={{ fontSize: 14, color: '#1e293b', fontWeight: '500' }}>
+                                                                    {opt.option_label || opt.label || opt.value}
+                                                                </Text>
+                                                            </View>
+                                                        ))
+                                                    )}
+                                                </View>
+                                            </RadioButton.Group>
                                         </View>
                                     );
                                 }
@@ -584,13 +665,7 @@ const PremisesWizardModal = ({ visible, onClose, onSave, initialData = null }) =
                                             </Menu>
                                         </View>
 
-                                        <View style={styles.statusField}>
-                                            <Text style={styles.inputLabel}>Status</Text>
-                                            <View style={styles.statusPill}>
-                                                <Text style={styles.statusPillText}>Active</Text>
-                                            </View>
-                                            <Text style={styles.systemSetText}>System Set</Text>
-                                        </View>
+
                                     </View>
                                 </View>
                             )}
