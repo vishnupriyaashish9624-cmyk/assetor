@@ -1,12 +1,12 @@
 const db = require('./config/db');
-async function check() {
+async function list() {
     try {
         const [rows] = await db.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
-        console.log(JSON.stringify(rows.map(r => r.table_name), null, 2));
-        process.exit(0);
+        console.log(rows.map(x => x.table_name));
     } catch (e) {
         console.error(e);
-        process.exit(1);
+    } finally {
+        process.exit();
     }
 }
-check();
+list();

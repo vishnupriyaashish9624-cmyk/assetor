@@ -7,11 +7,13 @@ const tenantScope = require('../middleware/tenant');
 // Support for the catalog dropdown (Global - No Tenant Scope needed as they are read-only catalogs)
 router.get('/module-master', authMiddleware, controller.getModuleMaster);
 router.get('/countries', authMiddleware, controller.getCountries);
+router.get('/countries/regions', authMiddleware, controller.getRegions);
 router.get('/premises-types', authMiddleware, controller.getPremisesTypes);
 router.get('/areas', authMiddleware, controller.getAreas);
 router.get('/vehicle-usage', authMiddleware, controller.getVehicleUsage);
 router.get('/property-types', authMiddleware, controller.getPropertyTypes);
 router.get('/status-master', authMiddleware, controller.getStatusMaster);
+router.get('/vehicle-categories', authMiddleware, controller.getVehicleCategories);
 
 // Middleware for all module routes (DEFINED AFTER READ-ONLY CATALOG ROUTES)
 router.use(authMiddleware);

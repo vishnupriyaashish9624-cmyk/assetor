@@ -34,8 +34,9 @@ exports.listCompanyModules = async (req, res) => {
                 prop.name as property_type,
                 pt.type_name as premises_type,
                 a.name as section_area,
-                vu.id as vehicle_usage_id,
                 vu.name as vehicle_usage,
+                cm.vehicle_category_id,
+                (SELECT option_label FROM module_section_field_options WHERE id = cm.vehicle_category_id) as vehicle_category_name,
                 (SELECT string_agg(field_id::text, ',') FROM company_module_field_selection WHERE company_module_id = cm.id) as selected_field_ids
             FROM company_modules cm 
             JOIN module_master mm ON mm.module_id = cm.module_id 
@@ -70,7 +71,7 @@ exports.listCompanyModules = async (req, res) => {
  * Enable a module for current company
  */
 exports.addCompanyModule = async (req, res) => {
-    const { module_id, is_active, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, region, status_id, selected_fields } = req.body;
+    const { module_id, is_active, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, vehicle_category_id, region, status_id, selected_fields } = req.body;
     const companyId = req.user?.company_id || req.companyId;
 
     console.log('[DEBUG] addCompanyModule context check:');
@@ -108,8 +109,8 @@ exports.addCompanyModule = async (req, res) => {
 
         // 2. Prevent exact duplicate configurations
         const [existing] = await connection.execute(
-            'SELECT id FROM company_modules WHERE company_id=? AND module_id=? AND country_id IS NOT DISTINCT FROM ? AND property_type_id IS NOT DISTINCT FROM ? AND premises_type_id IS NOT DISTINCT FROM ? AND area_id IS NOT DISTINCT FROM ? AND vehicle_usage_id IS NOT DISTINCT FROM ? LIMIT 1',
-            [companyId, module_id, country_id || null, property_type_id || null, premises_type_id || null, area_id || null, vehicle_usage_id || null]
+            'SELECT id FROM company_modules WHERE company_id=? AND module_id=? AND country_id IS NOT DISTINCT FROM ? AND property_type_id IS NOT DISTINCT FROM ? AND premises_type_id IS NOT DISTINCT FROM ? AND area_id IS NOT DISTINCT FROM ? AND vehicle_usage_id IS NOT DISTINCT FROM ? AND vehicle_category_id IS NOT DISTINCT FROM ? LIMIT 1',
+            [companyId, module_id, country_id || null, property_type_id || null, premises_type_id || null, area_id || null, vehicle_usage_id || null, vehicle_category_id || null]
         );
         if (existing.length > 0) {
             await connection.rollback();
@@ -120,8 +121,8 @@ exports.addCompanyModule = async (req, res) => {
         const finalStatusId = status_id || (enabledStatus ? 1 : 2);
 
         const [result] = await connection.execute(
-            'INSERT INTO company_modules (company_id, module_id, is_enabled, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, region, status_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()) RETURNING id',
-            [companyId, module_id, enabledStatus, country_id || null, property_type_id || null, premises_type_id || null, area_id || null, vehicle_usage_id || null, region || null, finalStatusId]
+            'INSERT INTO company_modules (company_id, module_id, is_enabled, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, vehicle_category_id, region, status_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()) RETURNING id',
+            [companyId, module_id, enabledStatus, country_id || null, property_type_id || null, premises_type_id || null, area_id || null, vehicle_usage_id || null, vehicle_category_id || null, region || null, finalStatusId]
         );
 
         const companyModuleId = result.insertId;
@@ -160,7 +161,7 @@ exports.addCompanyModule = async (req, res) => {
  */
 exports.updateCompanyModule = async (req, res) => {
     const { id } = req.params;
-    const { is_active, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, region, status_id, selected_fields } = req.body;
+    const { is_active, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, vehicle_category_id, region, status_id, selected_fields } = req.body;
     const companyId = req.user?.company_id || req.companyId;
 
     // --- DEBUG LOGGING ---
@@ -182,8 +183,8 @@ exports.updateCompanyModule = async (req, res) => {
 
         // 1. Update company_modules
         const [updateResult] = await connection.execute(
-            'UPDATE company_modules SET is_enabled=?, country_id=?, property_type_id=?, premises_type_id=?, area_id=?, vehicle_usage_id=?, region=?, status_id=? WHERE id=? AND company_id=?',
-            [enabledStatus, country_id || null, property_type_id || null, premises_type_id || null, area_id || null, vehicle_usage_id || null, region || null, finalStatusId, id, companyId]
+            'UPDATE company_modules SET is_enabled=?, country_id=?, property_type_id=?, premises_type_id=?, area_id=?, vehicle_usage_id=?, vehicle_category_id=?, region=?, status_id=? WHERE id=? AND company_id=?',
+            [enabledStatus, country_id || null, property_type_id || null, premises_type_id || null, area_id || null, vehicle_usage_id || null, vehicle_category_id || null, region || null, finalStatusId, id, companyId]
         );
 
         if (updateResult.affectedRows === 0) {
@@ -281,6 +282,27 @@ exports.getCountries = async (req, res) => {
 };
 
 /**
+ * GET /api/countries/regions
+ */
+exports.getRegions = async (req, res) => {
+    try {
+        const emirates = [
+            { id: 1, name: 'Abu Dhabi Emirate' },
+            { id: 2, name: 'Ajman Emirate' },
+            { id: 3, name: 'Dubai' },
+            { id: 4, name: 'Fujairah' },
+            { id: 5, name: 'Ras al-Khaimah' },
+            { id: 6, name: 'Sharjah Emirate' },
+            { id: 7, name: 'Umm al-Quwain' }
+        ];
+        res.json({ success: true, data: emirates });
+    } catch (error) {
+        console.error('[API] getRegions Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load regions' });
+    }
+};
+
+/**
  * GET /api/premises-types
  */
 exports.getPremisesTypes = async (req, res) => {
@@ -316,6 +338,29 @@ exports.getVehicleUsage = async (req, res) => {
     } catch (error) {
         console.error('[API] getVehicleUsage Error:', error);
         res.status(500).json({ success: false, message: 'Failed to load vehicle usage options' });
+    }
+};
+
+/**
+ * GET /api/vehicle-categories
+ * Fetches options from module_section_field_options for a field labeled 'Vehicle Category'
+ */
+exports.getVehicleCategories = async (req, res) => {
+    try {
+        const companyId = req.user?.company_id || 1;
+        const query = `
+            SELECT opt.id, opt.option_label as name, opt.option_value as value
+            FROM module_section_field_options opt
+            JOIN module_section_fields f ON f.id = opt.field_id
+            WHERE (f.label ILIKE '%Vehicle Category%' OR f.field_key = 'vehicle_category')
+            AND (f.company_id = ? OR f.company_id = 1)
+            ORDER BY opt.sort_order ASC
+        `;
+        const [rows] = await db.execute(query, [companyId]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error('[API] getVehicleCategories Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load vehicle categories' });
     }
 };
 
@@ -359,39 +404,50 @@ exports.getSelectedFieldsByConditions = async (req, res) => {
             companyId = parseInt(req.query.company_id, 10);
         }
 
-        const { module_id, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, region } = req.query;
+        const { module_id, country_id, property_type_id, premises_type_id, area_id, vehicle_usage_id, vehicle_category_id, region } = req.query;
 
         if (!companyId) return res.status(403).json({ success: false, message: 'Company context missing' });
         if (!module_id) return res.status(400).json({ success: false, message: 'module_id is required' });
 
-        let whereConditions = ['cm.company_id = ?', 'cm.module_id = ?'];
+        // Flexible score-based matching: find the "best" configuration instead of strict absolute match
+        let whereConditions = ['(cm.company_id = ? OR cm.company_id = 1)', 'cm.module_id = ?', 'cm.is_enabled = 1'];
         let whereParams = [companyId, module_id];
-        let scoreParts = ['100']; // Base score
+        let scoreParts = ['10']; // Base starting score
         let selectParams = [];
 
-        const addCondition = (val, field, scoreWeight) => {
-            if (val) {
-                whereConditions.push(`cm.${field} = ?`);
-                whereParams.push(val);
-                scoreParts.push(`(CASE WHEN cm.${field} = ? THEN ${scoreWeight} ELSE 0 END)`);
-                selectParams.push(val);
+        // Condition matching helper with fallback scoring
+        const addFlexCondition = (queryVal, dbField, weight) => {
+            if (queryVal) {
+                // Points for exact match
+                scoreParts.push(`(CASE WHEN cm.${dbField} = ? THEN ${weight} ELSE 0 END)`);
+                selectParams.push(queryVal);
+                // Smaller points for NULL (fallback wildcard)
+                scoreParts.push(`(CASE WHEN cm.${dbField} IS NULL THEN 1 ELSE 0 END)`);
+                // Add to where? No, we allow everything and rely on score, 
+                // BUT we must filter out conflicting specific configurations (e.g. if I'm in India, don't show UAE specific config)
+                whereConditions.push(`(cm.${dbField} = ? OR cm.${dbField} IS NULL)`);
+                whereParams.push(queryVal);
             } else {
-                scoreParts.push(`(CASE WHEN cm.${field} IS NULL THEN 1 ELSE 0 END)`);
+                // If I didn't provide a value, only match records that have NULL for this field
+                whereConditions.push(`cm.${dbField} IS NULL`);
+                scoreParts.push('1');
             }
         };
 
-        addCondition(country_id, 'country_id', 50); // High weight for country
-        addCondition(property_type_id, 'property_type_id', 5);
-        addCondition(premises_type_id, 'premises_type_id', 5);
-        addCondition(area_id, 'area_id', 5);
-        addCondition(vehicle_usage_id, 'vehicle_usage_id', 40); // High weight for usage
+        addFlexCondition(country_id, 'country_id', 100);
+        addFlexCondition(property_type_id, 'property_type_id', 20);
+        addFlexCondition(premises_type_id, 'premises_type_id', 20);
+        addFlexCondition(area_id, 'area_id', 20);
+        addFlexCondition(vehicle_usage_id, 'vehicle_usage_id', 80);
+        addFlexCondition(vehicle_category_id, 'vehicle_category_id', 50);
 
-        // Region special case
+        // Region logic
         if (region && region !== 'All') {
-            whereConditions.push("cm.region = ?");
-            whereParams.push(region);
-            scoreParts.push("(CASE WHEN cm.region = ? THEN 30 ELSE 0 END)");
+            scoreParts.push("(CASE WHEN cm.region = ? THEN 60 ELSE 0 END)");
             selectParams.push(region);
+            scoreParts.push("(CASE WHEN cm.region IS NULL OR cm.region = 'All' THEN 1 ELSE 0 END)");
+            whereConditions.push("(cm.region = ? OR cm.region IS NULL OR cm.region = 'All')");
+            whereParams.push(region);
         } else {
             whereConditions.push("(cm.region IS NULL OR cm.region = 'All')");
             scoreParts.push('1');
@@ -408,13 +464,11 @@ exports.getSelectedFieldsByConditions = async (req, res) => {
             LIMIT 1
         `;
 
-        // params in order: 
-        // 1. selectParams (for scoreParts)
-        // 2. whereParams (for WHERE clause)
         const finalParams = [...selectParams, ...whereParams];
 
+        console.log('[getSelectedFieldsByConditions] Received Params:', { companyId, module_id, country_id, vehicle_usage_id, region });
         console.log('[getSelectedFieldsByConditions] SQL Query:', query);
-        console.log('[getSelectedFieldsByConditions] Params Check:', { selectLen: selectParams.length, whereLen: whereParams.length, total: finalParams.length }, 'Params:', finalParams);
+        console.log('[getSelectedFieldsByConditions] Final Params:', finalParams);
 
         const [rows] = await db.execute(query, finalParams);
 
@@ -446,6 +500,7 @@ exports.deleteCompanyModule = async (req, res) => {
     try {
         const { id } = req.params;
         const companyId = req.user?.company_id || req.companyId;
+        console.log(`[deleteCompanyModule] ATTEMPT: ${req.method} mapping ID: ${id} | for Company: ${companyId}`);
 
         if (!companyId) {
             return res.status(403).json({ success: false, message: 'Company context missing' });

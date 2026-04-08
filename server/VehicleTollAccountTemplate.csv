@@ -1,0 +1,4 @@
+Provider Name (Salik/Other),Tag Number,Account No,Tag Status,Wallet Balance,Recharge Threshold,Auto Recharge
+Salik,12345678,ACC-001,Active,150.00,50.00,Yes
+Salik,87654321,ACC-002,Blocked,5.00,50.00,No
+Other,TAG-XYZ-99,ACC-999,Inactive,0.00,10.00,No

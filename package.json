@@ -1,0 +1,11 @@
+{
+    "name": "asset-web-root",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "backend": "cd server && npm run dev",
+        "web": "cd apps/web && npm run web",
+        "dev": "concurrently \"npm run backend\" \"npm run web\"",
+        "install:all": "npm install && cd server && npm install && cd ../apps/web && npm install"
+    }
+}

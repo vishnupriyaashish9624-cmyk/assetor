@@ -1,0 +1,3 @@
+Policy No,Insurer,Insurance Type,Start Date,Expiry Date,Premium Amount,Deductible Amount,Sum Insured,Status
+POL-12345,Insurance Co A,Comprehensive,2026-04-01,2027-03-31,1500.00,500.00,50000.00,Active
+POL-67890,Insurance Co B,Third party,2026-01-15,2027-01-14,800.00,0.00,25000.00,Active

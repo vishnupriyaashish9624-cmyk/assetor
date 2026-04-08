@@ -166,8 +166,26 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
     };
 
     const fetchRegions = async (countryId) => {
+        if (!countryId) return;
         setRegionsLoading(true);
         try {
+            // Find the country name correctly from the list
+            const countryObj = countries.find(c => String(c.id) === String(countryId));
+            const countryName = countryObj?.country_name || countryObj?.name || classification.country_name || '';
+
+            if (countryName.toLowerCase().includes('india')) {
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: 'India' })
+                });
+                const data = await res.json();
+                if (!data.error && data.data?.states) {
+                    setRegions(data.data.states.map(s => ({ name: s.name })));
+                    return;
+                }
+            }
+
             const res = await api.get('countries/regions', { params: { country_id: countryId } });
             if (res.data?.success) setRegions(res.data.data || []);
         } catch (e) {

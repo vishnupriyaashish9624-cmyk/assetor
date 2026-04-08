@@ -92,7 +92,7 @@ exports.getPremises = async (req, res) => {
                 countParams.push(searchParam, searchParam, searchParam);
             }
 
-            const baseUrl = process.env.SERVER_PUBLIC_URL || 'http://localhost:5031';
+            const baseUrl = process.env.SERVER_PUBLIC_URL || 'http://localhost:5032';
             const docCol = `, p.document_name, p.document_path, p.document_mime, 
                 a.name as area,
                 CASE WHEN p.document_path IS NOT NULL THEN CONCAT('${baseUrl}', p.document_path) ELSE NULL END as document_url`;
@@ -188,7 +188,7 @@ exports.getPremiseById = async (req, res) => {
         const type = baseRows[0].premise_type;
         let query = '';
 
-        const baseUrl = process.env.SERVER_PUBLIC_URL || 'http://localhost:5026';
+        const baseUrl = process.env.SERVER_PUBLIC_URL || 'http://localhost:5032';
         const docCol = `, CASE WHEN p.document_path IS NOT NULL THEN CONCAT('${baseUrl}', p.document_path) ELSE NULL END as document_url`;
 
         if (type === 'OWNED') {

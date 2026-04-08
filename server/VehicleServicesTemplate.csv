@@ -1,0 +1,3 @@
+Service Type,Request Date,Vendor,Odometer at Service,Complaint Details,Work Done,Parts Cost,Labor Cost,Total Cost,Next Due Date,Next Due KM
+Routine,2026-04-01,Garage A,45000,Oil change,Full service,150.00,100.00,250.00,2026-10-01,55000
+Repair,2026-03-15,Garage B,44200,Brake noise,Replaced brake pads,200.00,150.00,350.00,,

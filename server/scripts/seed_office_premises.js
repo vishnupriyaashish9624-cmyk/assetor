@@ -21,6 +21,10 @@ async function seed() {
         `, [companyId]);
         const id1 = res1.insertId;
 
+
+
+
+
         await connection.execute(`
             INSERT INTO office_owned_details (premise_id, ownership_type, buy_date, purchase_value, vendor_name, warranty_end_date, insurance_expiry, depreciation_percent, electricity_available)
             VALUES (?, 'FREEHOLD', '2020-01-15', 5000000.00, 'Emaar Properties', '2030-01-15', '2026-01-15', 2.5, 1)

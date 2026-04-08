@@ -1,7 +1,7 @@
 const env = require('../../config/env');
 
 function baseHtml({ title, bodyHtml }) {
-    return `
+  return `
   <div style="font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width:600px; margin:0 auto; line-height:1.6; color:#1e293b; border: 1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
     <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding:30px 20px; text-align:center;">
         <h1 style="color: white; margin: 0; font-size: 24px;">${env.APP_NAME}</h1>
@@ -17,8 +17,8 @@ function baseHtml({ title, bodyHtml }) {
 }
 
 function welcomeWithTempPassword({ name, email, tempPassword, companyName }) {
-    const title = 'Your account is ready';
-    const bodyHtml = `
+  const title = 'Your account is ready';
+  const bodyHtml = `
     <p>Hi ${name || 'there'},</p>
     <p>Your administrator account for <strong>${companyName || env.APP_NAME}</strong> has been successfully created.</p>
     
@@ -29,19 +29,19 @@ function welcomeWithTempPassword({ name, email, tempPassword, companyName }) {
     </div>
     
     <div style="text-align: center; margin: 30px 0;">
-        <a href="${env.APP_BASE_URL}" style="background-color: #2563eb; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700;">
+        <a href="${env.APP_BASE_URL}/login" style="background-color: #2563eb; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700;">
             Log In to Your Account
         </a>
     </div>
     
     <p style="font-size: 14px; color: #64748b;">For security reasons, you will be required to set a new password immediately upon your first login.</p>
   `;
-    return baseHtml({ title, bodyHtml });
+  return baseHtml({ title, bodyHtml });
 }
 
 function resetLinkEmail({ name, resetLink }) {
-    const title = 'Reset your password';
-    const bodyHtml = `
+  const title = 'Reset your password';
+  const bodyHtml = `
     <p>Hi ${name || 'there'},</p>
     <p>We received a request to reset your password. Click the button below to proceed:</p>
     <div style="text-align: center; margin: 30px 0;">
@@ -52,7 +52,7 @@ function resetLinkEmail({ name, resetLink }) {
     <p style="font-size: 13px; color: #94a3b8;">If the button doesn't work, copy and paste this link into your browser:</p>
     <p style="font-size: 13px; word-break: break-all;"><a href="${resetLink}">${resetLink}</a></p>
   `;
-    return baseHtml({ title, bodyHtml });
+  return baseHtml({ title, bodyHtml });
 }
 
 module.exports = { welcomeWithTempPassword, resetLinkEmail };
