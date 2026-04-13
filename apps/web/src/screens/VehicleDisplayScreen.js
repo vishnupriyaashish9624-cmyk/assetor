@@ -1319,18 +1319,19 @@ const VehicleDisplayScreen = ({ navigation }) => {
                             <Card style={styles.tableCard}>
                                 <DataTable>
                                     <DataTable.Header style={styles.tableHeader}>
-                                        <DataTable.Title style={{ flex: 1, paddingLeft: 16 }} textStyle={styles.headerText}>Type</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 2.5 }} textStyle={styles.headerText}>Vehicle Name</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Country</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Region/State</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Usage</DataTable.Title>
-                                        <DataTable.Title style={{ flex: 1, justifyContent: 'center' }} textStyle={styles.headerText}>Actions</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 0.8, paddingLeft: 16 }} textStyle={styles.headerText}>Type</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 2.2 }} textStyle={styles.headerText}>Vehicle Name</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>Company</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 1.2 }} textStyle={styles.headerText}>Country</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 1.2 }} textStyle={styles.headerText}>Region/State</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 1.2 }} textStyle={styles.headerText}>Usage</DataTable.Title>
+                                        <DataTable.Title style={{ flex: 0.8, justifyContent: 'center' }} textStyle={styles.headerText}>Actions</DataTable.Title>
                                     </DataTable.Header>
                                     <ScrollView style={{ maxHeight: 'calc(100vh - 420px)' }}>
                                         {vehicles.map((item, index) => (
                                             <View key={item.vehicle_id} style={styles.rowWrapper}>
                                                 <DataTable.Row style={[styles.row, { backgroundColor: index % 2 === 0 ? 'white' : '#f2f6ff' }]}>
-                                                    <DataTable.Cell style={{ flex: 1, paddingLeft: 16 }}>
+                                                    <DataTable.Cell style={{ flex: 0.8, paddingLeft: 16 }}>
                                                         {(() => {
                                                             const pTypeName = item.property_type_name || propertyTypes.find(p => p.id == item.property_type_id)?.name || '';
                                                             const vTypeName = item.vehicle_type_name || premisesTypes.find(p => p.id == item.premises_type_id)?.type_name || item.type || '';
@@ -1359,7 +1360,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                             );
                                                         })()}
                                                     </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 2.5 }}>
+                                                    <DataTable.Cell style={{ flex: 2.2 }}>
                                                         <View style={styles.nameCell}>
                                                             <View style={styles.iconBox}>
                                                                 <MaterialCommunityIcons
@@ -1375,17 +1376,20 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                         </View>
                                                     </DataTable.Cell>
                                                     <DataTable.Cell style={{ flex: 1.5 }}>
+                                                        <Text style={styles.cellText} numberOfLines={1}>{item.company_name || '-'}</Text>
+                                                    </DataTable.Cell>
+                                                    <DataTable.Cell style={{ flex: 1.2 }}>
                                                         <View>
                                                             <Text style={styles.cellText}>{item.country || '-'}</Text>
                                                         </View>
                                                     </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.5 }}>
+                                                    <DataTable.Cell style={{ flex: 1.2 }}>
                                                         <Text style={styles.cellText}>{item.region || '-'}</Text>
                                                     </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.5 }}>
+                                                    <DataTable.Cell style={{ flex: 1.2 }}>
                                                         <Text style={styles.cellText}>{item.vehicle_usage_name || item.vehicle_usage || (item.area_id == 1 ? 'Commercial' : item.area_id == 2 ? 'Personal' : '-')}</Text>
                                                     </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1, justifyContent: 'center' }}>
+                                                    <DataTable.Cell style={{ flex: 0.8, justifyContent: 'center' }}>
                                                         <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center' }}>
                                                             <TouchableOpacity onPress={() => fetchVehicleSnapshot(item)}>
                                                                 <MaterialCommunityIcons name="eye-outline" size={20} color="rgb(239, 149, 10)" />

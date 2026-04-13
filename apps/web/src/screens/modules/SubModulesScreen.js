@@ -168,65 +168,14 @@ const SubModulesScreen = ({ navigation }) => {
                 return;
             }
 
-            const countryName = selectedCountry.country_name || selectedCountry.name;
-            if (!countryName || countryName === 'All') return;
-
-            let queryCountry = countryName;
-            const normalizedCountry = countryName.toLowerCase().trim();
-
-            // Normalize common country names for the API
-            if (normalizedCountry === 'uae' || normalizedCountry === 'united arab emirates') {
-                queryCountry = 'United Arab Emirates';
-            } else if (normalizedCountry === 'usa' || normalizedCountry === 'united states') {
-                queryCountry = 'United States';
-            } else if (normalizedCountry === 'uk' || normalizedCountry === 'united kingdom') {
-                queryCountry = 'United Kingdom';
-            }
-
             try {
-                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ country: queryCountry })
-                });
-
-                if (!res.ok) throw new Error('API request failed');
-
-                const data = await res.json();
-                if (data.data && data.data.states && data.data.states.length > 0) {
-                    setRegions(data.data.states.map(s => ({
-                        name: s.name,
-                        state_code: s.state_code
-                    })));
-                } else {
-                    // Fallback for UAE if API fails or returns empty
-                    if (queryCountry === 'United Arab Emirates') {
-                        const uaeStates = [
-                            { name: 'Abu Dhabi', state_code: 'AZ' },
-                            { name: 'Dubai', state_code: 'DU' },
-                            { name: 'Sharjah', state_code: 'SH' },
-                            { name: 'Ajman', state_code: 'AJ' },
-                            { name: 'Umm Al Quwain', state_code: 'UQ' },
-                            { name: 'Ras Al Khaimah', state_code: 'RK' },
-                            { name: 'Fujairah', state_code: 'FU' }
-                        ];
-                        setRegions(uaeStates);
-                    }
+                // Fetch regions from our own database table
+                const res = await api.get(`countries/regions?country_id=${selectedCountry.id}`);
+                if (res.data.success) {
+                    setRegions(res.data.data);
                 }
             } catch (e) {
-                console.error('Fetch regions error', e);
-                // Fallback for UAE on Error
-                if (queryCountry === 'United Arab Emirates') {
-                    setRegions([
-                        { name: 'Abu Dhabi', state_code: 'AZ' },
-                        { name: 'Dubai', state_code: 'DU' },
-                        { name: 'Sharjah', state_code: 'SH' },
-                        { name: 'Ajman', state_code: 'AJ' },
-                        { name: 'Umm Al Quwain', state_code: 'UQ' },
-                        { name: 'Ras Al Khaimah', state_code: 'RK' },
-                        { name: 'Fujairah', state_code: 'FU' }
-                    ]);
-                }
+                console.error('Fetch regions error:', e);
             }
         };
 
@@ -489,10 +438,6 @@ const SubModulesScreen = ({ navigation }) => {
                                 !showAll && <Text style={{ padding: 12, color: '#94a3b8' }}>No options available</Text>
                             ) : (
                                 options
-                                    .filter(opt => {
-                                        const l = (opt[labelKey] || opt.label || opt.name || '').toLowerCase();
-                                        return l !== 'all';
-                                    })
                                     .map((opt, idx) => {
                                         const isSelected = Array.isArray(value)
                                             ? value.find(v => (v.id === opt.id || v.module_id === opt.id))
@@ -1042,7 +987,7 @@ const SubModulesScreen = ({ navigation }) => {
                                     <View style={{ flexDirection: 'column', gap: 12, paddingBottom: 20 }}>
                                         {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name')}
                                         {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name')}
-                                        {renderDropdown("Region", "Select Region...", selectedRegion, regions, setSelectedRegion, 'region', 'name', {}, !!selectedCountry?.isAll)}
+                                        {renderDropdown("Region", "Select Region...", selectedRegion, regions, setSelectedRegion, 'region', 'name', {}, false)}
 
                                         {/* Conditional Fields based on Module */}
                                         {selectedModule?.module_name?.toLowerCase().includes('vehicle') ? (
@@ -1071,7 +1016,7 @@ const SubModulesScreen = ({ navigation }) => {
                                 <View style={[styles.formRow, { zIndex: dropdownOpen ? 1000 : 1, paddingBottom: 20 }]}>
                                     {renderDropdown("Module Name", "Select...", selectedModule, modules, setSelectedModule, 'module', 'module_name', { flex: 1.5, marginRight: 8 })}
                                     {renderDropdown("Country", "Select...", selectedCountry, countries, setSelectedCountry, 'country', 'country_name', { flex: 1.2, marginRight: 8 })}
-                                    {renderDropdown("Region", "Select...", selectedRegion, regions, setSelectedRegion, 'region', 'name', { flex: 1.2, marginRight: 8 }, !!selectedCountry?.isAll)}
+                                    {renderDropdown("Region", "Select Region...", selectedRegion, regions, setSelectedRegion, 'region', 'name', { flex: 1.2, marginRight: 8 }, false)}
 
                                     {/* Conditional Desktop Layout */}
                                     {selectedModule?.module_name?.toLowerCase().includes('vehicle') ? (

@@ -286,16 +286,10 @@ exports.getCountries = async (req, res) => {
  */
 exports.getRegions = async (req, res) => {
     try {
-        const emirates = [
-            { id: 1, name: 'Abu Dhabi Emirate' },
-            { id: 2, name: 'Ajman Emirate' },
-            { id: 3, name: 'Dubai' },
-            { id: 4, name: 'Fujairah' },
-            { id: 5, name: 'Ras al-Khaimah' },
-            { id: 6, name: 'Sharjah Emirate' },
-            { id: 7, name: 'Umm al-Quwain' }
-        ];
-        res.json({ success: true, data: emirates });
+        console.log('[DEBUG] getRegions called with CASE sorting');
+        const query = "SELECT id, region_name as name FROM regions ORDER BY (CASE WHEN region_name = 'All' THEN 0 ELSE 1 END), region_name ASC";
+        const [rows] = await db.execute(query);
+        res.json({ success: true, data: rows });
     } catch (error) {
         console.error('[API] getRegions Error:', error);
         res.status(500).json({ success: false, message: 'Failed to load regions' });

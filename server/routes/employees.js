@@ -7,6 +7,7 @@ const { authMiddleware } = require('../middleware/auth');
 // router.use(authMiddleware); // TEMPORARILY DISABLED FOR TESTING
 
 router.get('/', employeeController.getEmployees);
+router.get('/memberships/:email', employeeController.getEmployeeMemberships);
 router.post('/', employeeController.createEmployee);
 router.put('/:id', employeeController.updateEmployee);
 router.delete('/:id', employeeController.deleteEmployee);

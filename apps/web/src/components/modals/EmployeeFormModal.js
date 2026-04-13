@@ -26,7 +26,10 @@ const EmployeeFormModal = ({ visible, onClose, onSave, companyId, companyName, e
 
     const [roles, setRoles] = useState([]);
     const [departments, setDepartments] = useState([]);
+    const [companies, setCompanies] = useState([]);
     const [deptDropdownOpen, setDeptDropdownOpen] = useState(false);
+    const [compDropdownOpen, setCompDropdownOpen] = useState(false);
+    const [selectedCompanyIds, setSelectedCompanyIds] = useState([]);
     const [manualPassword, setManualPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -35,8 +38,27 @@ const EmployeeFormModal = ({ visible, onClose, onSave, companyId, companyName, e
         if (visible) {
             fetchRoles();
             fetchDepartments();
+            fetchCompanies();
         }
     }, [visible]);
+
+    const fetchCompanies = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.get(`${API_URL}/companies`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.success) {
+                setCompanies(response.data.data);
+                // Default to current companyId if creating new
+                if (!employee && companyId && selectedCompanyIds.length === 0) {
+                    setSelectedCompanyIds([companyId]);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching companies:', error);
+        }
+    };
 
     const fetchRoles = async () => {
         try {
@@ -73,41 +95,72 @@ const EmployeeFormModal = ({ visible, onClose, onSave, companyId, companyName, e
     };
 
     useEffect(() => {
-        if (employee) {
-            setFormData({
-                name: employee.name || '',
-                email: employee.email || '',
-                phone: employee.phone || '',
-                position: employee.position || '',
-                role_id: employee.role_id || null,
-                department_id: employee.department_id || null,
-                status: employee.status || 'Active',
-                auto_generate_password: false,
-                password: '',
-                require_reset: false,
-                send_email: false,
-            });
-        } else {
-            setFormData({
-                name: '',
-                email: '',
-                phone: '',
-                position: 'Employee',
-                role_id: null,
-                department_id: null,
-                status: 'Active',
-                auto_generate_password: true,
-                password: '',
-                require_reset: true,
-                send_email: true,
-            });
-            setManualPassword('');
+        const loadEmployeeData = async () => {
+            if (employee) {
+                setFormData({
+                    name: employee.name || '',
+                    email: employee.email || '',
+                    phone: employee.phone || '',
+                    position: employee.position || '',
+                    role_id: employee.role_id || null,
+                    department_id: employee.department_id || null,
+                    status: employee.status || 'Active',
+                    auto_generate_password: false,
+                    password: '',
+                    require_reset: false,
+                    send_email: false,
+                });
+
+                // Fetch all memberships for this email
+                if (employee.email) {
+                    try {
+                        const token = await AsyncStorage.getItem('token');
+                        const response = await axios.get(`${API_URL}/employees/memberships/${employee.email}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (response.data.success) {
+                            setSelectedCompanyIds(response.data.data);
+                        } else {
+                            setSelectedCompanyIds([employee.company_id]);
+                        }
+                    } catch (err) {
+                        console.error('Error fetching memberships:', err);
+                        setSelectedCompanyIds([employee.company_id]);
+                    }
+                } else {
+                    setSelectedCompanyIds([employee.company_id]);
+                }
+            } else {
+                setFormData({
+                    name: '',
+                    email: '',
+                    phone: '',
+                    position: 'Employee',
+                    role_id: null,
+                    department_id: null,
+                    status: 'Active',
+                    auto_generate_password: true,
+                    password: '',
+                    require_reset: true,
+                    send_email: true,
+                });
+                setManualPassword('');
+                if (companyId) setSelectedCompanyIds([companyId]);
+            }
+        };
+
+        if (visible) {
+            loadEmployeeData();
         }
-    }, [employee, visible]);
+    }, [visible]); // Only run when modal visibility changes to prevent reset while typing
 
     const handleSave = async () => {
         if (!formData.name) {
             setError('Employee name is required');
+            return;
+        }
+        if (!formData.email) {
+            setError('Employee email is required');
             return;
         }
 
@@ -115,7 +168,11 @@ const EmployeeFormModal = ({ visible, onClose, onSave, companyId, companyName, e
         setLoading(true);
         try {
             // Prepare payload
-            const payload = { ...formData, company_id: companyId };
+            const payload = {
+                ...formData,
+                company_ids: selectedCompanyIds,
+                company_id: selectedCompanyIds[0] // Fallback for single company logic
+            };
             if (!formData.auto_generate_password) {
                 payload.password = manualPassword;
             }
@@ -216,6 +273,102 @@ const EmployeeFormModal = ({ visible, onClose, onSave, companyId, companyName, e
                                 </View>
                             </View>
                         </View>
+                    </View>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>Associated Companies</Text>
+                        <TouchableOpacity
+                            style={styles.dropdown}
+                            onPress={() => setCompDropdownOpen(o => !o)}
+                        >
+                            <View style={styles.summaryContainer}>
+                                {selectedCompanyIds.length === 0 ? (
+                                    <Text style={styles.dropdownText}>Select Companies</Text>
+                                ) : (
+                                    <View style={styles.pillContainer}>
+                                        {selectedCompanyIds.slice(0, 2).map((id) => (
+                                            <View key={id} style={styles.selectionPill}>
+                                                <MaterialCommunityIcons name="check" size={12} color="white" />
+                                                <Text style={styles.pillText} numberOfLines={1}>
+                                                    {companies.find(c => c.id === id)?.name}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                        {selectedCompanyIds.length > 2 && (
+                                            <Text style={styles.morePills}>+{selectedCompanyIds.length - 2} more</Text>
+                                        )}
+                                    </View>
+                                )}
+                            </View>
+                            <MaterialCommunityIcons
+                                name={compDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                                size={20}
+                                color="#64748b"
+                            />
+                        </TouchableOpacity>
+                        {compDropdownOpen && (
+                            <View style={styles.compList}>
+                                <TouchableOpacity
+                                    style={styles.selectAllRow}
+                                    onPress={() => {
+                                        if (selectedCompanyIds.length === companies.length) {
+                                            setSelectedCompanyIds([]);
+                                        } else {
+                                            setSelectedCompanyIds(companies.map(c => c.id));
+                                        }
+                                    }}
+                                >
+                                    <Text style={styles.selectAllText}>
+                                        {selectedCompanyIds.length === companies.length ? 'Deselect All' : 'Select All'}
+                                    </Text>
+                                    <View style={[
+                                        styles.customCheckbox,
+                                        selectedCompanyIds.length === companies.length && styles.customCheckboxChecked
+                                    ]}>
+                                        {selectedCompanyIds.length === companies.length && (
+                                            <MaterialCommunityIcons name="check" size={12} color="white" />
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                                {companies.length === 0 ? (
+                                    <Text style={styles.deptEmptyText}>No companies found</Text>
+                                ) : (
+                                    <ScrollView style={{ maxHeight: 200 }}>
+                                        {companies.map(comp => (
+                                            <TouchableOpacity
+                                                key={comp.id}
+                                                style={[
+                                                    styles.deptItem,
+                                                    selectedCompanyIds.includes(comp.id) && styles.deptItemActive
+                                                ]}
+                                                onPress={() => {
+                                                    setSelectedCompanyIds(prev =>
+                                                        prev.includes(comp.id)
+                                                            ? prev.filter(id => id !== comp.id)
+                                                            : [...prev, comp.id]
+                                                    );
+                                                }}
+                                            >
+                                                <Text style={[
+                                                    styles.deptItemText,
+                                                    selectedCompanyIds.includes(comp.id) && styles.deptItemTextActive
+                                                ]}>
+                                                    {comp.name}
+                                                </Text>
+                                                <View style={[
+                                                    styles.customCheckbox,
+                                                    selectedCompanyIds.includes(comp.id) && styles.customCheckboxChecked
+                                                ]}>
+                                                    {selectedCompanyIds.includes(comp.id) && (
+                                                        <MaterialCommunityIcons name="check" size={12} color="white" />
+                                                    )}
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                )}
+                            </View>
+                        )}
                     </View>
 
                     <View style={styles.formGroup}>
@@ -571,6 +724,77 @@ const styles = StyleSheet.create({
         color: '#9ca3af',
         fontStyle: 'italic',
         textAlign: 'center',
+    },
+    compList: {
+        marginTop: 4,
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 6,
+        backgroundColor: '#fff',
+        maxHeight: 250,
+        overflow: 'hidden',
+        zIndex: 10,
+    },
+    customCheckbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: '#cbd5e1',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+    },
+    customCheckboxChecked: {
+        borderColor: '#3b82f6',
+        backgroundColor: '#3b82f6',
+    },
+    summaryContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    pillContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    selectionPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#3b82f6',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderRadius: 12,
+        gap: 4,
+        maxWidth: 140,
+    },
+    pillText: {
+        color: 'white',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    morePills: {
+        fontSize: 12,
+        color: '#3b82f6',
+        fontWeight: '600',
+        marginLeft: 4,
+    },
+    selectAllRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e2e8f0',
+        backgroundColor: '#f8fafc',
+    },
+    selectAllText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#3b82f6',
     },
 });
 

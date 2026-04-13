@@ -54,118 +54,137 @@ exports.getEmployees = async (req, res) => {
 };
 
 /**
+ * Get all company memberships for a specific email
+ */
+exports.getEmployeeMemberships = async (req, res) => {
+    const { email } = req.params;
+    try {
+        const [rows] = await db.execute(
+            'SELECT company_id FROM employees WHERE email = ?',
+            [email]
+        );
+        const companyIds = rows.map(r => r.company_id);
+        res.json({ success: true, data: companyIds });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
  * Create a new employee and their user account
  */
 exports.createEmployee = async (req, res) => {
-    let { name, email, role, role_id, company_id, department_id, employee_id_card, position, phone, password, auto_generate_password } = req.body;
+    const fs = require('fs');
+    const logPath = require('path').join(__dirname, '..', 'server_debug.log');
+    const log = (msg) => {
+        const time = new Date().toISOString();
+        console.log(`[CREATE_EMP] ${msg}`);
+        try { fs.appendFileSync(logPath, `[${time}] [CREATE_EMP] ${msg}\n`); } catch (e) { }
+    };
+
+    let { name, email, role, role_id, company_id, company_ids, department_id, employee_id_card, position, phone, password, auto_generate_password } = req.body;
     if (email) email = email.trim();
+
+    log(`Start - name: ${name}, email: ${email}, company_ids: ${JSON.stringify(company_ids)}, company_id: ${company_id}`);
+
+    // Support for multiple companies
+    const targetCompanyIds = company_ids && Array.isArray(company_ids) && company_ids.length > 0
+        ? company_ids
+        : [company_id];
+
+    log(`Target IDs to process: ${JSON.stringify(targetCompanyIds)}`);
 
     let connection;
     try {
         connection = await db.getConnection();
         await connection.beginTransaction();
 
-        // Enforce limits and privileges
-        const [companyRows] = await connection.execute('SELECT name, client_id, can_add_employee FROM companies WHERE id = ?', [company_id]);
-        if (companyRows.length === 0) {
-            await connection.rollback();
-            return res.status(404).json({ success: false, message: 'Company not found' });
-        }
+        const createdEmployees = [];
 
-        const company = companyRows[0];
+        for (const targetId of targetCompanyIds) {
+            log(`Processing company_id: ${targetId}`);
 
-        // 1. Check Privilege
-        if (company.can_add_employee === false) {
-            await connection.rollback();
-            return res.status(403).json({
-                success: false,
-                message: 'PRIVILEGE_DENIED',
-                detail: 'This company does not have the privilege to add employees. Please contact your administrator.'
-            });
-        }
-
-        // 2. Check Client Limit
-        if (company.client_id) {
-            console.log(`[createEmployee] Checking Client Limit...`);
-            const clientLimitStatus = await checkClientLimit(company.client_id, 'employees');
-            if (clientLimitStatus.exceeded) {
-                await connection.rollback();
-                console.log(`[createEmployee] Client Limit Exceeded`);
-                return res.status(400).json({
-                    success: false,
-                    message: 'LIMIT_EXCEEDED',
-                    detail: `Total employee limit for this client reached (${clientLimitStatus.limit})`
-                });
-            }
-        }
-        console.log(`[createEmployee] Client Limit Checked`);
-
-        // 3. Check Company Limit
-        const companyLimitStatus = await checkCompanyLimit(company_id, 'employees');
-        if (companyLimitStatus.exceeded) {
-            await connection.rollback();
-            console.log(`[createEmployee] Company Limit Exceeded`);
-            return res.status(400).json({
-                success: false,
-                message: 'LIMIT_EXCEEDED',
-                detail: `Employee limit for this company reached (${companyLimitStatus.limit})`
-            });
-        }
-        console.log(`[createEmployee] Company Limit Checked`);
-
-        // 4. Create Employee Record
-        console.log(`[createEmployee] Inserting employee...`);
-        const [empRows] = await connection.execute(
-            'INSERT INTO employees (company_id, name, email, department_id, employee_id_card, position, phone) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
-            [company_id, name, email, department_id, employee_id_card, position, phone]
-        );
-        const employeeId = empRows.insertId;
-        console.log(`[createEmployee] Employee row inserted, id: ${employeeId}`);
-
-        // 5. Create User Account with Login Credentials
-        if (email) {
-            console.log(`[createEmployee] Creating user account for ${email}...`);
-            let finalPassword;
-
-            if (auto_generate_password) {
-                // Generate random 8-character password
-                const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
-                finalPassword = Array.from({ length: 8 }, () => charset[Hint.getRandomInt(0, charset.length - 1)]).join('');
-            } else {
-                finalPassword = password || 'employee123'; // Fallback password
+            // Enforce limits and privileges
+            const [companyRows] = await connection.execute('SELECT name, client_id, can_add_employee FROM companies WHERE id = ?', [targetId]);
+            if (companyRows.length === 0) {
+                log(`Company ${targetId} not found, skipping...`);
+                continue;
             }
 
-            console.log(`[createEmployee] Hashing password...`);
-            const hashedPassword = await bcrypt.hash(finalPassword, 10);
-            console.log(`[createEmployee] Password hashed`);
+            const company = companyRows[0];
 
-            await connection.execute(
-                'INSERT INTO users (name, email, password, role, role_id, company_id, client_id, status, force_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [name, email, hashedPassword, 'EMPLOYEE', role_id || null, company_id, company.client_id || null, 'ACTIVE', true]
+            // 1. Check Privilege
+            if (company.can_add_employee === false) {
+                log(`Company ${targetId} lacks privilege, skipping...`);
+                continue;
+            }
+
+            // 2. Check Client Limit
+            if (company.client_id) {
+                const clientLimitStatus = await checkClientLimit(company.client_id, 'employees');
+                if (clientLimitStatus.exceeded) {
+                    log(`Client Limit Exceeded for company ${targetId}, skipping...`);
+                    continue;
+                }
+            }
+
+            // 3. Check Company Limit
+            const companyLimitStatus = await checkCompanyLimit(targetId, 'employees');
+            if (companyLimitStatus.exceeded) {
+                log(`Company Limit Exceeded for company ${targetId}, skipping...`);
+                continue;
+            }
+
+            // 4. Create Employee Record
+            log(`Inserting employee for company ${targetId}...`);
+            const [empRows] = await connection.execute(
+                'INSERT INTO employees (company_id, name, email, department_id, employee_id_card, position, phone) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+                [targetId, name, email, department_id, employee_id_card, position, phone]
             );
+            const employeeId = empRows.insertId;
+            log(`Inserted employee ID: ${employeeId}`);
 
-            console.log(`[createEmployee] User account created in DB`);
+            // 5. Create User Account with Login Credentials
+            if (email) {
+                log(`Creating user account for ${email} in company ${targetId}...`);
+                let finalPassword;
+                if (auto_generate_password) {
+                    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
+                    finalPassword = Array.from({ length: 8 }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
+                } else {
+                    finalPassword = password || 'employee123';
+                }
 
-            // Send Modular Premium Welcome Email
-            sendWelcomeTempPassword({
-                name: name,
-                email: email,
-                tempPassword: finalPassword,
-                companyName: company.name
-            }).then(() => {
-                console.log(`[Employee Created] Welcome email sent to ${email}`);
-            }).catch(mailError => {
-                console.error(`[Employee Created] Failed to send email to ${email}:`, mailError.message);
-            });
+                const hashedPassword = await bcrypt.hash(finalPassword, 10);
+
+                await connection.execute(
+                    'INSERT INTO users (name, email, password, role, role_id, company_id, client_id, status, force_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [name, email, hashedPassword, 'EMPLOYEE', role_id || null, targetId, company.client_id || null, 'ACTIVE', true]
+                );
+                log(`User account created`);
+
+                // Send Welcome Email
+                sendWelcomeTempPassword({
+                    name: name,
+                    email: email,
+                    tempPassword: finalPassword,
+                    companyName: company.name
+                }).catch(err => log(`Email Error: ${err.message}`));
+            }
+
+            createdEmployees.push({ id: employeeId, company_id: targetId });
         }
 
         await connection.commit();
-        console.log(`[createEmployee] Transaction committed`);
-        res.status(201).json({ success: true, data: { id: employeeId, ...req.body } });
-        console.log(`[createEmployee] Response sent to client`);
+        log(`Transaction committed, total created: ${createdEmployees.length}`);
+        res.status(201).json({
+            success: true,
+            message: `Successfully created ${createdEmployees.length} employee record(s).`,
+            data: createdEmployees
+        });
     } catch (error) {
-        if (connection) await connection.rollback().catch(e => console.error('Rollback error:', e));
-        console.error('[createEmployee] Error:', error);
+        if (connection) await connection.rollback().catch(e => log(`Rollback error: ${e.message}`));
+        log(`Error: ${error.message}`);
         res.status(500).json({ success: false, message: error.message });
     } finally {
         if (connection) connection.release();
@@ -225,6 +244,70 @@ exports.updateEmployee = async (req, res) => {
             [name, email, role_id || null, oldEmail, employeeCompanyId]
         );
         log(`[updateEmployee] Users table updated. Affected rows: ${userUpdateResult.affectedRows}`);
+
+        // 3. Handle memberships (Company IDs)
+        const { company_ids } = req.body;
+        log(`[updateEmployee] CHECK: company_ids defined? ${!!company_ids}, IsArray? ${Array.isArray(company_ids)}`);
+        if (company_ids && Array.isArray(company_ids)) {
+            log(`[updateEmployee] Synchronizing memberships. Payload IDs: ${JSON.stringify(company_ids)}`);
+
+            // A. Remove memberships NOT in the list
+            log(`[updateEmployee] Removing memberships not in: ${JSON.stringify(company_ids)}`);
+            const [currentMemberships] = await connection.execute(
+                'SELECT company_id FROM employees WHERE email = ?',
+                [email]
+            );
+            const currentIds = currentMemberships.map(m => m.company_id);
+            log(`[updateEmployee] Current memberships IDs: ${JSON.stringify(currentIds)}`);
+
+            for (const currentId of currentIds) {
+                if (!company_ids.includes(currentId)) {
+                    log(`[updateEmployee] Removing membership for company ${currentId}`);
+                    // Delete employee record
+                    await connection.execute(
+                        'DELETE FROM employees WHERE email = ? AND company_id = ?',
+                        [email, currentId]
+                    );
+                    // Optionally delete user record if you want total removal
+                    await connection.execute(
+                        'DELETE FROM users WHERE email = ? AND company_id = ?',
+                        [email, currentId]
+                    );
+                }
+            }
+
+            // B. Add new memberships
+            for (const targetId of company_ids) {
+                const [existing] = await connection.execute(
+                    'SELECT id FROM employees WHERE email = ? AND company_id = ?',
+                    [email, targetId]
+                );
+
+                if (existing.length === 0) {
+                    log(`[updateEmployee] Creating new membership for company ${targetId}`);
+                    await connection.execute(
+                        'INSERT INTO employees (company_id, name, email, department_id, employee_id_card, position, phone) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [targetId, name, email, department_id, employee_id_card, position, phone]
+                    );
+
+                    const [compRows] = await connection.execute('SELECT client_id FROM companies WHERE id = ?', [targetId]);
+                    const clientId = compRows[0]?.client_id || null;
+
+                    const [existingUser] = await connection.execute('SELECT id FROM users WHERE email = ? AND company_id = ?', [email, targetId]);
+                    if (existingUser.length === 0) {
+                        const [currentUser] = await connection.execute('SELECT password, role, role_id FROM users WHERE email = ? AND company_id = ? LIMIT 1', [oldEmail, employeeCompanyId]);
+                        if (currentUser.length > 0) {
+                            await connection.execute(
+                                'INSERT INTO users (name, email, password, role, role_id, company_id, client_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                                [name, email, currentUser[0].password, currentUser[0].role, currentUser[0].role_id, targetId, clientId, 'ACTIVE']
+                            );
+                        }
+                    }
+                } else {
+                    log(`[updateEmployee] Membership for company ${targetId} already exists`);
+                }
+            }
+        }
 
         await connection.commit();
         log(`[updateEmployee] Success`);

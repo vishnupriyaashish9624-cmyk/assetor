@@ -203,8 +203,20 @@ exports.updatePassword = async (req, res) => {
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        // Force reset is cleared on successful password update
-        await db.execute('UPDATE users SET password = ?, force_reset = false WHERE id = ?', [hashedPassword, userId]);
+
+        // Fetch the user's email to update all linked accounts (prevents issues with duplicates)
+        const [userRows] = await db.execute('SELECT email FROM users WHERE id = ?', [userId]);
+
+        if (userRows.length > 0) {
+            const userEmail = userRows[0].email;
+            // Clear force_reset for ALL accounts sharing this email
+            await db.execute('UPDATE users SET password = ?, force_reset = false WHERE LOWER(email) = LOWER(?)', [hashedPassword, userEmail]);
+            console.log(`[Auth] Password updated and force_reset cleared for all accounts with email: ${userEmail}`);
+        } else {
+            // Fallback for direct ID update if email fetch fails
+            await db.execute('UPDATE users SET password = ?, force_reset = false WHERE id = ?', [hashedPassword, userId]);
+        }
+
         res.json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
         console.error('Update password error:', error);

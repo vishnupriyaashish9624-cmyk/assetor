@@ -16,6 +16,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
     const [uploadingField, setUploadingField] = useState(null);
 
     // Dropdown Data
+    const [companies, setCompanies] = useState([]);
     const [countries, setCountries] = useState([]);
     const [propertyTypes, setPropertyTypes] = useState([]);
     const [premisesTypes, setPremisesTypes] = useState([]);
@@ -27,6 +28,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
 
     // Dropdown Menus Visibility
     const [menus, setMenus] = useState({
+        company: false,
         country: false,
         region: false,
         premisesType: false,
@@ -37,6 +39,8 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
     // Form Data - Step 1
     const [classification, setClassification] = useState({
         vehicle_id: null,
+        company_id: null,
+        company_name: '',
         vehicle_name: '',
         license_plate: '',
         type: '',
@@ -94,6 +98,8 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
             if (initialData && Object.keys(initialData).length > 0) {
                 setClassification({
                     vehicle_id: initialData.vehicle_id || null,
+                    company_id: initialData.company_id || null,
+                    company_name: initialData.company_name || '',
                     vehicle_name: initialData.vehicle_name || '',
                     license_plate: initialData.license_plate || '',
                     type: initialData.type || '',
@@ -106,14 +112,26 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                     premises_type_name: initialData.premises_type_name || ''
                 });
 
-                const baseKeys = ['vehicle_id', 'company_id', 'status', 'is_active', 'country_id', 'property_type_id', 'premises_type_id', 'vehicle_usage_id', 'area_id', 'vehicle_category_id', 'country_name', 'property_type_name', 'premises_type_name', 'area_name', 'vehicle_category_name', 'created_at', 'updated_at', 'image_path'];
+                const baseKeys = [
+                    // Primary vehicle table columns
+                    'vehicle_id', 'company_id', 'vehicle_name', 'license_plate', 'type', 'driver',
+                    'status', 'is_active', 'country_id', 'property_type_id', 'premises_type_id',
+                    'vehicle_usage_id', 'area_id', 'vehicle_category_id', 'region', 'vehicle_usage',
+                    'created_at', 'updated_at', 'image_path',
+                    // JOIN aliases from getVehicles query
+                    'country_name', 'country', 'area', 'area_name', 'property_type_name',
+                    'vehicle_type_name', 'vehicle_usage_name', 'premises_type_name',
+                    'vehicle_category_name', 'company_name'
+                ];
                 const dynamic = {};
                 Object.keys(initialData).forEach(key => {
                     if (!baseKeys.includes(key)) dynamic[key] = initialData[key];
                 });
-                setDynamicData(dynamic);
+                setDynamicData(dynamic); // keys already namespaced (sec{id}_fieldKey) from prior saves
             } else {
                 setClassification({
+                    company_id: null,
+                    company_name: '',
                     vehicle_usage_id: null,
                     country_id: null,
                     region: '',
@@ -144,13 +162,14 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
 
     const fetchDropdowns = async () => {
         try {
-            const [cRes, propRes, premRes, areaRes, usageRes, vCatRes] = await Promise.all([
+            const [cRes, propRes, premRes, areaRes, usageRes, vCatRes, compRes] = await Promise.all([
                 api.get('countries'),
                 api.get('property-types'),
                 api.get('premises-types'),
                 api.get('areas'),
                 api.get('vehicle-usage'),
-                api.get('vehicle-categories')
+                api.get('vehicle-categories'),
+                api.get('companies')
             ]);
 
             if (cRes.data?.success) setCountries(cRes.data.data);
@@ -159,6 +178,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
             if (areaRes.data?.success) setAreas(areaRes.data.data || areaRes.data);
             if (usageRes.data?.success) setVehicleUsages(usageRes.data.data);
             if (vCatRes.data?.success) setVehicleCategories(vCatRes.data.data);
+            if (compRes.data?.success) setCompanies(compRes.data.data);
 
         } catch (error) {
             console.error('Error fetching dropdowns:', error);
@@ -303,17 +323,20 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
             setModuleStructure(filteredSections);
 
             // Fetch auto-generated IDs
-            const autoFields = filteredSections.flatMap(s => s.fields || []).filter(f => f.field_type === 'auto_generated');
+            const autoFields = filteredSections.flatMap(s =>
+                (s.fields || []).filter(f => f.field_type === 'auto_generated').map(f => ({ ...f, sectionId: s.id }))
+            );
             if (autoFields.length > 0) {
                 const results = {};
                 for (const f of autoFields) {
-                    const fieldKey = f.field_key || `field_${f.id}`;
-                    if (!dynamicData[fieldKey]) {
+                    const rawKey = f.field_key || `field_${f.id}`;
+                    const compositeKey = `sec${f.sectionId}_${rawKey}`;
+                    if (!dynamicData[compositeKey]) {
                         try {
                             const res = await api.get('module-builder/preview-id', {
                                 params: { module_id: vehicleModule.module_id, field_key: f.field_key }
                             });
-                            if (res.data?.success) results[fieldKey] = res.data.data;
+                            if (res.data?.success) results[compositeKey] = res.data.data;
                         } catch (e) { }
                     }
                 }
@@ -334,8 +357,11 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
         setSaving(true);
         try {
             const finalClassification = { ...classification };
-            if (initialData?.vehicle_id) finalClassification.vehicle_id = initialData.vehicle_id;
+            const realVehicleId = initialData?.vehicle_id; // real numeric DB id
+            // Build payload: classification first, then dynamic fields
+            // But ensure the real numeric vehicle_id always wins (not overwritten by a dynamic field named vehicle_id)
             const payload = { ...finalClassification, ...dynamicData };
+            if (realVehicleId) payload.vehicle_id = realVehicleId;
             await onSave(payload);
         } catch (error) {
             console.error('Save error:', error);
@@ -362,15 +388,20 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                             <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileSelect} />
                         )}
                         <View style={styles.fieldsGrid}>
-                            {(section.fields || []).map(field => {
-                                const fieldKey = field.field_key || `field_${field.id}`;
+                            {[...(section.fields || [])].sort((a, b) => {
+                                if (a.field_type === 'auto_generated' && b.field_type !== 'auto_generated') return -1;
+                                if (a.field_type !== 'auto_generated' && b.field_type === 'auto_generated') return 1;
+                                return 0;
+                            }).map(field => {
+                                const rawFieldKey = field.field_key || `field_${field.id}`;
+                                const compositeKey = `sec${section.id}_${rawFieldKey}`;
                                 const fieldName = field.label || field.field_name || field.name || 'Field';
-                                const isDate = field.field_type === 'date' || fieldKey.toLowerCase().includes('date');
+                                const isDate = field.field_type === 'date' || rawFieldKey.toLowerCase().includes('date');
 
-                                const isFile = field.field_type === 'file' || field.field_type === 'file_upload' || field.field_type === 'image' || field.field_type === 'signature' || field.field_type === 'pdf' || field.field_type === 'file_pdf' || fieldName.toLowerCase().includes('document') || fieldName.toLowerCase().includes('file');
+                                const isFile = ['file', 'file_upload', 'image', 'signature', 'pdf', 'file_pdf'].includes(field.field_type);
                                 if (isFile) {
-                                    const filePath = dynamicData[fieldKey];
-                                    const fileName = dynamicData[`${fieldKey}_name`];
+                                    const filePath = dynamicData[compositeKey];
+                                    const fileName = dynamicData[`${compositeKey}_name`];
                                     const meta = field.meta_json ? (typeof field.meta_json === 'string' ? JSON.parse(field.meta_json) : field.meta_json) : null;
                                     const config = meta?.insurance_config || {};
                                     const hasAnyExtra = config.policyNo || config.coverageType || config.issueDate || config.startDate || config.endDate || config.expiry || config.reminder;
@@ -388,13 +419,13 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                                                     <Text style={styles.fileName} numberOfLines={1}>{fileName}</Text>
                                                                     <Text style={styles.fileSub}>Uploaded Successfully</Text>
                                                                 </View>
-                                                                <TouchableOpacity onPress={() => triggerFilePicker(fieldKey)}>
+                                                                <TouchableOpacity onPress={() => triggerFilePicker(compositeKey)}>
                                                                     <MaterialCommunityIcons name="pencil-outline" size={20} color="#64748b" />
                                                                 </TouchableOpacity>
                                                             </View>
                                                         </View>
                                                     ) : (
-                                                        <TouchableOpacity style={[styles.uploadBox, uploadingField === fieldKey && { opacity: 0.6 }]} onPress={() => triggerFilePicker(fieldKey)}>
+                                                        <TouchableOpacity style={[styles.uploadBox, uploadingField === compositeKey && { opacity: 0.6 }]} onPress={() => triggerFilePicker(compositeKey)}>
                                                             <MaterialCommunityIcons name="cloud-upload-outline" size={28} color="#94a3b8" />
                                                             <Text style={styles.uploadText}>Upload {fieldName}</Text>
                                                         </TouchableOpacity>
@@ -409,10 +440,10 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                     <View key={field.id} style={styles.dynamicField}>
                                         <Text style={styles.inputLabel}>{fieldName}</Text>
                                         {field.field_type === 'dropdown' ? (
-                                            <Menu visible={activeDynamicMenu === fieldKey} onDismiss={() => setActiveDynamicMenu(null)} anchor={
-                                                <TouchableOpacity onPress={() => setActiveDynamicMenu(fieldKey)} activeOpacity={0.7}>
+                                            <Menu visible={activeDynamicMenu === compositeKey} onDismiss={() => setActiveDynamicMenu(null)} anchor={
+                                                <TouchableOpacity onPress={() => setActiveDynamicMenu(compositeKey)} activeOpacity={0.7}>
                                                     <View pointerEvents="none">
-                                                        <TextInput mode="outlined" placeholder="Select..." value={dynamicData[fieldKey] || ''} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
+                                                        <TextInput mode="outlined" placeholder="Select..." value={dynamicData[compositeKey] || ''} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
                                                     </View>
                                                 </TouchableOpacity>
                                             } contentStyle={styles.menuContent}>
@@ -422,7 +453,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                                             key={opt.id}
                                                             onPress={() => {
                                                                 setActiveDynamicMenu(null);
-                                                                setDynamicData(prev => ({ ...prev, [fieldKey]: opt.option_label || opt.label }));
+                                                                setDynamicData(prev => ({ ...prev, [compositeKey]: opt.option_label || opt.label }));
                                                             }}
                                                             title={opt.option_label || opt.label}
                                                             titleStyle={styles.menuItemLabel}
@@ -431,7 +462,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                                 </ScrollView>
                                             </Menu>
                                         ) : (field.field_type === 'radio' || field.field_type === 'boolean') ? (
-                                            <RadioButton.Group onValueChange={val => setDynamicData(p => ({ ...p, [fieldKey]: val }))} value={dynamicData[fieldKey] || ''}>
+                                            <RadioButton.Group onValueChange={val => setDynamicData(p => ({ ...p, [compositeKey]: val }))} value={dynamicData[compositeKey] || ''}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 20 }}>
                                                         <RadioButton value="Yes" color="#3b82f6" />
@@ -447,8 +478,8 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                             <TextInput
                                                 mode="outlined"
                                                 placeholder={field.field_type === 'auto_generated' ? '[SYSTEM GENERATED]' : `Enter ${fieldName.toLowerCase()}`}
-                                                value={dynamicData[fieldKey] || ''}
-                                                onChangeText={(text) => setDynamicData(p => ({ ...p, [fieldKey]: text }))}
+                                                value={dynamicData[compositeKey] || ''}
+                                                onChangeText={(text) => setDynamicData(p => ({ ...p, [compositeKey]: text }))}
                                                 editable={field.field_type !== 'auto_generated'}
                                                 style={[styles.headerInput, field.field_type === 'auto_generated' && { backgroundColor: '#f8fafc' }]}
                                                 outlineColor="#e2e8f0"
@@ -461,7 +492,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                                 ) : (
                                                     <TextInput.Icon icon="pencil-outline" color="#94a3b8" />
                                                 )}
-                                                render={isDate ? renderDateInput(fieldKey, dynamicData[fieldKey], (val) => setDynamicData(p => ({ ...p, [fieldKey]: val }))) : undefined}
+                                                render={isDate ? renderDateInput(compositeKey, dynamicData[compositeKey], (val) => setDynamicData(p => ({ ...p, [compositeKey]: val }))) : undefined}
                                             />
                                         )}
                                     </View>
@@ -496,29 +527,58 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                             {step === 1 && (
                                 <View style={styles.stepOneContainer}>
                                     <View style={styles.stepperContainer}>
-                                        {Array.from({ length: totalSteps }).map((_, i) => {
-                                            const stepNum = i + 1;
-                                            const isActive = step === stepNum;
-                                            const isCompleted = step > stepNum;
-                                            const label = i === 0 ? 'Basic Info' : (moduleStructure[i - 1]?.name || `Section ${i}`);
-                                            return (
-                                                <React.Fragment key={i}>
-                                                    <View style={styles.stepItem}>
-                                                        <View style={[styles.stepCircle, (isActive || isCompleted) && styles.stepCircleActive]}>
-                                                            {isCompleted ? <MaterialCommunityIcons name="check" size={18} color="white" /> : <Text style={[styles.stepNumber, (isActive || isCompleted) && styles.stepNumberActive]}>{stepNum}</Text>}
+                                        {(() => {
+                                            const getStepperItems = (current, total) => {
+                                                if (total <= 6) return Array.from({ length: total }, (_, i) => i + 1);
+                                                if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
+                                                if (current >= total - 3) return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+                                                return [1, '...', current - 1, current, current + 1, '...', total];
+                                            };
+                                            const items = getStepperItems(step, totalSteps);
+
+                                            return items.map((item, index) => {
+                                                const isEllipsis = item === '...';
+
+                                                // Resolve logical step number for line coloring
+                                                const prevNum = index > 0 ? (items[index - 1] === '...' ? items[index - 2] : items[index - 1]) : 0;
+                                                const currentLogicalNum = isEllipsis ? prevNum : item;
+
+                                                const isCompleted = step > currentLogicalNum;
+                                                const isActive = step === item;
+
+                                                const label = isEllipsis ? ' ' : (item === 1 ? 'Basic Info' : (moduleStructure[item - 2]?.name || `Section ${item}`));
+
+                                                return (
+                                                    <React.Fragment key={isEllipsis ? `ellipsis-${index}` : `step-${item}`}>
+                                                        <View style={[styles.stepItem, isEllipsis && { marginHorizontal: 15 }]}>
+                                                            <View style={[styles.stepCircle, !isEllipsis && (isActive || isCompleted) && styles.stepCircleActive, isEllipsis && { backgroundColor: 'transparent' }]}>
+                                                                {isEllipsis ? (
+                                                                    <Text style={{ fontSize: 20, color: '#94a3b8', fontWeight: 'bold' }}>...</Text>
+                                                                ) : isCompleted ? (
+                                                                    <MaterialCommunityIcons name="check" size={18} color="white" />
+                                                                ) : (
+                                                                    <Text style={[styles.stepNumber, (isActive || isCompleted) && styles.stepNumberActive]}>{item}</Text>
+                                                                )}
+                                                            </View>
+                                                            <Text style={styles.stepLabel} numberOfLines={1}>{label}</Text>
                                                         </View>
-                                                        <Text style={styles.stepLabel}>{label}</Text>
-                                                    </View>
-                                                    {i < totalSteps - 1 && <View style={[styles.stepLine, isCompleted && styles.stepLineActive]} />}
-                                                </React.Fragment>
-                                            );
-                                        })}
+                                                        {index < items.length - 1 && <View style={[styles.stepLine, isCompleted && styles.stepLineActive]} />}
+                                                    </React.Fragment>
+                                                );
+                                            });
+                                        })()}
                                     </View>
 
                                     <Card style={styles.sectionCard}>
                                         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{step}. Basic Information</Text></View>
                                         <View style={styles.headerForm}>
                                             <View style={styles.headerFormGrid}>
+                                                <View style={styles.headerFieldSmall}>
+                                                    <Text style={styles.headerLabel}>Company</Text>
+                                                    <Menu visible={menus.company} onDismiss={() => toggleMenu('company', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('company', true)}><View pointerEvents="none"><TextInput mode="outlined" value={classification.company_name || ''} editable={false} style={styles.headerInput} right={<TextInput.Icon icon="chevron-down" />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
+                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>{companies.map(c => <Menu.Item key={c.id} onPress={() => { toggleMenu('company', false); setClassification(p => ({ ...p, company_id: c.id, company_name: c.company_name || c.name })); }} title={c.company_name || c.name} />)}</ScrollView>
+                                                    </Menu>
+                                                </View>
 
                                                 <View style={styles.headerFieldSmall}>
                                                     <Text style={styles.headerLabel}>Country</Text>
@@ -585,14 +645,14 @@ const styles = StyleSheet.create({
     modalContent: { flex: 1, backgroundColor: '#f8fafc' },
     scrollArea: { flex: 1 },
     scrollContent: { flexGrow: 1, paddingBottom: 20 },
-    stepperContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 10 },
-    stepItem: { alignItems: 'center', marginHorizontal: 25 },
+    stepperContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 10, paddingVertical: 20 },
+    stepItem: { alignItems: 'center', width: 90, marginHorizontal: 0 },
     stepCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
     stepCircleActive: { backgroundColor: '#3b82f6' },
     stepNumber: { fontSize: 16, fontWeight: '700', color: '#64748b' },
     stepNumberActive: { color: '#fff' },
-    stepLabel: { fontSize: 12, color: '#64748b', fontWeight: '600' },
-    stepLine: { width: 50, height: 2, backgroundColor: '#e2e8f0', marginTop: -25 },
+    stepLabel: { fontSize: 11, color: '#64748b', fontWeight: '600', textAlign: 'center' },
+    stepLine: { width: 30, height: 2, backgroundColor: '#e2e8f0', marginTop: -25 },
     stepLineActive: { backgroundColor: '#3b82f6' },
     stepOneContainer: { flex: 1 },
     sectionCard: { marginHorizontal: 20, marginTop: 10, borderRadius: 8, elevation: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },

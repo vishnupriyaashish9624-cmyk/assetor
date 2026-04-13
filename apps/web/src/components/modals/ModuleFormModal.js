@@ -132,63 +132,14 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
 
             if (!selectedCountry) return;
 
-            const countryName = selectedCountry.country_name || selectedCountry.name;
-            if (!countryName) return;
-
-            let queryCountry = countryName;
-            const normalizedCountry = countryName.toLowerCase().trim();
-
-            if (normalizedCountry === 'uae' || normalizedCountry === 'united arab emirates') {
-                queryCountry = 'United Arab Emirates';
-            } else if (normalizedCountry === 'usa' || normalizedCountry === 'united states') {
-                queryCountry = 'United States';
-            } else if (normalizedCountry === 'uk' || normalizedCountry === 'united kingdom') {
-                queryCountry = 'United Kingdom';
-            }
-
             try {
-                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ country: queryCountry })
-                });
-
-                if (!res.ok) throw new Error('API failed');
-
-                const data = await res.json();
-                if (data.data && data.data.states && data.data.states.length > 0) {
-                    setRegions(data.data.states.map(s => ({
-                        name: s.name,
-                        state_code: s.state_code
-                    })));
-                } else {
-                    // Fallback for UAE
-                    if (queryCountry === 'United Arab Emirates') {
-                        setRegions([
-                            { name: 'Abu Dhabi', state_code: 'AZ' },
-                            { name: 'Dubai', state_code: 'DU' },
-                            { name: 'Sharjah', state_code: 'SH' },
-                            { name: 'Ajman', state_code: 'AJ' },
-                            { name: 'Umm Al Quwain', state_code: 'UQ' },
-                            { name: 'Ras Al Khaimah', state_code: 'RK' },
-                            { name: 'Fujairah', state_code: 'FU' }
-                        ]);
-                    }
+                // Fetch regions from our own database table
+                const res = await api.get(`countries/regions?country_id=${selectedCountry.id}`);
+                if (res.data?.success) {
+                    setRegions(res.data.data);
                 }
             } catch (e) {
-                console.error('Fetch regions error', e);
-                // Fallback for UAE
-                if (queryCountry === 'United Arab Emirates') {
-                    setRegions([
-                        { name: 'Abu Dhabi', state_code: 'AZ' },
-                        { name: 'Dubai', state_code: 'DU' },
-                        { name: 'Sharjah', state_code: 'SH' },
-                        { name: 'Ajman', state_code: 'AJ' },
-                        { name: 'Umm Al Quwain', state_code: 'UQ' },
-                        { name: 'Ras Al Khaimah', state_code: 'RK' },
-                        { name: 'Fujairah', state_code: 'FU' }
-                    ]);
-                }
+                console.error('Fetch regions error:', e);
             }
         };
 
@@ -412,7 +363,6 @@ const ModuleFormModal = ({ visible, onClose, onSave, module = null, viewOnly = f
                                         )}
                                         {regions.length > 0 ? (
                                             regions
-                                                .filter(r => (r.name || r.label || '').toLowerCase() !== 'all')
                                                 .map((r, i) => (
                                                     <Menu.Item
                                                         key={i}

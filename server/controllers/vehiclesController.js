@@ -12,8 +12,20 @@ exports.getVehicles = async (req, res) => {
 
     try {
         const isSuperAdmin = req.user?.role === 'SUPER_ADMIN';
-        let whereClause = (isSuperAdmin && !req.companyId) ? 'WHERE 1=1' : 'WHERE v.company_id = ?';
-        let params = (isSuperAdmin && !req.companyId) ? [] : [companyId];
+        console.log('[VehiclesController] User Role:', req.user?.role, 'req.companyId:', req.companyId);
+
+        let whereClause = 'WHERE 1=1';
+        let params = [];
+
+        // Allow filtering by a specific company if requested, otherwise show all vehicles for user's client
+        if (req.query.company_id) {
+            whereClause += ' AND v.company_id = ?';
+            params.push(req.query.company_id);
+        } else if (!isSuperAdmin && req.user?.client_id) {
+            // COMPANY_ADMIN: only show vehicles from companies under their client group
+            whereClause += ' AND v.company_id IN (SELECT id FROM companies WHERE client_id = ?)';
+            params.push(req.user.client_id);
+        }
 
         if (search) {
             whereClause += ' AND (v.vehicle_name ILIKE ? OR v.license_plate ILIKE ? OR v.driver ILIKE ?)';
@@ -26,18 +38,35 @@ exports.getVehicles = async (req, res) => {
         const totalItems = parseInt(countRows[0]?.total || 0);
 
         const dataQuery = `
-            SELECT v.*, c.country_name as country, a.name as area, pt.name as property_type_name, pmt.type_name as vehicle_type_name, v.region, vu.name as vehicle_usage_name
+            SELECT 
+                v.*, 
+                c.country_name as country, 
+                a.name as area, 
+                pt.name as property_type_name, 
+                pmt.type_name as vehicle_type_name, 
+                v.region, 
+                vu.name as vehicle_usage_name,
+                co.name as company_name,
+                COALESCE(vn.field_value, v.vehicle_name) as vehicle_name
             FROM vehicles v 
             LEFT JOIN countries c ON v.country_id = c.id
             LEFT JOIN area a ON v.area_id = a.id
             LEFT JOIN property_types pt ON v.property_type_id = pt.id
             LEFT JOIN premises_types pmt ON v.premises_type_id = pmt.id
             LEFT JOIN vehicle_usage vu ON v.vehicle_usage_id = vu.id
+            LEFT JOIN companies co ON v.company_id = co.id
+            LEFT JOIN LATERAL (
+                SELECT field_value FROM vehicle_module_details 
+                WHERE vehicle_id = v.vehicle_id AND field_key LIKE '%vehicle_name%'
+                ORDER BY id DESC LIMIT 1
+            ) vn ON true
             ${whereClause} 
             ORDER BY v.created_at DESC 
             LIMIT ? OFFSET ?
         `;
         const [rows] = await db.execute(dataQuery, [...params, limitNum, offset]);
+        console.log('[VehiclesController] Result rows count:', rows.length);
+        if (rows.length > 0) console.log('[VehiclesController] Row 0 company:', rows[0].company_name);
 
         res.json({
             success: true,
@@ -62,10 +91,25 @@ exports.createVehicle = async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        const companyId = req.companyId || (req.user && req.user.company_id) || 1;
+        let companyId = req.companyId || (req.user && req.user.company_id) || 1;
         const body = req.body;
 
+        // Allow overriding company_id from body
+        if (body.company_id) {
+            companyId = parseInt(body.company_id);
+        }
+
         let finalVehicleName = body.vehicle_name || body.name;
+
+        // Extract native vehicle fields that might be buried in 'secXXX_' namespaces
+        // Field keys may have trailing underscores (e.g. sec125_vehicle_name_)
+        Object.keys(body).forEach(key => {
+            if (key.startsWith('sec') && key.includes('vehicle_name')) finalVehicleName = finalVehicleName || body[key];
+            if (key.startsWith('sec') && (key.includes('license_plate') || key.includes('plate_no'))) body.license_plate = body.license_plate || body[key];
+            if (key.startsWith('sec') && key.includes('_driver')) body.driver = body.driver || body[key];
+            if (key.startsWith('sec') && key.includes('chassis_no')) body.chassis_no = body.chassis_no || body[key];
+        });
+
         if (!finalVehicleName || finalVehicleName.trim() === '') {
             if (body.manufacturer && body.model) {
                 finalVehicleName = `${body.manufacturer} ${body.model}`;
@@ -109,22 +153,32 @@ exports.createVehicle = async (req, res) => {
         // Auto-generate IDs for relevant fields
         try {
             const [autoFields] = await connection.execute(
-                `SELECT f.field_key, f.meta_json 
+                `SELECT f.field_key, f.meta_json, f.section_id
                  FROM module_section_fields f 
                  JOIN module_sections s ON f.section_id = s.id 
-                 WHERE s.module_id = 2 AND f.field_type = 'auto_generated' AND (f.company_id = ? OR f.company_id = 1)`,
+                 WHERE s.module_id IN (2, 6) AND f.field_type = 'auto_generated' AND (f.company_id = ? OR f.company_id = 1)`,
                 [companyId]
             );
 
             for (const f of autoFields) {
-                if (!body[f.field_key] || body[f.field_key] === '[SYSTEM GENERATED]') {
+                const compositeKey = `sec${f.section_id}_${f.field_key}`;
+                // Check both raw and composite key
+                const currentVal = body[compositeKey] || body[f.field_key];
+                if (!currentVal || currentVal === '[SYSTEM GENERATED]') {
                     const meta = typeof f.meta_json === 'string' ? JSON.parse(f.meta_json) : (f.meta_json || {});
-                    body[f.field_key] = await generateAutoID(companyId, f.field_key, 'vehicle_module_details', 'v', meta.id_code, connection);
+                    const generatedId = await generateAutoID(companyId, f.field_key, 'vehicle_module_details', 'v', meta.id_code, connection);
+                    body[compositeKey] = generatedId;
                 }
             }
         } catch (autoErr) {
             console.error('[createVehicle] Auto-ID generation failed:', autoErr);
         }
+
+        const ensureInt = (val) => {
+            if (val === undefined || val === null || val === '') return null;
+            const n = parseInt(val);
+            return isNaN(n) ? null : n;
+        };
 
         const insertQuery = `
             INSERT INTO vehicles (
@@ -141,21 +195,31 @@ exports.createVehicle = async (req, res) => {
             body.type !== undefined ? body.type : null,
             body.driver !== undefined ? body.driver : null,
             body.status || 'ACTIVE',
-            body.country_id !== undefined ? body.country_id : null,
-            body.property_type_id !== undefined ? body.property_type_id : null,
-            body.premises_type_id !== undefined ? body.premises_type_id : null,
-            body.area_id !== undefined ? body.area_id : null,
+            ensureInt(body.country_id),
+            ensureInt(body.property_type_id),
+            ensureInt(body.premises_type_id),
+            ensureInt(body.area_id),
             body.vehicle_usage || body.usage || '',
             body.region !== undefined ? body.region : null,
-            body.vehicle_usage_id !== undefined ? body.vehicle_usage_id : null
+            ensureInt(body.vehicle_usage_id)
         ];
 
         const [rows] = await connection.execute(insertQuery, params);
         const vehicleId = rows.insertId;
 
-        // Dynamic Fields
-        const excludedKeys = ['vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status', 'country_id', 'property_type_id', 'premises_type_id', 'area_id', 'vehicle_usage', 'usage', 'images', 'vehicle_id'];
-        const dynamicEntries = Object.entries(body).filter(([key, val]) => !excludedKeys.includes(key) && val !== null && val !== undefined);
+        // Dynamic Fields - Protect core fields from being duplicated or overwriting main table
+        const excludedKeys = [
+            'vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status',
+            'country_id', 'property_type_id', 'premises_type_id', 'area_id',
+            'vehicle_usage', 'usage', 'images', 'vehicle_id', 'region',
+            'vehicle_usage_id', 'company_id', 'created_at', 'updated_at'
+        ];
+        const dynamicEntries = Object.entries(body).filter(([key, val]) =>
+            !excludedKeys.includes(key) &&
+            val !== null &&
+            val !== undefined &&
+            val !== ''
+        );
 
         if (dynamicEntries.length > 0) {
             for (const [key, value] of dynamicEntries) {
@@ -209,13 +273,35 @@ exports.updateVehicle = async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        const companyId = req.companyId || (req.user && req.user.company_id) || 1;
+        let companyId = req.companyId || (req.user && req.user.company_id) || 1;
         const body = req.body;
 
-        const [existing] = await connection.execute('SELECT vehicle_name FROM vehicles WHERE vehicle_id = ? AND company_id = ?', [id, companyId]);
+        // Allow overriding company_id from body
+        if (body.company_id) {
+            companyId = parseInt(body.company_id);
+        }
+
+        // Safely resolve the real numeric vehicle ID
+        // The URL param could accidentally be a string (like an auto-generated field value)
+        let vehicleId = parseInt(id);
+        if (isNaN(vehicleId) && body.vehicle_id) vehicleId = parseInt(body.vehicle_id);
+        if (isNaN(vehicleId)) throw new Error(`Invalid vehicle ID: ${id}`);
+        console.log('[updateVehicle] Resolved vehicleId:', vehicleId);
+
+        const [existing] = await connection.execute('SELECT vehicle_name FROM vehicles WHERE vehicle_id = ?', [vehicleId]);
         if (existing.length === 0) throw new Error('Vehicle not found');
 
         let finalVehicleName = body.vehicle_name || body.name;
+
+        // Extract native vehicle fields that might be buried in 'secXXX_' namespaces
+        // Field keys may have trailing underscores (e.g. sec125_vehicle_name_)
+        Object.keys(body).forEach(key => {
+            if (key.startsWith('sec') && key.includes('vehicle_name')) finalVehicleName = finalVehicleName || body[key];
+            if (key.startsWith('sec') && (key.includes('license_plate') || key.includes('plate_no'))) body.license_plate = body.license_plate || body[key];
+            if (key.startsWith('sec') && key.includes('_driver')) body.driver = body.driver || body[key];
+            if (key.startsWith('sec') && key.includes('chassis_no')) body.chassis_no = body.chassis_no || body[key];
+        });
+
         if (!finalVehicleName || finalVehicleName.trim() === '') {
             if (body.manufacturer && body.model) {
                 finalVehicleName = `${body.manufacturer} ${body.model}`;
@@ -225,6 +311,12 @@ exports.updateVehicle = async (req, res) => {
                 finalVehicleName = existing[0].vehicle_name || `Vehicle-${Date.now().toString().slice(-6)}`;
             }
         }
+
+        const ensureInt = (val) => {
+            if (val === undefined || val === null || val === '') return null;
+            const n = parseInt(val);
+            return isNaN(n) ? null : n;
+        };
 
         const updateQuery = `
             UPDATE vehicles SET
@@ -239,29 +331,39 @@ exports.updateVehicle = async (req, res) => {
             body.type !== undefined ? body.type : null,
             body.driver !== undefined ? body.driver : null,
             body.status || 'ACTIVE',
-            body.country_id !== undefined ? body.country_id : null,
-            body.property_type_id !== undefined ? body.property_type_id : null,
-            body.premises_type_id !== undefined ? body.premises_type_id : null,
-            body.area_id !== undefined ? body.area_id : null,
+            ensureInt(body.country_id),
+            ensureInt(body.property_type_id),
+            ensureInt(body.premises_type_id),
+            ensureInt(body.area_id),
             body.vehicle_usage || body.usage || '',
             body.region !== undefined ? body.region : null,
-            body.vehicle_usage_id !== undefined ? body.vehicle_usage_id : null,
-            id,
+            ensureInt(body.vehicle_usage_id),
+            vehicleId,
             companyId
         ];
 
         await connection.execute(updateQuery, params);
 
         // Update Dynamic Fields
-        await connection.execute('DELETE FROM vehicle_module_details WHERE vehicle_id = ?', [id]);
-        const excludedKeys = ['vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status', 'country_id', 'property_type_id', 'premises_type_id', 'area_id', 'vehicle_usage', 'usage', 'images', 'vehicle_id', 'region'];
-        const dynamicEntries = Object.entries(body).filter(([key, val]) => !excludedKeys.includes(key) && val !== null && val !== undefined);
+        await connection.execute('DELETE FROM vehicle_module_details WHERE vehicle_id = ?', [vehicleId]);
+        const excludedKeys = [
+            'vehicle_name', 'name', 'license_plate', 'type', 'driver', 'status',
+            'country_id', 'property_type_id', 'premises_type_id', 'area_id',
+            'vehicle_usage', 'usage', 'images', 'vehicle_id', 'region',
+            'vehicle_usage_id', 'company_id', 'created_at', 'updated_at'
+        ];
+        const dynamicEntries = Object.entries(body).filter(([key, val]) =>
+            !excludedKeys.includes(key) &&
+            val !== null &&
+            val !== undefined &&
+            val !== ''
+        );
 
         if (dynamicEntries.length > 0) {
             for (const [key, value] of dynamicEntries) {
                 await connection.execute(
                     'INSERT INTO vehicle_module_details (vehicle_id, company_id, field_key, field_value) VALUES (?, ?, ?, ?)',
-                    [id, companyId, key, String(value)]
+                    [vehicleId, companyId, key, String(value)]
                 );
             }
         }
