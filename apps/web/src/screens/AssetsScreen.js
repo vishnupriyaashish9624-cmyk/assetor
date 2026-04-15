@@ -138,7 +138,7 @@ const AssetsScreen = ({ navigation }) => {
                 <View style={styles.statsRow}>
                     <View style={styles.statsCard}>
                         <View style={[styles.statsIconBox, { backgroundColor: '#EFF6FF' }]}>
-                            <MaterialCommunityIcons name="cube-scan" size={24} color="#3B82F6" />
+                            <MaterialCommunityIcons name="cube-outline" size={20} color="#3B82F6" />
                         </View>
                         <View>
                             <Text style={styles.statsValue}>{stats.total}</Text>
@@ -147,7 +147,7 @@ const AssetsScreen = ({ navigation }) => {
                     </View>
                     <View style={styles.statsCard}>
                         <View style={[styles.statsIconBox, { backgroundColor: '#DCFCE7' }]}>
-                            <MaterialCommunityIcons name="check-circle-outline" size={24} color="#166534" />
+                            <MaterialCommunityIcons name="check-circle" size={20} color="#166534" />
                         </View>
                         <View>
                             <Text style={styles.statsValue}>{stats.available}</Text>
@@ -155,8 +155,8 @@ const AssetsScreen = ({ navigation }) => {
                         </View>
                     </View>
                     <View style={styles.statsCard}>
-                        <View style={[styles.statsIconBox, { backgroundColor: '#DBEAFE' }]}>
-                            <MaterialCommunityIcons name="account-arrow-right" size={24} color="#1E3A8A" />
+                        <View style={[styles.statsIconBox, { backgroundColor: '#EFF6FF' }]}>
+                            <MaterialCommunityIcons name="account" size={20} color="#1E3A8A" />
                         </View>
                         <View>
                             <Text style={styles.statsValue}>{stats.inUse}</Text>
@@ -165,7 +165,7 @@ const AssetsScreen = ({ navigation }) => {
                     </View>
                     <View style={styles.statsCard}>
                         <View style={[styles.statsIconBox, { backgroundColor: '#FEF3C7' }]}>
-                            <MaterialCommunityIcons name="wrench-clock-outline" size={24} color="#B45309" />
+                            <MaterialCommunityIcons name="wrench" size={20} color="#B45309" />
                         </View>
                         <View>
                             <Text style={styles.statsValue}>{stats.maintenance}</Text>
@@ -196,7 +196,7 @@ const AssetsScreen = ({ navigation }) => {
                         }}
                         activeOpacity={0.8}
                     >
-                        <MaterialCommunityIcons name="plus" size={20} color="white" style={{ marginRight: 8 }} />
+                        <MaterialCommunityIcons name="plus" size={20} color="white" style={{ marginRight: 12 }} />
                         <Text style={styles.addButtonText}>Add Asset</Text>
                     </TouchableOpacity>
                 </View>
@@ -228,11 +228,11 @@ const AssetsScreen = ({ navigation }) => {
                     <Card style={styles.tableCard}>
                         <DataTable>
                             <DataTable.Header style={styles.tableHeader}>
-                                <DataTable.Title textStyle={styles.headerText}>ASSET NAME</DataTable.Title>
+                                <DataTable.Title style={{ flex: 1.5 }} textStyle={styles.headerText}>ASSET NAME</DataTable.Title>
                                 <DataTable.Title textStyle={styles.headerText}>CODE</DataTable.Title>
                                 <DataTable.Title textStyle={styles.headerText}>BRAND</DataTable.Title>
                                 <DataTable.Title textStyle={styles.headerText}>STATUS</DataTable.Title>
-                                <DataTable.Title numeric textStyle={styles.headerText}>ACTIONS</DataTable.Title>
+                                <DataTable.Title numeric style={{ width: 120, justifyContent: 'flex-end' }} textStyle={styles.headerText}>ACTIONS</DataTable.Title>
                             </DataTable.Header>
 
                             {filteredAssets.map((asset) => (
@@ -247,49 +247,27 @@ const AssetsScreen = ({ navigation }) => {
                                     </DataTable.Cell>
                                     <DataTable.Cell><Text style={styles.cellText}>{asset.asset_code || '---'}</Text></DataTable.Cell>
                                     <DataTable.Cell><Text style={styles.cellText}>{asset.brand || '---'}</Text></DataTable.Cell>
-                                    <DataTable.Cell>
+                                    <DataTable.Cell style={{ flex: 1 }}>
                                         <View style={[styles.statusBadge, { backgroundColor: asset.status === 'AVAILABLE' ? '#DCFCE7' : '#FFEDD5' }]}>
-                                            <Text style={{ color: asset.status === 'AVAILABLE' ? '#166534' : '#9A3412', fontSize: 11, fontWeight: '700' }}>
-                                                {asset.status}
+                                            <Text style={{ color: asset.status === 'AVAILABLE' ? '#166534' : '#9A3412', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>
+                                                {asset.status === 'AVAILABLE' ? 'AVAILABLE' : 'ASSIGNED'}
                                             </Text>
                                         </View>
                                     </DataTable.Cell>
-                                    <DataTable.Cell numeric>
-                                        <View style={{ flexDirection: 'row', gap: 4 }}>
-                                            <IconButton
-                                                icon="eye-outline"
-                                                size={18}
-                                                iconColor="#64748b"
-                                                style={{ margin: 0 }}
-                                                onPress={() => {
-                                                    setViewMode(true);
-                                                    setSelectedAsset(asset);
-                                                    setModalVisible(true);
-                                                }}
-                                            />
-                                            <IconButton
-                                                icon="pencil-outline"
-                                                size={18}
-                                                iconColor="#6366f1"
-                                                style={{ margin: 0 }}
-                                                onPress={() => {
-                                                    setViewMode(false);
-                                                    setSelectedAsset(asset);
-                                                    setModalVisible(true);
-                                                }}
-                                            />
-                                            {asset.status === 'AVAILABLE' ? (
-                                                <IconButton icon="account-arrow-right" size={18} iconColor="#10B981" style={{ margin: 0 }} onPress={() => { setSelectedAsset(asset); setAssignModalVisible(true); }} />
-                                            ) : (
-                                                <IconButton icon="account-arrow-left" size={18} iconColor="#F59E0B" style={{ margin: 0 }} onPress={() => handleReturnAsset(asset.id)} />
-                                            )}
-                                            <IconButton
-                                                icon="delete-outline"
-                                                size={18}
-                                                iconColor="#EF4444"
-                                                style={{ margin: 0 }}
-                                                onPress={() => handleDelete(asset)}
-                                            />
+                                    <DataTable.Cell numeric style={{ width: 120 }}>
+                                        <View style={{ flexDirection: 'row', gap: 16, justifyContent: 'flex-end' }}>
+                                            <TouchableOpacity onPress={() => { setViewMode(true); setSelectedAsset(asset); setModalVisible(true); }}>
+                                                <MaterialCommunityIcons name="eye-outline" size={20} color="#64748b" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => { setViewMode(false); setSelectedAsset(asset); setModalVisible(true); }}>
+                                                <MaterialCommunityIcons name="pencil-outline" size={20} color="#673ab7" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => { setSelectedAsset(asset); setAssignModalVisible(true); }}>
+                                                <MaterialCommunityIcons name="account-plus-outline" size={20} color="#f59e0b" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => handleDelete(asset)}>
+                                                <MaterialCommunityIcons name="trash-can-outline" size={20} color="rgb(239, 149, 10)" />
+                                            </TouchableOpacity>
                                         </View>
                                     </DataTable.Cell>
                                 </DataTable.Row>
@@ -372,12 +350,14 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     tableHeader: {
-        backgroundColor: '#6366f1', // Purple indigo fully styled
+        backgroundColor: '#673ab7',
+        height: 54,
     },
     headerText: {
         color: 'white',
         fontWeight: '700',
-        fontSize: 12,
+        fontSize: 11,
+        letterSpacing: 0.5,
     },
     tableRow: {
         borderBottomWidth: 1,
@@ -428,20 +408,20 @@ const styles = StyleSheet.create({
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#3b82f6',
-        paddingHorizontal: 20,
+        backgroundColor: '#673ab7',
+        paddingHorizontal: 24,
         height: 48,
-        borderRadius: 8,
+        borderRadius: 12,
         justifyContent: 'center',
-        shadowColor: '#3b82f6',
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: '#673ab7',
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowRadius: 8,
+        elevation: 3,
     },
     addButtonText: {
         color: 'white',
-        fontWeight: '600',
+        fontWeight: '700',
         fontSize: 14,
     },
     centerContainer: {

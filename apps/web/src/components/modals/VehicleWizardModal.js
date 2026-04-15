@@ -125,9 +125,9 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                 ];
                 const dynamic = {};
                 Object.keys(initialData).forEach(key => {
-                    if (!baseKeys.includes(key)) dynamic[key] = initialData[key];
+                    dynamic[key] = initialData[key];
                 });
-                setDynamicData(dynamic); // keys already namespaced (sec{id}_fieldKey) from prior saves
+                setDynamicData(dynamic);
             } else {
                 setClassification({
                     company_id: null,
@@ -388,7 +388,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                             <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileSelect} />
                         )}
                         <View style={styles.fieldsGrid}>
-                            {[...(section.fields || [])].sort((a, b) => {
+                            {[...(section.fields || [])].filter(f => f.is_active !== 0).sort((a, b) => {
                                 if (a.field_type === 'auto_generated' && b.field_type !== 'auto_generated') return -1;
                                 if (a.field_type !== 'auto_generated' && b.field_type === 'auto_generated') return 1;
                                 return 0;
@@ -439,62 +439,78 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                 return (
                                     <View key={field.id} style={styles.dynamicField}>
                                         <Text style={styles.inputLabel}>{fieldName}</Text>
-                                        {field.field_type === 'dropdown' ? (
-                                            <Menu visible={activeDynamicMenu === compositeKey} onDismiss={() => setActiveDynamicMenu(null)} anchor={
-                                                <TouchableOpacity onPress={() => setActiveDynamicMenu(compositeKey)} activeOpacity={0.7}>
-                                                    <View pointerEvents="none">
-                                                        <TextInput mode="outlined" placeholder="Select..." value={dynamicData[compositeKey] || ''} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
+                                        {(() => {
+                                            const getFVal = (k) => dynamicData[k] || dynamicData[k + '_'] || '';
+                                            const valToUse = getFVal(compositeKey) || getFVal(rawFieldKey);
+
+                                            if (field.field_type === 'dropdown') {
+                                                return (
+                                                    <View>
+                                                        <Menu visible={activeDynamicMenu === compositeKey} onDismiss={() => setActiveDynamicMenu(null)} anchor={
+                                                            <TouchableOpacity onPress={() => setActiveDynamicMenu(compositeKey)} activeOpacity={0.7}>
+                                                                <View pointerEvents="none">
+                                                                    <TextInput mode="outlined" placeholder="Select..." value={valToUse} editable={false} style={styles.headerInput} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} right={<TextInput.Icon icon="chevron-down" />} />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        } contentStyle={styles.menuContent}>
+                                                            <ScrollView style={{ maxHeight: 300, width: 260 }}>
+                                                                {(field.options || []).map((opt, idx) => (
+                                                                    <Menu.Item
+                                                                        key={idx}
+                                                                        onPress={() => {
+                                                                            setDynamicData(p => ({ ...p, [compositeKey]: opt.option_value || opt.value || opt.option_label }));
+                                                                            setActiveDynamicMenu(null);
+                                                                        }}
+                                                                        title={opt.option_label || opt.label}
+                                                                        titleStyle={[styles.menuItemLabel, valToUse === (opt.option_value || opt.value || opt.option_label) && styles.menuItemLabelSelected]}
+                                                                        style={[styles.menuItem, valToUse === (opt.option_value || opt.value || opt.option_label) && styles.menuItemSelected]}
+                                                                    />
+                                                                ))}
+                                                            </ScrollView>
+                                                        </Menu>
                                                     </View>
-                                                </TouchableOpacity>
-                                            } contentStyle={styles.menuContent}>
-                                                <ScrollView style={{ maxHeight: 250, width: 220 }}>
-                                                    {(field.options || []).map(opt => (
-                                                        <Menu.Item
-                                                            key={opt.id}
-                                                            onPress={() => {
-                                                                setActiveDynamicMenu(null);
-                                                                setDynamicData(prev => ({ ...prev, [compositeKey]: opt.option_label || opt.label }));
-                                                            }}
-                                                            title={opt.option_label || opt.label}
-                                                            titleStyle={styles.menuItemLabel}
-                                                        />
-                                                    ))}
-                                                </ScrollView>
-                                            </Menu>
-                                        ) : (field.field_type === 'radio' || field.field_type === 'boolean') ? (
-                                            <RadioButton.Group onValueChange={val => setDynamicData(p => ({ ...p, [compositeKey]: val }))} value={dynamicData[compositeKey] || ''}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-                                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 20 }}>
-                                                        <RadioButton value="Yes" color="#3b82f6" />
-                                                        <Text style={{ color: '#1e293b' }}>Yes</Text>
-                                                    </View>
-                                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                        <RadioButton value="No" color="#3b82f6" />
-                                                        <Text style={{ color: '#1e293b' }}>No</Text>
-                                                    </View>
-                                                </View>
-                                            </RadioButton.Group>
-                                        ) : (
-                                            <TextInput
-                                                mode="outlined"
-                                                placeholder={field.field_type === 'auto_generated' ? '[SYSTEM GENERATED]' : `Enter ${fieldName.toLowerCase()}`}
-                                                value={dynamicData[compositeKey] || ''}
-                                                onChangeText={(text) => setDynamicData(p => ({ ...p, [compositeKey]: text }))}
-                                                editable={field.field_type !== 'auto_generated'}
-                                                style={[styles.headerInput, field.field_type === 'auto_generated' && { backgroundColor: '#f8fafc' }]}
-                                                outlineColor="#e2e8f0"
-                                                activeOutlineColor="#3b82f6"
-                                                theme={{ roundness: 8 }}
-                                                right={field.field_type === 'auto_generated' ? (
-                                                    <TextInput.Icon icon="lock" color="#94a3b8" />
-                                                ) : isDate ? (
-                                                    <TextInput.Icon icon="calendar" color="#94a3b8" />
-                                                ) : (
-                                                    <TextInput.Icon icon="pencil-outline" color="#94a3b8" />
-                                                )}
-                                                render={isDate ? renderDateInput(compositeKey, dynamicData[compositeKey], (val) => setDynamicData(p => ({ ...p, [compositeKey]: val }))) : undefined}
-                                            />
-                                        )}
+                                                );
+                                            }
+
+                                            if (field.field_type === 'radio' || field.field_type === 'boolean') {
+                                                return (
+                                                    <RadioButton.Group onValueChange={val => setDynamicData(p => ({ ...p, [compositeKey]: val }))} value={valToUse}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 20 }}>
+                                                                <RadioButton value="Yes" color="#673ab7" />
+                                                                <Text style={{ color: '#1e293b' }}>Yes</Text>
+                                                            </View>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                                <RadioButton value="No" color="#673ab7" />
+                                                                <Text style={{ color: '#1e293b' }}>No</Text>
+                                                            </View>
+                                                        </View>
+                                                    </RadioButton.Group>
+                                                );
+                                            }
+
+                                            return (
+                                                <TextInput
+                                                    mode="outlined"
+                                                    placeholder={field.field_type === 'auto_generated' ? '[SYSTEM GENERATED]' : `Enter ${fieldName.toLowerCase()}`}
+                                                    value={valToUse}
+                                                    onChangeText={(text) => setDynamicData(p => ({ ...p, [compositeKey]: text }))}
+                                                    editable={field.field_type !== 'auto_generated'}
+                                                    style={[styles.headerInput, field.field_type === 'auto_generated' && { backgroundColor: '#f8fafc' }]}
+                                                    outlineColor="#e2e8f0"
+                                                    activeOutlineColor="#673ab7"
+                                                    theme={{ roundness: 8 }}
+                                                    right={field.field_type === 'auto_generated' ? (
+                                                        <TextInput.Icon icon="lock" color="#94a3b8" />
+                                                    ) : isDate ? (
+                                                        <TextInput.Icon icon="calendar" color="#94a3b8" />
+                                                    ) : (
+                                                        <TextInput.Icon icon="pencil-outline" color="#94a3b8" />
+                                                    )}
+                                                    render={isDate ? renderDateInput(compositeKey, valToUse, (val) => setDynamicData(p => ({ ...p, [compositeKey]: val }))) : undefined}
+                                                />
+                                            );
+                                        })()}
                                     </View>
                                 );
                             })}
@@ -575,38 +591,175 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                                             <View style={styles.headerFormGrid}>
                                                 <View style={styles.headerFieldSmall}>
                                                     <Text style={styles.headerLabel}>Company</Text>
-                                                    <Menu visible={menus.company} onDismiss={() => toggleMenu('company', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('company', true)}><View pointerEvents="none"><TextInput mode="outlined" value={classification.company_name || ''} editable={false} style={styles.headerInput} right={<TextInput.Icon icon="chevron-down" />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
-                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>{companies.map(c => <Menu.Item key={c.id} onPress={() => { toggleMenu('company', false); setClassification(p => ({ ...p, company_id: c.id, company_name: c.company_name || c.name })); }} title={c.company_name || c.name} />)}</ScrollView>
+                                                    <Menu
+                                                        visible={menus.company}
+                                                        onDismiss={() => toggleMenu('company', false)}
+                                                        anchor={
+                                                            <TouchableOpacity onPress={() => toggleMenu('company', true)}>
+                                                                <View pointerEvents="none">
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        value={classification.company_name || ''}
+                                                                        editable={false}
+                                                                        style={styles.headerInput}
+                                                                        placeholder="Select Company"
+                                                                        right={<TextInput.Icon icon="chevron-down" size={18} color="#64748b" />}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#673ab7"
+                                                                        theme={{ roundness: 8, colors: { text: '#1e293b' } }}
+                                                                    />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        }
+                                                        contentStyle={styles.menuContent}
+                                                    >
+                                                        <ScrollView style={{ maxHeight: 300, width: 260 }}>
+                                                            {companies.map(c => (
+                                                                <Menu.Item
+                                                                    key={c.id}
+                                                                    onPress={() => {
+                                                                        toggleMenu('company', false);
+                                                                        setClassification(p => ({ ...p, company_id: c.id, company_name: c.company_name || c.name }));
+                                                                    }}
+                                                                    title={c.company_name || c.name}
+                                                                    titleStyle={[styles.menuItemLabel, classification.company_id === c.id && styles.menuItemLabelSelected]}
+                                                                    style={[styles.menuItem, classification.company_id === c.id && styles.menuItemSelected]}
+                                                                />
+                                                            ))}
+                                                        </ScrollView>
                                                     </Menu>
                                                 </View>
 
                                                 <View style={styles.headerFieldSmall}>
                                                     <Text style={styles.headerLabel}>Country</Text>
-                                                    <Menu visible={menus.country} onDismiss={() => toggleMenu('country', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('country', true)}><View pointerEvents="none"><TextInput mode="outlined" value={classification.country_name || ''} editable={false} style={styles.headerInput} right={<TextInput.Icon icon="chevron-down" />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
-                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>{countries.map(c => <Menu.Item key={c.id} onPress={() => { toggleMenu('country', false); setClassification(p => ({ ...p, country_id: c.id, country_name: c.country_name || c.name, region: '' })); }} title={c.country_name || c.name} />)}</ScrollView>
-                                                    </Menu>
-                                                </View>
-                                                <View style={styles.headerFieldSmall}>
-                                                    <Text style={styles.headerLabel}>Region</Text>
-                                                    <Menu visible={menus.region} onDismiss={() => toggleMenu('region', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('region', true)} disabled={!classification.country_id || regionsLoading}><View pointerEvents="none"><TextInput mode="outlined" placeholder={classification.country_id ? (regionsLoading ? "Loading..." : "Select...") : "Select Country first"} value={classification.region || ''} editable={false} style={[styles.headerInput, (!classification.country_id || regionsLoading) && { backgroundColor: '#f8fafc' }]} right={<TextInput.Icon icon={regionsLoading ? "loading" : "chevron-down"} />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
-                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>
-                                                            {regions.length > 0 ? regions.map((r, i) => (
-                                                                <Menu.Item key={i} onPress={() => { toggleMenu('region', false); setClassification(p => ({ ...p, region: r.name })); }} title={r.name} />
-                                                            )) : <Menu.Item title="No regions found" disabled />}
+                                                    <Menu
+                                                        visible={menus.country}
+                                                        onDismiss={() => toggleMenu('country', false)}
+                                                        anchor={
+                                                            <TouchableOpacity onPress={() => toggleMenu('country', true)}>
+                                                                <View pointerEvents="none">
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        value={classification.country_name || ''}
+                                                                        editable={false}
+                                                                        style={styles.headerInput}
+                                                                        placeholder="Select Country"
+                                                                        right={<TextInput.Icon icon="chevron-down" size={18} color="#64748b" />}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#673ab7"
+                                                                        theme={{ roundness: 8, colors: { text: '#1e293b' } }}
+                                                                    />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        }
+                                                        contentStyle={styles.menuContent}
+                                                    >
+                                                        <ScrollView style={{ maxHeight: 300, width: 260 }}>
+                                                            {countries.map(c => (
+                                                                <Menu.Item
+                                                                    key={c.id}
+                                                                    onPress={() => {
+                                                                        toggleMenu('country', false);
+                                                                        setClassification(p => ({ ...p, country_id: c.id, country_name: c.country_name || c.name, region: '' }));
+                                                                    }}
+                                                                    title={c.country_name || c.name}
+                                                                    titleStyle={[styles.menuItemLabel, classification.country_id === c.id && styles.menuItemLabelSelected]}
+                                                                    style={[styles.menuItem, classification.country_id === c.id && styles.menuItemSelected]}
+                                                                />
+                                                            ))}
                                                         </ScrollView>
                                                     </Menu>
                                                 </View>
+
+                                                <View style={styles.headerFieldSmall}>
+                                                    <Text style={styles.headerLabel}>Region</Text>
+                                                    <Menu
+                                                        visible={menus.region}
+                                                        onDismiss={() => toggleMenu('region', false)}
+                                                        anchor={
+                                                            <TouchableOpacity
+                                                                onPress={() => toggleMenu('region', true)}
+                                                                disabled={!classification.country_id || regionsLoading}
+                                                            >
+                                                                <View pointerEvents="none">
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        placeholder={classification.country_id ? (regionsLoading ? "Loading..." : "Select Region") : "Select Country first"}
+                                                                        value={classification.region || ''}
+                                                                        editable={false}
+                                                                        style={[styles.headerInput, (!classification.country_id || regionsLoading) && { backgroundColor: '#f8fafc' }]}
+                                                                        right={<TextInput.Icon icon={regionsLoading ? "loading" : "chevron-down"} size={18} color="#64748b" />}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#673ab7"
+                                                                        theme={{ roundness: 8, colors: { text: '#1e293b' } }}
+                                                                    />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        }
+                                                        contentStyle={styles.menuContent}
+                                                    >
+                                                        <ScrollView style={{ maxHeight: 300, width: 260 }}>
+                                                            {regions.length > 0 ? regions.map((r, i) => (
+                                                                <Menu.Item
+                                                                    key={i}
+                                                                    onPress={() => {
+                                                                        toggleMenu('region', false);
+                                                                        setClassification(p => ({ ...p, region: r.name }));
+                                                                    }}
+                                                                    title={r.name}
+                                                                    titleStyle={[styles.menuItemLabel, classification.region === r.name && styles.menuItemLabelSelected]}
+                                                                    style={[styles.menuItem, classification.region === r.name && styles.menuItemSelected]}
+                                                                />
+                                                            )) : <Menu.Item title="No regions found" disabled titleStyle={styles.menuItemLabel} />}
+                                                        </ScrollView>
+                                                    </Menu>
+                                                </View>
+
                                                 <View style={styles.headerFieldSmall}>
                                                     <Text style={styles.headerLabel}>Usage</Text>
-                                                    <Menu visible={menus.premisesType} onDismiss={() => toggleMenu('premisesType', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('premisesType', true)}><View pointerEvents="none"><TextInput mode="outlined" value={classification.premises_type_name || ''} editable={false} style={styles.headerInput} right={<TextInput.Icon icon="chevron-down" />} outlineColor="#e2e8f0" activeOutlineColor="#3b82f6" theme={{ roundness: 8 }} /></View></TouchableOpacity>} contentStyle={styles.menuContent}>
-                                                        <ScrollView style={{ maxHeight: 250, width: 220 }}>{vehicleUsages.map(u => <Menu.Item key={u.id} onPress={() => { toggleMenu('premisesType', false); setClassification(p => ({ ...p, vehicle_usage_id: u.id, premises_type_name: u.name })); }} title={u.name} />)}</ScrollView>
+                                                    <Menu
+                                                        visible={menus.premisesType}
+                                                        onDismiss={() => toggleMenu('premisesType', false)}
+                                                        anchor={
+                                                            <TouchableOpacity onPress={() => toggleMenu('premisesType', true)}>
+                                                                <View pointerEvents="none">
+                                                                    <TextInput
+                                                                        mode="outlined"
+                                                                        value={classification.premises_type_name || ''}
+                                                                        editable={false}
+                                                                        style={styles.headerInput}
+                                                                        placeholder="Select Usage"
+                                                                        right={<TextInput.Icon icon="chevron-down" size={18} color="#64748b" />}
+                                                                        outlineColor="#e2e8f0"
+                                                                        activeOutlineColor="#673ab7"
+                                                                        theme={{ roundness: 8, colors: { text: '#1e293b' } }}
+                                                                    />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        }
+                                                        contentStyle={styles.menuContent}
+                                                    >
+                                                        <ScrollView style={{ maxHeight: 300, width: 264 }}>
+                                                            {vehicleUsages.map(u => (
+                                                                <Menu.Item
+                                                                    key={u.id}
+                                                                    onPress={() => {
+                                                                        toggleMenu('premisesType', false);
+                                                                        setClassification(p => ({ ...p, vehicle_usage_id: u.id, premises_type_name: u.name }));
+                                                                    }}
+                                                                    title={u.name}
+                                                                    titleStyle={[styles.menuItemLabel, classification.vehicle_usage_id === u.id && styles.menuItemLabelSelected]}
+                                                                    style={[styles.menuItem, classification.vehicle_usage_id === u.id && styles.menuItemSelected]}
+                                                                />
+                                                            ))}
+                                                        </ScrollView>
                                                     </Menu>
                                                 </View>
                                             </View>
 
                                             <View style={styles.statusSectionContainer}>
                                                 <Text style={styles.headerLabel}>Status</Text>
-                                                <Switch value={classification.status === 'Active'} onValueChange={(val) => setClassification(p => ({ ...p, status: val ? 'Active' : 'Inactive' }))} color="#10b981" />
+                                                <Switch value={classification.status === 'Active'} onValueChange={(val) => setClassification(p => ({ ...p, status: val ? 'Active' : 'Inactive' }))} color="rgb(103, 58, 183)" />
                                             </View>
                                         </View>
                                     </Card>
@@ -618,7 +771,7 @@ const VehicleWizardModal = ({ visible, onClose, onSave, initialData }) => {
                             <TouchableOpacity onPress={step === 1 ? onClose : handleBack} style={[styles.footerBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0' }]}>
                                 <Text style={[styles.footerBtnText, { color: '#64748b' }]}>{step === 1 ? 'Cancel' : 'Back'}</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={step < totalSteps ? handleNext : handleSaveForm} style={[styles.footerBtn, { backgroundColor: '#3b82f6' }]} disabled={loading || saving}>
+                            <TouchableOpacity onPress={step < totalSteps ? handleNext : handleSaveForm} style={[styles.footerBtn, { backgroundColor: '#673ab7' }]} disabled={loading || saving}>
                                 {loading || saving ? (
                                     <ActivityIndicator color="white" size="small" />
                                 ) : (
@@ -648,30 +801,28 @@ const styles = StyleSheet.create({
     stepperContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 10, paddingVertical: 20 },
     stepItem: { alignItems: 'center', width: 90, marginHorizontal: 0 },
     stepCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-    stepCircleActive: { backgroundColor: '#3b82f6' },
+    stepCircleActive: { backgroundColor: '#673ab7' },
     stepNumber: { fontSize: 16, fontWeight: '700', color: '#64748b' },
     stepNumberActive: { color: '#fff' },
     stepLabel: { fontSize: 11, color: '#64748b', fontWeight: '600', textAlign: 'center' },
     stepLine: { width: 30, height: 2, backgroundColor: '#e2e8f0', marginTop: -25 },
-    stepLineActive: { backgroundColor: '#3b82f6' },
+    stepLineActive: { backgroundColor: '#673ab7' },
     stepOneContainer: { flex: 1 },
     sectionCard: { marginHorizontal: 20, marginTop: 10, borderRadius: 8, elevation: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
-    sectionHeader: { backgroundColor: '#7c3aed', paddingVertical: 10, paddingHorizontal: 16 },
+    sectionHeader: { backgroundColor: '#673ab7', paddingVertical: 10, paddingHorizontal: 16 },
     sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
     headerForm: { padding: 20 },
     headerFormGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -8 },
     headerFieldSmall: { width: '25%', paddingHorizontal: 8, marginBottom: 16 },
     headerLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 8 },
-    headerInput: { height: 40, backgroundColor: '#fff' },
+    headerInput: { height: 40, backgroundColor: '#fff', fontSize: 13 },
     modalFooter: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', backgroundColor: '#fff' },
     footerBtn: { borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24, minWidth: 120, alignItems: 'center', justifyContent: 'center' },
     footerBtnText: { fontSize: 14, fontWeight: '700' },
-    menuContent: { backgroundColor: '#fff', borderRadius: 8, elevation: 4 },
-    moduleChip: { backgroundColor: '#eff6ff', height: 28 },
     moduleChipText: { fontSize: 12, fontWeight: '700', color: '#1d4ed8' },
     stepContent: { padding: 24 },
     dynamicCard: { backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
-    sectionHeaderCard: { backgroundColor: 'rgb(108, 122, 224)', paddingVertical: 16, paddingHorizontal: 24 },
+    sectionHeaderCard: { backgroundColor: '#673ab7', paddingVertical: 16, paddingHorizontal: 24 },
     sectionHeaderTitle: { fontWeight: '700', color: '#ffffff', fontSize: 18 },
     cardBody: { padding: 24 },
     fieldsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
@@ -686,8 +837,38 @@ const styles = StyleSheet.create({
     cancelBtnText: { color: '#64748b', fontWeight: '700' },
     nextBtn: { backgroundColor: '#3b82f6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
     nextBtnText: { color: 'white', fontWeight: '700' },
-    menuContent: { backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-    menuItemLabel: { fontSize: 13, color: '#334155' }
+    menuContent: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        minWidth: 200,
+        paddingVertical: 6,
+        marginTop: 45, // Push menu below the input and label
+        // Modern shadow
+        shadowColor: '#1e293b',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.12,
+        shadowRadius: 24,
+        elevation: 8,
+    },
+    menuItem: {
+        height: 44,
+        paddingHorizontal: 8,
+        justifyContent: 'center',
+    },
+    menuItemSelected: {
+        backgroundColor: '#f5f3ff', // Light purple tint for selected
+    },
+    menuItemLabel: {
+        fontSize: 13,
+        color: '#475569',
+        fontWeight: '500',
+    },
+    menuItemLabelSelected: {
+        color: '#673ab7',
+        fontWeight: '700',
+    }
 });
 
 export default VehicleWizardModal;

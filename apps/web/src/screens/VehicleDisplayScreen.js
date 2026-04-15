@@ -210,7 +210,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
     };
 
     // Helper function to fetch selected fields based on conditions
-    const fetchSelectedFields = async (moduleId, countryId, propertyTypeId, premisesTypeId, areaId, vehicleUsageId, region) => {
+    const fetchSelectedFields = async (moduleId, countryId, propertyTypeId, premisesTypeId, areaId, vehicleUsageId, region, targetCompanyId) => {
         try {
             const params = new URLSearchParams({
                 module_id: moduleId
@@ -222,6 +222,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
             if (areaId) params.append('area_id', areaId);
             if (vehicleUsageId) params.append('vehicle_usage_id', vehicleUsageId);
             if (region && region !== 'All') params.append('region', region);
+            if (targetCompanyId) params.append('target_company_id', targetCompanyId);
 
             const res = await api.get(`company-modules/selected-fields?${params.toString()}`);
             if (res.data.success) {
@@ -262,14 +263,13 @@ const VehicleDisplayScreen = ({ navigation }) => {
         }
     };
 
-    const fetchModuleStructure = async (module, mode = 'view') => {
+    const fetchModuleStructure = async (module, mode = 'view', suppressModal = false, targetCompanyId = null) => {
         try {
             setDetailsLoading(true);
             setSelectedModule(module);
-            setDetailsVisible(true);
+            if (!suppressModal) setDetailsVisible(true);
             setModuleDetails([]);
             setIsAdding(mode === 'add');
-            setFormValues({});
             setCurrentStep(0); // Reset step
 
             // 1. Get Sections
@@ -405,6 +405,19 @@ const VehicleDisplayScreen = ({ navigation }) => {
         try {
             setFormValues(item);
 
+            // Find vehicle module for editing too
+            let vehicleModule = modules.find(m =>
+                (m.module_name || m.name || '').toLowerCase().includes('vehicle')
+            );
+            if (!vehicleModule) vehicleModule = modules.find(m => m.module_id === 2);
+
+            if (vehicleModule) {
+                await fetchModuleStructure(vehicleModule, 'add', true);
+            } else {
+                setIsAdding(true);
+                setVehicleWizardVisible(true);
+            }
+
             // Fetch full details if needed
             try {
                 const fullRes = await api.get(`vehicles/${item.vehicle_id}`);
@@ -429,7 +442,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
         if (!itemToDelete) return;
 
         try {
-            const res = await api.delete(`vehicles/${itemToDelete.vehicle_id}`);
+            const res = await api.delete(`vehicles/${itemToDelete.vehicle_id}?company_id=${itemToDelete.company_id}`);
 
             if (res.data.success) {
                 setAlertConfig({
@@ -463,10 +476,28 @@ const VehicleDisplayScreen = ({ navigation }) => {
 
     const fetchVehicleSnapshot = async (item) => {
         try {
-            const vehicleModule = modules.find(m => (m.module_name || m.name || '').toLowerCase() === 'vehicle');
-            if (vehicleModule) {
-                await fetchModuleStructure(vehicleModule, 'view');
+            setDetailsLoading(true);
+
+            // Find vehicle module more robustly
+            // 1. Try exact module_id 6 (Standard Vehicle Module)
+            let vehicleModule = modules.find(m => m.module_id === 6);
+
+            // 2. Fallback to name-based search
+            if (!vehicleModule) {
+                vehicleModule = modules.find(m =>
+                    (m.module_name || m.name || '').toLowerCase().includes('vehicle')
+                );
             }
+
+            if (vehicleModule) {
+                await fetchModuleStructure(vehicleModule, 'view', false, item.company_id);
+            } else {
+                // Critical Fix: Ensure adding state is false for view mode fallback
+                setIsAdding(false);
+                setDetailsVisible(true);
+                console.warn('No specific vehicle module structure found for this user/company');
+            }
+
             setFormValues(item);
 
             try {
@@ -566,6 +597,91 @@ const VehicleDisplayScreen = ({ navigation }) => {
         return name.includes(searchStr);
     });
 
+    const renderPrimaryDetails = () => {
+        const vehicleName = formValues.vehicle_name || '-';
+        const company = formValues.company_name || '-';
+        const country = formValues.country_name || formValues.country || '-';
+        const region = formValues.region || '-';
+        const usage = formValues.vehicle_usage_name || formValues.vehicle_usage || '-';
+        const vehicleType = formValues.vehicle_type_name || formValues.type || '-';
+        const status = formValues.status || 'ACTIVE';
+
+        const statusColor = status === 'ACTIVE' ? '#22c55e' : '#ef4444';
+        const statusBg = status === 'ACTIVE' ? '#f0fdf4' : '#fef2f2';
+
+        const infoTiles = [
+            { icon: 'office-building-outline', label: 'Company', value: company, color: '#6366f1', bg: '#eef2ff' },
+            { icon: 'earth', label: 'Country', value: country, color: '#0ea5e9', bg: '#f0f9ff' },
+            { icon: 'map-marker-outline', label: 'Region / State', value: region, color: '#f59e0b', bg: '#fffbeb' },
+            { icon: 'car-clock', label: 'Usage', value: usage, color: '#10b981', bg: '#f0fdf4' },
+            { icon: 'car-multiple', label: 'Vehicle Type', value: vehicleType, color: '#f97316', bg: '#fff7ed' },
+        ];
+
+        return (
+            <Surface style={[styles.sectionCard, { marginBottom: 20 }]}>
+                {/* Purple header with vehicle name + status badge */}
+                <View style={{
+                    backgroundColor: '#673ab7',
+                    paddingHorizontal: 24, paddingVertical: 18,
+                    flexDirection: 'row', alignItems: 'center', gap: 16,
+                }}>
+                    <View style={{
+                        width: 52, height: 52, borderRadius: 14,
+                        backgroundColor: 'rgba(255,255,255,0.18)',
+                        justifyContent: 'center', alignItems: 'center',
+                    }}>
+                        <MaterialCommunityIcons name="car" size={28} color="white" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 20, fontWeight: '800', color: 'white', letterSpacing: 0.3 }}>
+                            {vehicleName}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                            1. Primary Information
+                        </Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 14, paddingVertical: 6, backgroundColor: statusBg, borderRadius: 20 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: statusColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            {status}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* 5 info tiles — match the table columns */}
+                <View style={{ padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                    {infoTiles.filter(tile => tile.value && tile.value !== '-').map((tile, i) => (
+                        <View key={i} style={{
+                            flex: 1,
+                            minWidth: isMobile ? '100%' : 'calc(33% - 7px)',
+                            maxWidth: isMobile ? '100%' : 'calc(33% - 7px)',
+                            backgroundColor: tile.bg,
+                            borderRadius: 12, padding: 14,
+                            borderWidth: 1, borderColor: tile.color + '28',
+                            flexDirection: 'row', alignItems: 'center', gap: 12,
+                        }}>
+                            <View style={{
+                                width: 38, height: 38, borderRadius: 10,
+                                backgroundColor: tile.color + '1A',
+                                justifyContent: 'center', alignItems: 'center',
+                            }}>
+                                <MaterialCommunityIcons name={tile.icon} size={20} color={tile.color} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
+                                    {tile.label}
+                                </Text>
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1e293b' }} numberOfLines={1}>
+                                    {tile.value}
+                                </Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            </Surface>
+        );
+    };
+
+
     const renderSection = (sec, index) => {
         // Find matching company module config to filter fields
         const matchingConfig = modules.find(m =>
@@ -578,12 +694,22 @@ const VehicleDisplayScreen = ({ navigation }) => {
         // In add/edit mode: show all active fields
         // In view mode: only show fields that have data
         const fieldsToRender = (sec.fields || []).filter(f => {
+            const rawKey = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
+            const compositeKey = `sec${sec.id}_${rawKey}`;
+
+            const getValue = (k) => {
+                if (formValues[k] !== undefined && formValues[k] !== null && formValues[k] !== '') return formValues[k];
+                if (formValues[k + '_'] !== undefined && formValues[k + '_'] !== null && formValues[k + '_'] !== '') return formValues[k + '_'];
+                return undefined;
+            };
+
+            const val = getValue(compositeKey) || getValue(rawKey);
+
             if (isAdding) {
                 // Show all active fields when adding/editing
                 return f.is_active !== 0;
             } else {
                 // Only show fields with non-empty data in view mode
-                const val = formValues[f.field_key];
                 const hasData = val !== undefined && val !== null && val !== '' && val !== 'null' && val !== '-';
                 return hasData;
             }
@@ -594,7 +720,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
         return (
             <Surface key={sec.id} style={styles.sectionCard}>
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>{index + 1}. {sec.name}</Text>
+                    <Text style={styles.sectionTitle}>{index}. {sec.name}</Text>
                 </View>
                 <View style={styles.formContainer}>
                     {isAdding ? (
@@ -607,8 +733,17 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                 const isTextarea = field.field_type === 'textarea';
                                 const isFile = field.field_type === 'file' || (field.label || '').toLowerCase().includes('document') || (field.label || '').toLowerCase().includes('file');
                                 const isImage = field.field_type === 'image';
-                                const fieldKey = field.field_key || field.field_name || field.name || field.field_label || field.label || `field_${field.id}`;
-                                const val = formValues[fieldKey];
+                                const rawKey = field.field_key || field.field_name || field.name || field.field_label || field.label || `field_${field.id}`;
+                                const compositeKey = `sec${sec.id}_${rawKey}`;
+                                const fieldKey = compositeKey; // Use namespaced key for consistency
+
+                                const getValue = (k) => {
+                                    if (formValues[k] !== undefined && formValues[k] !== null && formValues[k] !== '') return formValues[k];
+                                    if (formValues[k + '_'] !== undefined && formValues[k + '_'] !== null && formValues[k + '_'] !== '') return formValues[k + '_'];
+                                    return undefined;
+                                };
+
+                                const val = getValue(compositeKey) || getValue(rawKey) || '';
                                 const fieldWidth = (isMobile || isTextarea || isFile || isImage) ? '100%' : '48%';
 
                                 if (isBool) {
@@ -1053,6 +1188,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                             placeholder={field.placeholder || `Enter ${field.label}`}
                                             value={val || ''}
                                             onChangeText={(text) => onInputChange(fieldKey, text)}
+                                            autoComplete="off"
                                             style={styles.textInput}
                                             outlineColor="#e2e8f0"
                                             activeOutlineColor="#3b82f6"
@@ -1069,15 +1205,23 @@ const VehicleDisplayScreen = ({ navigation }) => {
                         )
                     ) : (
                         // VIEW MODE TABLE
-                        <View style={{ width: '100%' }}>
+                        <View style={{ width: '100%', padding: 16 }}>
                             <DataTable style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-                                <DataTable.Header style={{ backgroundColor: '#f8fafc', height: 48, borderBottomWidth: 2, borderBottomColor: '#e2e8f0' }}>
+                                <DataTable.Header style={{ backgroundColor: '#f8fafc', height: 48, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
                                     <DataTable.Title style={{ flex: 1.2 }} textStyle={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 0.5 }}>FIELD NAME</DataTable.Title>
                                     <DataTable.Title style={{ flex: 2 }} textStyle={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 0.5 }}>DATA</DataTable.Title>
                                 </DataTable.Header>
                                 {fieldsToRender.map((f, i) => {
-                                    const fieldKey = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
-                                    const val = formValues[fieldKey];
+                                    const rawKey = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
+                                    const compositeKey = `sec${sec.id}_${rawKey}`;
+
+                                    const getValue = (k) => {
+                                        if (formValues[k] !== undefined && formValues[k] !== null && formValues[k] !== '') return formValues[k];
+                                        if (formValues[k + '_'] !== undefined && formValues[k + '_'] !== null && formValues[k + '_'] !== '') return formValues[k + '_'];
+                                        return undefined;
+                                    };
+
+                                    const val = getValue(compositeKey) || getValue(rawKey);
                                     const isFile = f.field_type === 'file' || f.field_type === 'pdf' || f.field_type === 'file_pdf' ||
                                         (f.label || '').toLowerCase().includes('upload') ||
                                         (f.label || '').toLowerCase().includes('document') ||
@@ -1094,7 +1238,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         { key: 'reminder', label: 'Reminder' }
                                     ];
 
-                                    const populatedMetadata = isFile ? metadata.filter(meta => formValues[`${fieldKey}_${meta.key}`]) : [];
+                                    const populatedMetadata = isFile ? metadata.filter(meta => formValues[`${compositeKey}_${meta.key}`]) : [];
 
                                     return (
                                         <React.Fragment key={f.id}>
@@ -1107,7 +1251,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                 }}
                                             >
                                                 <DataTable.Cell style={{ flex: 1.2, paddingLeft: 16 }}>
-                                                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#475569' }}>{f.label}</Text>
+                                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155' }}>{f.label}</Text>
                                                 </DataTable.Cell>
                                                 <DataTable.Cell style={{ flex: 2, paddingRight: 16 }}>
                                                     {isFile ? (
@@ -1170,7 +1314,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                         <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b' }}>{f.label} {meta.label}</Text>
                                                     </DataTable.Cell>
                                                     <DataTable.Cell style={{ flex: 2, paddingRight: 16 }}>
-                                                        <Text style={{ fontSize: 13, color: '#1e293b' }}>{formValues[`${fieldKey}_${meta.key}`]}</Text>
+                                                        <Text style={{ fontSize: 13, color: '#1e293b' }}>{formValues[`${compositeKey}_${meta.key}`] || formValues[`${rawKey}_${meta.key}`]}</Text>
                                                     </DataTable.Cell>
                                                 </DataTable.Row>
                                             ))}
@@ -1209,30 +1353,41 @@ const VehicleDisplayScreen = ({ navigation }) => {
                             </Text>
                         </View>
 
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <TouchableOpacity onPress={() => fetchVehicleSnapshot(item)} style={styles.mobileActionBtn}>
-                                <MaterialCommunityIcons name="eye-outline" size={18} color="#f59e0b" />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleEditVehicle(item)} style={styles.mobileActionBtn}>
-                                <MaterialCommunityIcons name="pencil-outline" size={18} color="#6366f1" />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleDeleteVehicle(item)} style={styles.mobileActionBtn}>
-                                <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />
-                            </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                            <IconButton
+                                icon="eye-outline"
+                                size={22}
+                                iconColor="rgb(239, 149, 10)"
+                                onPress={() => fetchVehicleSnapshot(item)}
+                                style={{ margin: 0 }}
+                            />
+                            <IconButton
+                                icon="pencil-outline"
+                                size={22}
+                                iconColor="#673ab7"
+                                onPress={() => handleEditVehicle(item)}
+                                style={{ margin: 0 }}
+                            />
+                            <IconButton
+                                icon="trash-can-outline"
+                                size={22}
+                                iconColor="#eb2f96"
+                                onPress={() => handleDeleteVehicle(item)}
+                                style={{ margin: 0 }}
+                            />
                         </View>
                     </View>
 
                     <View style={styles.mobileMainInfo}>
-                        <View style={[styles.iconBox, { width: 44, height: 44, borderRadius: 12 }]}>
+                        <View style={styles.iconBox}>
                             <MaterialCommunityIcons
                                 name={(item.vehicle_type_name || item.type || '').toUpperCase() === 'VAN' ? 'truck-delivery' : 'car'}
-                                size={24}
-                                color="#3b82f6"
+                                size={20}
+                                color="#ff9800"
                             />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.moduleName} numberOfLines={1}>{item.vehicle_name}</Text>
-                            <Text style={styles.subText}>{item.license_plate || 'N/A'}</Text>
                         </View>
                     </View>
                 </View>
@@ -1273,9 +1428,9 @@ const VehicleDisplayScreen = ({ navigation }) => {
                     </View>
                 </View>
 
-                <View style={[styles.controlsHeader, isMobile && { flexDirection: 'column', gap: 12 }]}>
-                    <View style={[styles.searchWrapper, isMobile && { width: '100%', minHeight: 48, flexGrow: 0, flexShrink: 0 }]}>
-                        <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={{ marginRight: 10 }} />
+                <View style={[styles.controlsHeader, isMobile && { flexDirection: 'column' }]}>
+                    <View style={[styles.searchWrapper, isMobile && { width: '100%', maxWidth: '100%' }]}>
+                        <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={styles.searchIcon} />
                         <RNTextInput
                             placeholder="Search vehicles..."
                             value={search}
@@ -1284,20 +1439,20 @@ const VehicleDisplayScreen = ({ navigation }) => {
                             placeholderTextColor="#9ca3af"
                         />
                     </View>
-                    <Button
-                        mode="contained"
-                        onPress={handleAddVehicle}
+
+                    <TouchableOpacity
                         style={[styles.addButton, isMobile && { width: '100%' }]}
-                        contentStyle={{ height: 48, paddingHorizontal: 16 }}
-                        icon="plus"
+                        onPress={handleAddVehicle}
+                        activeOpacity={0.8}
                     >
-                        Add New Vehicle
-                    </Button>
+                        <MaterialCommunityIcons name="plus" size={20} color="white" style={{ marginRight: 8 }} />
+                        <Text style={styles.addButtonText}>Add New Vehicle</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {loading ? (
                     <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color="#3b82f6" />
+                        <ActivityIndicator size="large" color="#673ab7" />
                     </View>
                 ) : (
                     <>
@@ -1329,81 +1484,61 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                     </DataTable.Header>
                                     <ScrollView style={{ maxHeight: 'calc(100vh - 420px)' }}>
                                         {vehicles.map((item, index) => (
-                                            <View key={item.vehicle_id} style={styles.rowWrapper}>
-                                                <DataTable.Row style={[styles.row, { backgroundColor: index % 2 === 0 ? 'white' : '#f2f6ff' }]}>
-                                                    <DataTable.Cell style={{ flex: 0.8, paddingLeft: 16 }}>
-                                                        {(() => {
-                                                            const pTypeName = item.property_type_name || propertyTypes.find(p => p.id == item.property_type_id)?.name || '';
-                                                            const vTypeName = item.vehicle_type_name || premisesTypes.find(p => p.id == item.premises_type_id)?.type_name || item.type || '';
-                                                            const vTypeUpper = vTypeName.toUpperCase();
-
-                                                            return (
-                                                                <View>
-                                                                    <View
-                                                                        style={[
-                                                                            styles.typeChip,
-                                                                            {
-                                                                                backgroundColor: vTypeUpper === 'VAN' || vTypeUpper.includes('TRUCK') ? '#f59e0b' :
-                                                                                    vTypeUpper === 'SUV' ? '#10b981' :
-                                                                                        vTypeUpper === 'SEDAN' || vTypeUpper === 'CAR' ? '#6366f1' : '#94a3b8'
-                                                                            }
-                                                                        ]}
-                                                                    >
-                                                                        <Text style={[styles.typeChipText, { color: '#ffffff' }]}>
-                                                                            {vTypeName || '-'}
-                                                                        </Text>
-                                                                    </View>
-                                                                    <Text style={[styles.subText, { fontSize: 10, marginTop: 4, textAlign: 'center' }]}>
-                                                                        {pTypeName || '-'}
-                                                                    </Text>
-                                                                </View>
-                                                            );
-                                                        })()}
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 2.2 }}>
-                                                        <View style={styles.nameCell}>
+                                            <DataTable.Row key={item.vehicle_id} style={styles.row}>
+                                                <DataTable.Cell style={{ flex: 0.8, paddingLeft: 16 }}>
+                                                    {(() => {
+                                                        const vTypeName = item.vehicle_type_name || premisesTypes.find(p => p.id == item.premises_type_id)?.type_name || item.type || '';
+                                                        return (
                                                             <View style={styles.iconBox}>
                                                                 <MaterialCommunityIcons
                                                                     name={(item.vehicle_type_name || item.type || '').toUpperCase() === 'VAN' ? 'truck-delivery' : 'car'}
                                                                     size={18}
-                                                                    color="#3b82f6"
+                                                                    color="#ff9800"
                                                                 />
                                                             </View>
-                                                            <View style={{ justifyContent: 'center' }}>
-                                                                <Text style={styles.moduleName} numberOfLines={1}>{item.vehicle_name}</Text>
-                                                                <Text style={styles.subText} numberOfLines={1}>{item.license_plate || 'N/A'}</Text>
-                                                            </View>
-                                                        </View>
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.5 }}>
-                                                        <Text style={styles.cellText} numberOfLines={1}>{item.company_name || '-'}</Text>
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.2 }}>
-                                                        <View>
-                                                            <Text style={styles.cellText}>{item.country || '-'}</Text>
-                                                        </View>
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.2 }}>
-                                                        <Text style={styles.cellText}>{item.region || '-'}</Text>
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 1.2 }}>
-                                                        <Text style={styles.cellText}>{item.vehicle_usage_name || item.vehicle_usage || (item.area_id == 1 ? 'Commercial' : item.area_id == 2 ? 'Personal' : '-')}</Text>
-                                                    </DataTable.Cell>
-                                                    <DataTable.Cell style={{ flex: 0.8, justifyContent: 'center' }}>
-                                                        <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center' }}>
-                                                            <TouchableOpacity onPress={() => fetchVehicleSnapshot(item)}>
-                                                                <MaterialCommunityIcons name="eye-outline" size={20} color="rgb(239, 149, 10)" />
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => handleEditVehicle(item)}>
-                                                                <MaterialCommunityIcons name="pencil-outline" size={20} color="rgb(99, 102, 241)" />
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => handleDeleteVehicle(item)}>
-                                                                <MaterialCommunityIcons name="trash-can-outline" size={20} color="rgb(152, 37, 152)" />
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    </DataTable.Cell>
-                                                </DataTable.Row>
-                                            </View>
+                                                        );
+                                                    })()}
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 2.2 }}>
+                                                    <View style={{ justifyContent: 'center' }}>
+                                                        <Text style={styles.moduleName} numberOfLines={1}>{item.vehicle_name}</Text>
+                                                    </View>
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 1.5 }}>
+                                                    <Text style={styles.cellText} numberOfLines={1}>{item.company_name || '-'}</Text>
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 1.2 }}>
+                                                    <Text style={styles.cellText}>{item.country || '-'}</Text>
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 1.2 }}>
+                                                    <Text style={styles.cellText}>{item.region || '-'}</Text>
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 1.2 }}>
+                                                    <Text style={styles.cellText}>{item.vehicle_usage_name || item.vehicle_usage || (item.area_id == 1 ? 'Commercial' : item.area_id == 2 ? 'Personal' : '-')}</Text>
+                                                </DataTable.Cell>
+                                                <DataTable.Cell style={{ flex: 0.8, justifyContent: 'center' }}>
+                                                    <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+                                                        <IconButton
+                                                            icon="eye-outline"
+                                                            size={20}
+                                                            iconColor="rgb(239, 149, 10)"
+                                                            onPress={() => fetchVehicleSnapshot(item)}
+                                                        />
+                                                        <IconButton
+                                                            icon="pencil-outline"
+                                                            size={20}
+                                                            iconColor="#673ab7"
+                                                            onPress={() => handleEditVehicle(item)}
+                                                        />
+                                                        <IconButton
+                                                            icon="trash-can-outline"
+                                                            size={20}
+                                                            iconColor="#eb2f96"
+                                                            onPress={() => handleDeleteVehicle(item)}
+                                                        />
+                                                    </View>
+                                                </DataTable.Cell>
+                                            </DataTable.Row>
                                         ))}
                                         {vehicles.length === 0 && (
                                             <View style={styles.emptyState}>
@@ -1416,7 +1551,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                                     mode="text"
                                                     onPress={handleAddVehicle}
                                                     style={{ marginTop: 10 }}
-                                                    labelStyle={{ color: '#3b82f6', fontWeight: 'bold' }}
+                                                    labelStyle={{ color: '#673ab7', fontWeight: 'bold' }}
                                                 >
                                                     Add New Vehicle
                                                 </Button>
@@ -1424,7 +1559,65 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                         )}
                                     </ScrollView>
 
-                                    <View style={styles.paginationContainer}>
+                                    <View style={[styles.paginationContainer, isMobile && { justifyContent: 'center' }]}>
+                                        {!isMobile && (
+                                            <Text style={styles.paginationInfo}>
+                                                Showing <Text style={styles.paginationBold}>{totalItems === 0 ? 0 : (page * itemsPerPage) + 1}</Text> to <Text style={styles.paginationBold}>{Math.min((page + 1) * itemsPerPage, totalItems)}</Text> of <Text style={styles.paginationBold}>{totalItems}</Text>
+                                            </Text>
+                                        )}
+                                        <View style={styles.paginationButtons}>
+                                            <TouchableOpacity
+                                                style={[styles.pageBtn, page === 0 && styles.pageBtnDisabled]}
+                                                onPress={() => setPage(0)}
+                                                disabled={page === 0}
+                                            >
+                                                <Text style={[styles.pageBtnText, page === 0 && styles.pageBtnTextDisabled]}>«</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.pageBtn, page === 0 && styles.pageBtnDisabled]}
+                                                onPress={() => setPage(p => Math.max(0, p - 1))}
+                                                disabled={page === 0}
+                                            >
+                                                <Text style={[styles.pageBtnText, page === 0 && styles.pageBtnTextDisabled]}>‹</Text>
+                                            </TouchableOpacity>
+
+                                            {(() => {
+                                                const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+                                                // Show only a few page numbers
+                                                let startPage = Math.max(0, page - 2);
+                                                let endPage = Math.min(totalPages - 1, startPage + 4);
+                                                if (endPage - startPage < 4) startPage = Math.max(0, endPage - 4);
+
+                                                const pages = [];
+                                                for (let i = startPage; i <= endPage; i++) {
+                                                    pages.push(
+                                                        <TouchableOpacity
+                                                            key={i}
+                                                            style={[styles.pageBtn, page === i && styles.pageBtnActive]}
+                                                            onPress={() => setPage(i)}
+                                                        >
+                                                            <Text style={[styles.pageBtnText, page === i && styles.pageBtnActiveText]}>{i + 1}</Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                }
+                                                return pages;
+                                            })()}
+
+                                            <TouchableOpacity
+                                                style={[styles.pageBtn, page >= Math.ceil(totalItems / itemsPerPage) - 1 && styles.pageBtnDisabled]}
+                                                onPress={() => setPage(p => Math.min(Math.ceil(totalItems / itemsPerPage) - 1, p + 1))}
+                                                disabled={page >= Math.ceil(totalItems / itemsPerPage) - 1}
+                                            >
+                                                <Text style={[styles.pageBtnText, page >= Math.ceil(totalItems / itemsPerPage) - 1 && styles.pageBtnTextDisabled]}>›</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.pageBtn, page >= Math.ceil(totalItems / itemsPerPage) - 1 && styles.pageBtnDisabled]}
+                                                onPress={() => setPage(Math.max(0, Math.ceil(totalItems / itemsPerPage) - 1))}
+                                                disabled={page >= Math.ceil(totalItems / itemsPerPage) - 1}
+                                            >
+                                                <Text style={[styles.pageBtnText, page >= Math.ceil(totalItems / itemsPerPage) - 1 && styles.pageBtnTextDisabled]}>»</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                 </DataTable>
                             </Card>
@@ -1450,7 +1643,7 @@ const VehicleDisplayScreen = ({ navigation }) => {
                         onClose={() => setAddModalVisible(false)}
                         onSave={handleSaveModule}
                     />
-                    <Modal visible={detailsVisible} onDismiss={() => setDetailsVisible(false)} contentContainerStyle={styles.modalContent}>
+                    <Modal visible={detailsVisible && !vehicleWizardVisible} onDismiss={() => setDetailsVisible(false)} contentContainerStyle={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <View>
                                 <Text style={styles.modalTitle}>{isAdding ? (formValues.vehicle_id ? 'Edit Vehicle' : 'Add New Vehicle') : 'Vehicle Details'}</Text>
@@ -1615,28 +1808,74 @@ const VehicleDisplayScreen = ({ navigation }) => {
                                 </View>
                             ) : (
                                 <View style={{ padding: 20 }}>
-                                    {/* Dynamic Sections */}
+
+
+                                    {/* Primary and Dynamic Sections */}
                                     {(() => {
-                                        let renderedCount = 0;
-                                        return moduleDetails.map((sec) => {
+                                        let renderedCount = 1;
+                                        const sectionsToRender = [...moduleDetails];
+
+                                        // Add synthetic Primary Information section at the top
+                                        if (!isAdding && formValues.vehicle_id) {
+                                            const primaryFields = [
+                                                { id: 'p1', label: 'Vehicle Name', field_key: 'vehicle_name' },
+                                                { id: 'p3', label: 'Company', field_key: 'company_name' },
+                                                { id: 'p4', label: 'Manufacturer', field_key: 'manufacturer' },
+                                                { id: 'p5', label: 'Model', field_key: 'model' },
+                                                { id: 'p6', label: 'Variant', field_key: 'variant' },
+                                                { id: 'p7', label: 'Model Year', field_key: 'model_year' },
+                                                { id: 'p8', label: 'Country', field_key: 'country_name' },
+                                                { id: 'p9', label: 'Status', field_key: 'status' }
+                                            ];
+
+                                            sectionsToRender.unshift({
+                                                id: 'primary',
+                                                name: 'Primary Information',
+                                                fields: primaryFields
+                                            });
+                                        }
+
+                                        return sectionsToRender.map((sec) => {
                                             const fieldsToRender = (sec.fields || []).filter(f => {
-                                                if (isAdding) return f.is_active !== 0;
+                                                // Always hide inactive fields
+                                                if (f.is_active === 0) return false;
+
+                                                if (isAdding) return true;
                                                 const fk = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
-                                                return formValues[fk] !== undefined && formValues[fk] !== '';
+                                                const compositeK = `sec${sec.id}_${fk}`;
+                                                const val = formValues[compositeK] || formValues[fk] || formValues[compositeK + '_'] || formValues[fk + '_'] || formValues[fk.toLowerCase()];
+                                                return val !== undefined && val !== null && val !== '' && val !== 'null' && val !== '-';
                                             });
                                             if (fieldsToRender.length === 0) return null;
-                                            renderedCount++;
-                                            return renderSection(sec, renderedCount);
+                                            const displayIndex = renderedCount++;
+                                            return renderSection(sec, displayIndex);
                                         });
                                     })()}
 
-                                    {!detailsLoading && moduleDetails.every(sec => {
-                                        const fieldsToRender = (sec.fields || []).filter(f => {
-                                            if (isAdding) return f.is_active !== 0;
-                                            return formValues[f.field_key] !== undefined && formValues[f.field_key] !== '';
+                                    {!detailsLoading && (() => {
+                                        // Replication of the logic used in the renderer to determine if anything was actually shown
+                                        const sectionsToCheck = [...moduleDetails];
+                                        if (!isAdding && formValues.vehicle_id) {
+                                            sectionsToCheck.unshift({
+                                                id: 'primary', name: 'Primary Information', fields: [
+                                                    { label: 'Name', field_key: 'vehicle_name' }
+                                                ]
+                                            });
+                                        }
+
+                                        const hasItems = sectionsToCheck.some(sec => {
+                                            const fieldsToRender = (sec.fields || []).filter(f => {
+                                                if (f.is_active === 0) return false;
+                                                if (isAdding) return true;
+                                                const fk = f.field_key || f.field_name || f.name || f.field_label || f.label || `field_${f.id}`;
+                                                const compositeK = `sec${sec.id}_${fk}`;
+                                                const val = formValues[compositeK] || formValues[fk] || formValues[compositeK + '_'] || formValues[fk + '_'] || formValues[fk.toLowerCase()];
+                                                return val !== undefined && val !== null && val !== '' && val !== 'null' && val !== '-';
+                                            });
+                                            return fieldsToRender.length > 0;
                                         });
-                                        return fieldsToRender.length === 0;
-                                    }) && (
+                                        return !hasItems;
+                                    })() && (
                                             <View style={{ padding: 20, alignItems: 'center' }}>
                                                 <MaterialCommunityIcons name="alert-circle-outline" size={32} color="#94a3b8" />
                                                 <Text style={{ marginTop: 8, color: '#94a3b8', textAlign: 'center' }}>
@@ -1648,16 +1887,13 @@ const VehicleDisplayScreen = ({ navigation }) => {
                             )}
                         </ScrollView>
 
-                        <View style={styles.modalFooter}>
-                            <Button mode="outlined" onPress={() => setDetailsVisible(false)} style={styles.secondaryBtn}>
-                                Close
-                            </Button>
-                            {isAdding && (
+                        {isAdding && (
+                            <View style={styles.modalFooter}>
                                 <Button mode="contained" onPress={submitVehicleForm} style={styles.submitBtn} loading={loading}>
                                     {formValues.vehicle_id ? 'Update Vehicle' : 'Save Vehicle'}
                                 </Button>
-                            )}
-                        </View>
+                            </View>
+                        )}
                     </Modal>
 
                     <ConfirmDialog
@@ -1687,43 +1923,128 @@ const VehicleDisplayScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f8fafc', padding: 24 },
     pageHeader: { marginBottom: 24 },
-    title: { fontSize: 24, fontWeight: 'bold', color: '#1e293b' },
+    title: { fontSize: 24, fontWeight: 'bold', color: '#673ab7' },
     subtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
     controlsHeader: { flexDirection: 'row', marginBottom: 24, gap: 16 },
-    searchWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 24, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 16, height: 48 },
-    addButton: { borderRadius: 8, justifyContent: 'center', backgroundColor: '#3b82f6' },
+    searchWrapper: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'white',
+        borderRadius: 100,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        paddingHorizontal: 20,
+        height: 48,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    addButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#673ab7',
+        paddingHorizontal: 24,
+        height: 48,
+        borderRadius: 100,
+        justifyContent: 'center',
+        shadowColor: '#673ab7',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    addButtonText: { color: 'white', fontWeight: '600', fontSize: 14 },
     searchIcon: { marginRight: 10 },
     searchInput: { flex: 1, fontSize: 14, color: '#1e293b', outlineStyle: 'none', height: '100%' },
-    tableCard: { backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20, overflow: 'hidden' },
-    tableHeader: {
-        backgroundColor: '#6c7ae0',
-        borderBottomWidth: 0,
-        height: 52,
-        paddingHorizontal: 16,
-        borderTopLeftRadius: 10,
-        borderTopRightRadius: 10,
+    tableCard: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        elevation: 6,
+        borderWidth: 1,
+        borderColor: '#e8e0f0',
+        overflow: 'hidden',
+        shadowColor: '#673ab7',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
     },
-    headerText: { fontSize: 11, fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: 0.5 },
-    rowWrapper: { borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
-    row: { height: 72, borderBottomWidth: 0, paddingHorizontal: 16, paddingVertical: 16 },
+    tableHeader: {
+        backgroundColor: '#673ab7',
+        borderBottomWidth: 1,
+        borderBottomColor: '#5e35a1',
+        height: 52,
+    },
+    headerText: { fontSize: 12, fontWeight: '700', color: '#ffffff', textTransform: 'uppercase' },
+    rowWrapper: { borderBottomColor: '#e2e8f0', borderBottomWidth: 1, borderStyle: 'dotted' },
+    row: { minHeight: 60, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', borderStyle: 'dotted', paddingVertical: 10 },
     nameCell: { flexDirection: 'row', alignItems: 'center' },
-    iconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#dbeafe' },
-    moduleName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
-    subText: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
-    cellText: { fontSize: 13, color: '#334155', fontWeight: '500' },
+    iconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: '#fff3e0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    moduleName: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+    subText: { fontSize: 11, color: '#64748b', marginTop: 2 },
+    cellText: { fontSize: 14, color: '#475569' },
     typeChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, alignSelf: 'flex-start' },
     typeChipText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     actionBtn: { flexDirection: 'row', alignItems: 'center' },
-    actionBtnText: { fontSize: 12, color: '#3b82f6', fontWeight: '600' },
+    actionBtnText: { fontSize: 12, color: '#673ab7', fontWeight: '600' },
 
     // Custom Pagination
-    // Custom Pagination
-    paginationContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingRight: 24, paddingBottom: 24, borderTopWidth: 1, borderTopColor: '#f8fafc' },
-    paginationText: { fontSize: 13, color: '#64748b' },
-    pageBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
-    pageBtnActive: { backgroundColor: '#4f46e5' },
-    pageBtnDisabled: { opacity: 0.5 },
-    pageBtnTextActive: { color: 'white', fontWeight: 'bold', fontSize: 13 },
+    paginationContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: '#ffffff',
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+    },
+    paginationInfo: {
+        fontSize: 14,
+        color: '#64748b',
+    },
+    paginationBold: {
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    paginationButtons: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    pageBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: '#f1f5f9',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pageBtnActive: {
+        backgroundColor: '#673ab7',
+    },
+    pageBtnDisabled: {
+        opacity: 0.4,
+    },
+    pageBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#475569',
+    },
+    pageBtnActiveText: {
+        color: '#ffffff',
+    },
+    pageBtnTextDisabled: {
+        color: '#94a3b8',
+    },
 
     centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 60 },
@@ -1772,7 +2093,7 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     sectionHeader: {
-        backgroundColor: 'rgb(108, 122, 224)',
+        backgroundColor: '#673ab7',
         paddingVertical: 14,
         paddingHorizontal: 24,
         borderBottomWidth: 0,

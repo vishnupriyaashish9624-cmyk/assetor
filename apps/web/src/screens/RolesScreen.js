@@ -85,8 +85,8 @@ const RolesScreen = ({ navigation }) => {
     const renderItem = ({ item }) => (
         <View style={styles.row}>
             <View style={styles.nameCell}>
-                <View style={styles.roleIconBox}>
-                    <MaterialCommunityIcons name="shield-account" size={20} color="#3b82f6" />
+                <View style={[styles.roleIconBox, { backgroundColor: '#f3eaff' }]}>
+                    <MaterialCommunityIcons name="shield-account" size={20} color="#673ab7" />
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text style={styles.roleName}>{item.role_name}</Text>
@@ -128,7 +128,7 @@ const RolesScreen = ({ navigation }) => {
                         setModalVisible(true);
                     }}
                 >
-                    <MaterialCommunityIcons name="pencil-outline" size={18} color="#3b82f6" />
+                    <MaterialCommunityIcons name="pencil-outline" size={18} color="#673ab7" />
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.actionButton}
@@ -183,7 +183,7 @@ const RolesScreen = ({ navigation }) => {
 
                 {loading ? (
                     <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color="#3b82f6" />
+                        <ActivityIndicator size="large" color="#673ab7" />
                     </View>
                 ) : (
                     <>
@@ -257,13 +257,13 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     addBtn: {
-        backgroundColor: '#3b82f6',
+        backgroundColor: '#673ab7',
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderRadius: 12,
-        shadowColor: '#3b82f6',
+        shadowColor: '#673ab7',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,

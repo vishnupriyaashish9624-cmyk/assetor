@@ -13,7 +13,7 @@ const ConfirmDialog = ({ visible, onDismiss, onConfirm, title, message, confirmT
                         <MaterialCommunityIcons
                             name={danger ? "alert-outline" : "help-circle-outline"}
                             size={40}
-                            color={danger ? "#ef4444" : "#3b82f6"}
+                            color={danger ? "rgb(239, 149, 10)" : "#3b82f6"}
                         />
                     </View>
 
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     iconCircleDanger: {
-        backgroundColor: '#fee2e2',
+        backgroundColor: 'rgb(255, 248, 225)', // Soft amber background
     },
     title: {
         fontSize: 22,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#3b82f6',
     },
     confirmButtonDanger: {
-        backgroundColor: '#ef4444',
+        backgroundColor: 'rgb(239, 149, 10)',
     },
     confirmButtonText: {
         color: 'white',

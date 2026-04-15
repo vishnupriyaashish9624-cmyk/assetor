@@ -8,13 +8,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5032/api';
 
 const MODULES = [
-    { name: 'Dashboard', key: 'dashboard' },
-    { name: 'Premises', key: 'assetdisplay' },
-    { name: 'Vehicles', key: 'vehicledisplay' },
-    { name: 'Employees', key: 'employees' },
-    { name: 'Maintenance', key: 'maintenance' },
-    { name: 'Reports', key: 'reports' },
-    { name: 'Module Configuration', key: 'moduleshome' }
+    { name: 'Dashboard', key: 'dashboard', desc: 'Overview & basic analytics' },
+    { name: 'Premises', key: 'assetdisplay', desc: 'Facility and location data' },
+    { name: 'Vehicles', key: 'vehicledisplay', desc: 'Fleet and logistics' },
+    { name: 'Employees', key: 'employees', desc: 'Staff and workforce' },
+    { name: 'Maintenance', key: 'maintenance', desc: 'Service and repairs' },
+    { name: 'Reports', key: 'reports', desc: 'Business insights' },
+    { name: 'Module Configuration', key: 'moduleshome', desc: 'System settings' }
 ];
 
 const RoleFormModal = ({ visible, onClose, onSave, role = null, readOnly = false }) => {
@@ -156,30 +156,31 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null, readOnly = false
         const perm = formData.permissions.find(p => p.module_name === module.key) || {};
         const isAllSelected = perm.can_view && perm.can_create && perm.can_edit && perm.can_delete && perm.can_approve;
 
+        const permFields = ['can_view', 'can_create', 'can_edit', 'can_delete', 'can_approve'];
+
         return (
             <View key={module.key} style={styles.permRow}>
-                {/* 1. Module Name Column */}
+                {/* 1. Module Name and Description */}
                 <View style={styles.colModule}>
-                    <View style={styles.moduleBadge}>
-                        <Text style={styles.moduleBadgeText}>{module.name}</Text>
-                    </View>
+                    <Text style={styles.moduleNameText}>{module.name}</Text>
+                    <Text style={styles.moduleDescText}>{module.desc}</Text>
                 </View>
 
                 {/* 2. Checkbox Columns */}
-                {['can_view', 'can_create', 'can_edit', 'can_delete', 'can_approve'].map(field => (
-                    <TouchableOpacity
-                        key={field}
-                        style={styles.colPerm}
-                        onPress={() => handlePermissionChange(module.key, field, !perm[field])}
-                    >
-                        <View style={[styles.checkbox, perm[field] && styles.checkboxActive]}>
-                            {perm[field] && <MaterialCommunityIcons name="check" size={12} color="white" />}
-                        </View>
-                        <Text style={styles.permLabel}>
-                            {field.split('_')[1].charAt(0).toUpperCase() + field.split('_')[1].slice(1)}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
+                <View style={styles.checkboxWrapper}>
+                    {permFields.map(field => (
+                        <TouchableOpacity
+                            key={field}
+                            style={styles.colPerm}
+                            onPress={() => handlePermissionChange(module.key, field, !perm[field])}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.circularCheckbox, perm[field] && styles.circularCheckboxActive]}>
+                                {perm[field] && <MaterialCommunityIcons name="check" size={12} color="white" />}
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
 
                 {/* 3. Action Column */}
                 <View style={styles.colAction}>
@@ -188,9 +189,7 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null, readOnly = false
                             onPress={() => handleSelectAll(module.key, !isAllSelected)}
                             style={styles.selectAllBtn}
                         >
-                            <Text style={[styles.selectAllText, isAllSelected && styles.selectAllActive]}>
-                                {isAllSelected ? 'Deselect All' : 'Select All'}
-                            </Text>
+                            <Text style={styles.selectAllText}>SELECT ALL</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -213,61 +212,71 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null, readOnly = false
                     </View>
                 ) : (
                     <View style={styles.content}>
-                        {/* Header Area */}
-                        <View style={styles.header}>
-                            <Text style={styles.headerTitle}>Role Permissions</Text>
-                            <View style={styles.headerDivider} />
-                        </View>
-
                         {/* Basic Info Row */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Basic Information</Text>
+                            <View style={styles.sectionHeaderRow}>
+                                <View style={styles.verticalBar} />
+                                <Text style={styles.sectionTitle}>Basic Information</Text>
+                            </View>
+
                             {error && (
                                 <View style={styles.errorBox}>
                                     <Text style={styles.errorText}>{error}</Text>
                                 </View>
                             )}
                             <View style={styles.basicInfoRow}>
-                                <View style={[styles.inputGroup, { flex: 1.5 }]}>
-                                    <Text style={styles.label}>Role Name *</Text>
+                                <View style={[styles.inputGroup, { flex: 1 }]}>
+                                    <Text style={styles.label}>ROLE NAME</Text>
                                     <TextInput
                                         style={[styles.input, readOnly && styles.readOnlyInput]}
                                         value={formData.role_name}
                                         onChangeText={(val) => setFormData({ ...formData, role_name: val })}
-                                        placeholder="e.g. Finance Manager"
+                                        placeholder="e.g. Regional Manager"
                                         editable={!readOnly}
                                     />
                                 </View>
-                                <View style={[styles.inputGroup, { flex: 2 }]}>
-                                    <Text style={styles.label}>Description</Text>
+                                <View style={[styles.inputGroup, { flex: 1.5 }]}>
+                                    <Text style={styles.label}>DESCRIPTION</Text>
                                     <TextInput
                                         style={[styles.input, readOnly && styles.readOnlyInput]}
                                         value={formData.description}
                                         onChangeText={(val) => setFormData({ ...formData, description: val })}
-                                        placeholder="What can this role do?"
+                                        placeholder="Briefly describe the purpose of this role..."
                                         editable={!readOnly}
                                     />
                                 </View>
-                                <View style={[styles.inputGroup, { flex: 1 }]}>
-                                    <Text style={styles.label}>Active Status</Text>
-                                    <View style={[styles.statusToggle, readOnly && styles.readOnlyInput]}>
-                                        <Switch
-                                            value={formData.is_active}
-                                            onValueChange={(val) => setFormData({ ...formData, is_active: val })}
-                                            trackColor={{ false: "#e2e8f0", true: "#d1fae5" }}
-                                            thumbColor={formData.is_active ? "#10b981" : "#f4f3f4"}
-                                            disabled={readOnly}
-                                        />
-                                    </View>
+                                <View style={[styles.inputGroup, { flex: 0.4, alignItems: 'center' }]}>
+                                    <Text style={styles.label}>ACTIVE STATUS</Text>
+                                    <Switch
+                                        value={formData.is_active}
+                                        onValueChange={(val) => setFormData({ ...formData, is_active: val })}
+                                        trackColor={{ false: "#e2e8f0", true: "#673ab7" }}
+                                        thumbColor={formData.is_active ? "#ffffff" : "#f4f3f4"}
+                                        disabled={readOnly}
+                                    />
                                 </View>
                             </View>
                         </View>
 
                         {/* Module Permissions Area */}
                         <View style={styles.section}>
-                            <View style={styles.sectionHeader}>
+                            <View style={styles.sectionHeaderRow}>
+                                <View style={styles.verticalBar} />
                                 <Text style={styles.sectionTitle}>Module Permissions</Text>
                             </View>
+
+                            <View style={styles.tableHeaderBar}>
+                                <Text style={[styles.tableHeaderText, { width: 220 }]}>MODULE NAME</Text>
+                                <View style={styles.headerCheckboxes}>
+                                    <Text style={styles.tableHeaderText}>VIEW</Text>
+                                    <Text style={styles.tableHeaderText}>CREATE</Text>
+                                    <Text style={styles.tableHeaderText}>EDIT</Text>
+                                    <Text style={styles.tableHeaderText}>DELETE</Text>
+                                    <Text style={styles.tableHeaderText}>APPROVE</Text>
+                                </View>
+                                <Text style={[styles.tableHeaderText, { width: 100, textAlign: 'right' }]}>SETTINGS</Text>
+                            </View>
+
                             <ScrollView showsVerticalScrollIndicator={false} style={styles.permScroll}>
                                 {MODULES.map(renderPermissionRow)}
                             </ScrollView>
@@ -327,197 +336,193 @@ const RoleFormModal = ({ visible, onClose, onSave, role = null, readOnly = false
 const styles = StyleSheet.create({
     container: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 12,
+        borderRadius: 16,
         padding: 0,
         margin: 0,
     },
     content: {
         padding: 24,
     },
-    header: {
-        marginBottom: 16,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#0f172a',
-        marginBottom: 8,
-    },
-    headerDivider: {
-        height: 1,
-        backgroundColor: '#f1f5f9',
-        width: '100%',
-    },
     section: {
+        marginBottom: 24,
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: 16,
     },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
+    verticalBar: {
+        width: 4,
+        height: 20,
+        backgroundColor: '#673ab7',
+        borderRadius: 2,
+        marginRight: 10,
     },
     sectionTitle: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '700',
-        color: '#475569',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        color: '#1e293b',
     },
     basicInfoRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginTop: 8,
+        alignItems: 'center',
         gap: 20,
+        paddingHorizontal: 8,
     },
     inputGroup: {
-        flex: 1,
+        // flex assigned in JSX
     },
     label: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#475569',
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#64748b',
         marginBottom: 8,
+        letterSpacing: 0.5,
     },
     input: {
-        backgroundColor: '#f8fafc',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        borderRadius: 8,
-        padding: 10,
-        height: 44, // Explicit height for better alignment
+        backgroundColor: '#f1f5f9',
+        borderWidth: 0,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        height: 48,
         fontSize: 14,
         color: '#1e293b',
     },
     readOnlyInput: {
-        backgroundColor: '#f1f5f9',
-        borderColor: '#e2e8f0',
+        backgroundColor: '#e2e8f0',
         color: '#64748b',
     },
-    statusToggle: {
+    tableHeaderBar: {
         flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        height: 44, // Match input height
-        backgroundColor: '#f8fafc',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
+        backgroundColor: '#f1f5f9',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        marginBottom: 8,
     },
-    statusLabel: {
-        fontSize: 13,
+    tableHeaderText: {
+        fontSize: 11,
         fontWeight: '700',
+        color: '#64748b',
+        letterSpacing: 0.5,
+    },
+    headerCheckboxes: {
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
     },
     permScroll: {
-        maxHeight: 280,
+        maxHeight: 400,
     },
     permRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 16,
+        paddingVertical: 16,
+        paddingHorizontal: 20,
         marginBottom: 8,
         backgroundColor: '#FFFFFF',
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1,
         borderColor: '#f1f5f9',
-        elevation: 1,
+        // card style
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
     },
     colModule: {
-        flex: 1.8,
+        width: 220,
     },
-    colPerm: {
+    moduleNameText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    moduleDescText: {
+        fontSize: 11,
+        color: '#64748b',
+        marginTop: 2,
+    },
+    checkboxWrapper: {
         flex: 1,
         flexDirection: 'row',
+        justifyContent: 'space-around',
         alignItems: 'center',
     },
-    colAction: {
-        flex: 1.2,
-        alignItems: 'flex-end',
-    },
-    moduleBadge: {
-        backgroundColor: '#EEF2F7',
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 6,
-        alignSelf: 'flex-start',
-    },
-    moduleBadgeText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#334155',
-    },
-    checkbox: {
-        width: 18,
-        height: 18,
-        borderRadius: 4,
-        borderWidth: 1.5,
-        borderColor: '#2563EB',
+    colPerm: {
+        width: 40,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 8,
     },
-    checkboxActive: {
-        backgroundColor: '#2563EB',
+    circularCheckbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 2,
+        borderColor: '#e2e8f0',
+        backgroundColor: '#f8fafc',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    permLabel: {
-        fontSize: 13,
-        color: '#475569',
-        fontWeight: '500',
+    circularCheckboxActive: {
+        backgroundColor: '#673ab7',
+        borderColor: '#673ab7',
+    },
+    colAction: {
+        width: 100,
+        alignItems: 'flex-end',
     },
     selectAllBtn: {
-        paddingVertical: 4,
-        paddingHorizontal: 8,
+        paddingVertical: 6,
     },
     selectAllText: {
-        fontSize: 13,
-        color: '#2563EB',
-        fontWeight: '500',
-    },
-    selectAllActive: {
-        color: '#64748b',
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#673ab7',
+        letterSpacing: 0.5,
     },
     footer: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        gap: 12,
-        paddingVertical: 16,
-        paddingHorizontal: 24,
+        alignItems: 'center',
+        gap: 24,
+        paddingVertical: 20,
+        paddingHorizontal: 32,
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
     },
     cancelBtn: {
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
+        padding: 8,
     },
     cancelLabel: {
         fontSize: 14,
         color: '#64748b',
-        fontWeight: '600',
-    },
-    saveBtn: {
-        backgroundColor: '#2563EB',
-        paddingVertical: 12,
-        paddingHorizontal: 32,
-        borderRadius: 8,
-    },
-    saveLabel: {
-        fontSize: 14,
-        color: '#fff',
         fontWeight: '700',
     },
-    disabledBtn: {
-        backgroundColor: '#93c5fd',
+    saveBtn: {
+        backgroundColor: '#673ab7',
+        paddingVertical: 14,
+        paddingHorizontal: 40,
+        borderRadius: 14,
+        shadowColor: '#673ab7',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    saveLabel: {
+        fontSize: 15,
+        color: '#fff',
+        fontWeight: '800',
     },
     errorBox: {
         backgroundColor: '#fef2f2',
         padding: 12,
         borderRadius: 8,
-        marginBottom: 20,
+        marginBottom: 16,
         borderWidth: 1,
         borderColor: '#fecaca',
     },
@@ -554,7 +559,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#3b82f6',
+        backgroundColor: '#673ab7',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
