@@ -52,6 +52,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
         admin_email: '',
         admin_password: '',
         auto_generate_password: true,
+        create_admin_account: true,
         send_email: true,
         status: 'ACTIVE'
     };
@@ -71,6 +72,7 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                 max_employees: company.max_employees || 10,
                 max_assets: company.max_assets || 20,
                 enabled_modules: Array.isArray(company.enabled_modules) ? company.enabled_modules : JSON.parse(company.enabled_modules || '["dashboard", "assets"]'),
+                create_admin_account: (company.admin_email || company.linked_admin_email) ? true : false,
                 status: company.status || 'ACTIVE'
             });
             fetchExistingDocs();
@@ -278,10 +280,28 @@ const CompanyFormModal = ({ visible, onClose, onSave, clientId, clientName, comp
                         <Text style={styles.sectionTitle}>Administrator Account</Text>
                         <Text style={styles.infoBoxText}>Create the primary administrative user for this company. They will have full access to manage assets and employees.</Text>
 
-                        {renderInput('Admin Name*', 'admin_name', 'e.g. John Smith')}
-                        {renderInput('Admin Email*', 'admin_email', 'admin@' + (formData.name?.toLowerCase().replace(/\s+/g, '') || 'company') + '.com', 'email-address')}
+                        <View style={styles.settingRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.settingLabel}>Need Admin credential creation?</Text>
+                                <Text style={styles.settingDesc}>Enable to create an admin account for this company</Text>
+                            </View>
+                            <Switch
+                                value={formData.create_admin_account}
+                                onValueChange={(val) => setFormData({ ...formData, create_admin_account: val })}
+                                trackColor={{ false: "#e2e8f0", true: "#bfdbfe" }}
+                                thumbColor={formData.create_admin_account ? "#3b82f6" : "#f1f5f9"}
+                                style={Platform.OS === 'web' ? { width: 44, height: 24 } : {}}
+                            />
+                        </View>
 
-                        {!company && (
+                        {formData.create_admin_account && (
+                            <>
+                                {renderInput('Admin Name*', 'admin_name', 'e.g. John Smith')}
+                                {renderInput('Admin Email*', 'admin_email', 'admin@' + (formData.name?.toLowerCase().replace(/\s+/g, '') || 'company') + '.com', 'email-address')}
+                            </>
+                        )}
+
+                        {!company && formData.create_admin_account && (
                             <View style={styles.securitySection}>
                                 <View style={styles.securityHeader}>
                                     <View style={styles.securityIconBadge}>
